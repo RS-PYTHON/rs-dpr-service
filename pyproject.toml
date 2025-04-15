@@ -1,0 +1,20 @@
+[project]
+name = "rs-dpr-service"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Ovidiu",email = "opadeanu@c-s.ro"}
+]
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "pygeoapi (>=0.20.0,<0.21.0)",
+    "uvicorn (>=0.34.1,<0.35.0)",
+    "fastapi (>=0.115.12,<0.116.0)",
+    "geoalchemy2 (>=0.17.1,<0.18.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
