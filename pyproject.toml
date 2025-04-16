@@ -1,0 +1,112 @@
+[project]
+name = "rs-dpr-service"
+version = "0.1.0"
+
+[tool.poetry]
+name = "rs-dpr-service"
+version = "0.0.0"
+description = ""
+license = "Apache-2.0"
+authors = ["ESA under contract with Airbus and CS <ops_coprs@airbus.com>"]
+readme = "README.md"
+keywords = ["stac", "copernicus", "sentinel", "processing"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Framework :: FastAPI",
+    "Framework :: OpenTelemetry",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Image Processing"
+]
+
+packages = [
+
+    { include = "rs_dpr_service", from = "."},
+]
+
+[tool.poetry.dependencies]
+python = "^3.11"
+pygeoapi = ">=0.20.0,<0.21.0"
+uvicorn = ">=0.34.1,<0.35.0"
+fastapi = ">=0.115.12,<0.116.0"
+geoalchemy2 = ">=0.17.1,<0.18.0"
+opentelemetry-api = "^1.32.0"
+opentelemetry-sdk = "^1.32.0"
+opentelemetry-instrumentation = "^0.53b0"
+opentelemetry-instrumentation-fastapi = "^0.53b0"
+opentelemetry-exporter-otlp = "^1.32.0"
+opentelemetry-distro = "^0.53b0"
+SQLAlchemy = "^2.0.37"
+jsonpatch = "^1.33"
+dask-gateway = "2024.1.0"
+# same dask version as in the cluster i.e. same as eopf
+dask = {extras = ["distributed"], version = "2024.5.2"}
+openapi-core = "^0.19.5"
+bandit = "^1.8.3"
+mypy = "^1.15.0"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+python = "^3.11"
+pre-commit = ">=3.7.1,<5.0.0"
+pylint = "^3.3.2"
+pytest = "^8.3.3"
+pytest-asyncio = ">=0.24,<0.25"
+pytest-cov = ">=5,<7"
+pytest-docker = "^3.1.0"
+pytest-error-for-skips = "^2.0.2"
+pytest-httpx = ">=0.32,<0.35"
+pytest-mock = "^3.14.0"
+responses = "^0.25.3"
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+[tool.black]
+line-length = 120
+
+[tool.pytest.ini_options]
+markers = [
+    "unit", # mark a test as unittest
+    "integration", # mark a test as integration test
+]
+asyncio_mode = "auto"
+
+[tool.mypy]
+warn_redundant_casts = true
+# Force analyze of partially annotate function signatures
+check_untyped_defs = true
+ignore_missing_imports = true
+
+[tool.flake8]
+max-line-length = 120
+# per-file-ignores = [
+#     '__init__.py:F401',
+# ]
+
+[tool.pylint]
+max-line-length = 120
+disable = [
+    "logging-fstring-interpolation",  # Logging f-string interpolation
+    "R0917",  # Too many positional arguments
+    "E0401", # import-error
+    "R0902", # too-many-instance-attributes
+    "R0913"  # too-many-arguments
+]
+ignore-paths = '^docs/.*$'
+
+# Only add notes as comments that are not checked for errors.
+notes = ["XXX"]  # No errors on TODO and FIXME
+
+min-similarity-lines = 10  # Minimum lines number of a similarity
+
+[tool.bandit.assert_used]
+skips = ['*/test_*.py']

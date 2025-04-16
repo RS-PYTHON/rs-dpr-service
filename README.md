@@ -1,2 +1,2 @@
 # rs-dpr-service
-Service that allows the launch of the dpr processor in the dask cluster
+A service responsible for triggering the DPR processor execution within the Dask cluster.
