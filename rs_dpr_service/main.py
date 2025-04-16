@@ -12,18 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
-import os
-import yaml
-from fastapi import FastAPI, APIRouter
-from string import Template
-from pygeoapi.process.manager.postgresql import PostgreSQLManager
-from pygeoapi.api import API
-from time import sleep
+"""rs dpr service main module."""
+
 import logging
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.exc import SQLAlchemyError
+import os
+import pathlib
 from contextlib import asynccontextmanager
+from string import Template
+from time import sleep
+
+import yaml
+from fastapi import APIRouter, FastAPI
+from pygeoapi.api import API
+from pygeoapi.process.manager.postgresql import PostgreSQLManager
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base
 
 # Construct a sqlalchemy base class for declarative class definitions.
 Base = declarative_base()
@@ -33,6 +36,7 @@ router = APIRouter(tags=["DPR service"])
 
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
+
 
 def get_config_path() -> pathlib.Path:
     """Return the pygeoapi configuration path and set the PYGEOAPI_CONFIG env var accordingly."""
@@ -61,6 +65,7 @@ def init_pygeoapi() -> API:
 
 api = init_pygeoapi()
 
+
 # Filelock to be added ?
 def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     """Initialize the PostgreSQL database connection and sets up required table and ENUM type.
@@ -86,7 +91,7 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     manager_def = api.config["manager"]
     if not manager_def or not isinstance(manager_def, dict) or not isinstance(manager_def["connection"], dict):
         message = "Error reading the manager definition for pygeoapi PostgreSQL Manager"
-        #logger.error(message)
+        # logger.error(message)
         raise RuntimeError(message)
     connection = manager_def["connection"]
 
@@ -115,9 +120,11 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     # Initialize PostgreSQLManager with the manager configuration
     return PostgreSQLManager(manager_def)
 
+
 @asynccontextmanager
-async def app_lifespan(fastapi_app: FastAPI): 
+async def app_lifespan(fastapi_app: FastAPI):
     yield
+
 
 # DPR_SERVICE FRONT LOGIC HERE
 
