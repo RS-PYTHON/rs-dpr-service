@@ -44,10 +44,14 @@ manager:
   output_dir: /tmp
 
 resources:
-  staging:
+  s1_l0:
     type: process
     processor:
-      name: Staging
+      name: S1L0_processor
+  s3_l0:
+    type: process
+    processor:
+      name: S3L0_processor
 
 openapi:
   path: # not used
