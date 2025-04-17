@@ -32,9 +32,6 @@ from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from rs_server_common.utils.logging import Logging
-
-logger = Logging.default(__name__)
 
 FROM_PYTEST = False
 
