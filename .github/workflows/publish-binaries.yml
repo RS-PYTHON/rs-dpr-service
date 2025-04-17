@@ -184,7 +184,7 @@ jobs:
         uses: ./.github/actions/publish-docker
         with:
           dockerfile: ./.github/Dockerfile
-          build_context_path: ./build_context_path          
+          build_context_path: ./build_context_path
           version_name: ${{ needs.dpr-service-whl.outputs.version_name }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
