@@ -22,7 +22,6 @@ from string import Template
 from time import sleep
 
 import yaml
-from rs_dpr_service import opentelemetry
 from fastapi import APIRouter, FastAPI
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
@@ -30,6 +29,8 @@ from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.postgresql import get_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import declarative_base
+
+from rs_dpr_service import opentelemetry
 
 # Construct a sqlalchemy base class for declarative class definitions.
 Base = declarative_base()
