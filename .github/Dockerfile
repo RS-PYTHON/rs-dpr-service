@@ -25,9 +25,10 @@ RUN pip install --no-cache-dir --upgrade pip
 # We copy them into a /tmp directory that we can clean at the end.
 RUN mkdir -p /tmp/whl
 ADD ./*.whl /tmp/whl
-RUN mkdir -p /tmp/rs-dpr-service/whl
-ADD ./*.whl /tmp/rs-dpr-service/whl
-RUN ls /tmp/rs-dpr-service/whl/
+RUN mkdir -p /rs-dpr-service/whl
+RUN chmod a+r /rs-dpr-service/whl
+ADD ./*.whl /rs-dpr-service/whl
+RUN ls /rs-dpr-service/whl/
 
 # Install the wheel packages in the right order (dependencies first).
 # This also installs all the sub-dependencies e.g. fastapi etc ...
