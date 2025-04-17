@@ -27,6 +27,7 @@ RUN mkdir -p /tmp/whl
 ADD ./*.whl /tmp/whl
 RUN mkdir -p /tmp/rs-dpr-service/whl
 ADD ./*.whl /tmp/rs-dpr-service/whl
+RUN ls /tmp/rs-dpr-service/whl/
 
 # Install the wheel packages in the right order (dependencies first).
 # This also installs all the sub-dependencies e.g. fastapi etc ...
