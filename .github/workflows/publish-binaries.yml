@@ -184,9 +184,8 @@ jobs:
         uses: ./.github/actions/publish-docker
         with:
           dockerfile: ./.github/Dockerfile
-          build_context_path: ./build_context_path
-          image_suffix: -adgs
-          version_name: ${{ needs.services-adgs-whl.outputs.version_name }}
+          build_context_path: ./build_context_path          
+          version_name: ${{ needs.dpr-service-whl.outputs.version_name }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
