@@ -160,7 +160,7 @@ jobs:
   dpr-service-img:
     if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    name: "'dask-gateway-server/eopf/local'Docker image"
+    name: "DPR service docker image"
     needs: [set-env, dpr-service-whl]
     permissions: write-all
     outputs:
