@@ -22,6 +22,7 @@ from string import Template
 from time import sleep
 
 import yaml
+from rs_dpr_service import opentelemetry
 from fastapi import APIRouter, FastAPI
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
@@ -135,6 +136,6 @@ async def app_lifespan(fastapi_app: FastAPI):
 
 app.include_router(router)
 app.router.lifespan_context = app_lifespan
-
+opentelemetry.init_traces(app, "rs.dpr.service")
 # Mount pygeoapi endpoints
 app.mount(path="/oapi", app=api)

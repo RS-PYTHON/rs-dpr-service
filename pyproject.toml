@@ -47,6 +47,8 @@ dask = {extras = ["distributed"], version = "2024.5.2"}
 openapi-core = "^0.19.5"
 bandit = "^1.8.3"
 mypy = "^1.15.0"
+opentelemetry-instrumentation-aws-lambda = "^0.53b1"
+opentelemetry-instrumentation-httpx = "^0.53b1"
 
 [tool.poetry.group.dev]
 optional = true
