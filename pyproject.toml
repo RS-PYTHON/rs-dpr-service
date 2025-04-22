@@ -50,7 +50,7 @@ mypy = "^1.15.0"
 opentelemetry-instrumentation-aws-lambda = "^0.53b1"
 opentelemetry-instrumentation-httpx = "^0.53b1"
 pylint = "^3.3.6"
-flake8 = "^7.2.0"
+flake8-pyproject = "^1.2.3"
 
 [tool.poetry.group.dev]
 optional = true

@@ -753,6 +753,23 @@ pycodestyle = ">=2.13.0,<2.14.0"
 pyflakes = ">=3.3.0,<3.4.0"
 
 [[package]]
+name = "flake8-pyproject"
+version = "1.2.3"
+description = "Flake8 plug-in loading the configuration from pyproject.toml"
+optional = false
+python-versions = ">= 3.6"
+groups = ["main"]
+files = [
+    {file = "flake8_pyproject-1.2.3-py3-none-any.whl", hash = "sha256:6249fe53545205af5e76837644dc80b4c10037e73a0e5db87ff562d75fb5bd4a"},
+]
+
+[package.dependencies]
+Flake8 = ">=5"
+
+[package.extras]
+dev = ["pyTest", "pyTest-cov"]
+
+[[package]]
 name = "flask"
 version = "3.1.0"
 description = "A simple framework for building complex web applications."
@@ -4054,4 +4071,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "ba52d89303432bc6f685f1f155277f7836df85b21e80897f2c840bfdce6b7784"
+content-hash = "7fb3f6bef2980f0315d824ecba0089d1d3953f053f20fc4e8d86e7e6d02a999a"
