@@ -37,9 +37,7 @@ RUN cd /tmp/whl && pip install --no-cache-dir rs_dpr_service-*.whl
 FROM ghcr.io/rs-python/python:3.11.7-slim-bookworm
 
 # Copy the wheel to store it in the final image from the builder stage
-RUN mkdir -p /rs-dpr-service/whl
 COPY --from=builder /rs-dpr-service/whl /rs-dpr-service/whl
-RUN ls /rs-dpr-service/whl
 
 # Install dependencies necessary for execution (e.g. libpq) not compilation (gcc)
 RUN \
