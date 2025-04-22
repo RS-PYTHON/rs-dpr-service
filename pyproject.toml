@@ -50,6 +50,7 @@ mypy = "^1.15.0"
 opentelemetry-instrumentation-aws-lambda = "^0.53b1"
 opentelemetry-instrumentation-httpx = "^0.53b1"
 pylint = "^3.3.6"
+flake8 = "^7.2.0"
 
 [tool.poetry.group.dev]
 optional = true
@@ -110,3 +111,9 @@ ignore-paths = '^docs/.*$'
 notes = ["XXX"]  # No errors on TODO and FIXME
 
 min-similarity-lines = 10  # Minimum lines number of a similarity
+
+[tool.bandit.assert_used]
+skips = ['*/*.py']
+
+[tool.bandit]
+skips = ['B603', 'B607', 'B404']
