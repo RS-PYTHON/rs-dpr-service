@@ -38,6 +38,7 @@ FROM ghcr.io/rs-python/python:3.11.7-slim-bookworm
 
 # Copy the wheel to store it in the final image from the builder stage
 COPY --from=builder /rs-dpr-service/whl /rs-dpr-service/whl
+RUN chmod a+r /rs-dpr-service
 
 # Install dependencies necessary for execution (e.g. libpq) not compilation (gcc)
 RUN \
