@@ -24,7 +24,6 @@ from time import sleep
 import yaml
 from fastapi import APIRouter, FastAPI
 from pygeoapi.api import API
-from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.postgresql import get_engine
 from sqlalchemy.exc import SQLAlchemyError
@@ -126,7 +125,8 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
 
 
 @asynccontextmanager
-async def app_lifespan(fastapi_app: FastAPI):
+async def app_lifespan():
+    """Lifespann app to be implemented with start up / stop logic"""
     yield
 
 
@@ -136,7 +136,7 @@ async def app_lifespan(fastapi_app: FastAPI):
 
 
 app.include_router(router)
-app.router.lifespan_context = app_lifespan
+app.router.lifespan_context = app_lifespan  # type: ignore
 opentelemetry.init_traces(app, "rs.dpr.service")
 # Mount pygeoapi endpoints
 app.mount(path="/oapi", app=api)

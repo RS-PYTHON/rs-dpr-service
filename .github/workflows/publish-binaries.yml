@@ -192,5 +192,3 @@ jobs:
           docker_tag: ${{ needs.set-env.outputs.docker_tag }}
           branch_name: ${{ needs.set-env.outputs.branch_name }}
           debug_mode: ${{ needs.set-env.outputs.debug_mode }}
-
-

@@ -18,7 +18,6 @@ import asyncio  # for handling asynchronous tasks
 import json
 import logging
 import os
-import os.path as osp
 import re
 import subprocess
 import time
@@ -29,17 +28,14 @@ from pathlib import Path
 from dask.distributed import (
     Client,
     LocalCluster,
-    as_completed,
 )
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
-from fastapi import HTTPException
 from pygeoapi.process.base import BaseProcessor
 from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
 )
 from pygeoapi.util import JobStatus
-from requests.exceptions import RequestException
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
@@ -69,7 +65,7 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 CLUSTER_MODE: bool = not LOCAL_MODE
 
 
-def dpr_processor_task(  # pylint: disable=R0913, R0917
+def dpr_processor_task(  # pylint: disable=R0914, R0917
     data: dict,
     output_data_dir,
 ):
@@ -86,80 +82,82 @@ def dpr_processor_task(  # pylint: disable=R0913, R0917
         payload.write(json.dumps(data))
 
     # Trigger EOPF processing, catch output
-    p = subprocess.Popen(
+    with subprocess.Popen(
         ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         cwd="/src/DPR",
-    )
+    ) as p:
+        assert p.stdout is not None  # For mypy
+        # Log contents
+        log_str = ""
+        return_response = {}
+        # Write output to a log file and string + redirect to the prefect logger
+        with open(Path(payload_abs_path).with_suffix(".log").name, "w+", encoding="utf-8") as log_file:
+            while (line := p.stdout.readline()) != "":
 
-    # Log contents
-    log_str = ""
-    return_response = {}
-    # Write output to a log file and string + redirect to the prefect logger
-    with open(Path(payload_abs_path).with_suffix(".log").name, "w+", encoding="utf-8") as log_file:
-        while (line := p.stdout.readline()) != "":
+                # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
+                for key in (
+                    "key",
+                    "secret",
+                    "endpoint_url",
+                    "region_name",
+                    "api_token",
+                    "password",
+                ):
+                    line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
 
-            # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
-            for key in (
-                "key",
-                "secret",
-                "endpoint_url",
-                "region_name",
-                "api_token",
-                "password",
-            ):
-                line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
+                # Write to log file and string
+                log_file.write(line)
+                log_str += line
 
-            # Write to log file and string
-            log_file.write(line)
-            log_str += line
+                # Write to prefect logger if not empty
+                line = line.rstrip()
+                if line:
+                    logger.info(line)
 
-            # Write to prefect logger if not empty
-            line = line.rstrip()
-            if line:
-                logger.info(line)
+            logger.info(f"log_str = {log_str}")
+            # search for the JSON-like part, parse it, and ignore the rest.
+            match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
+            if not match:
+                raise ValueError("No valid data structure found in the output.")
 
-        logger.info(f"log_str = {log_str}")
-        # search for the JSON-like part, parse it, and ignore the rest.
-        match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-        if not match:
-            raise ValueError("No valid data structure found in the output.")
+            payload_str = match.group(1)
 
-        payload_str = match.group(1)
+            # Use `ast.literal_eval` to safely evaluate the structure
+            try:
+                # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
+                # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
+                return_response = ast.literal_eval(payload_str)
+            except Exception as e:
+                raise ValueError(f"Failed to parse data structure: {e}") from e
 
-        # Use `ast.literal_eval` to safely evaluate the structure
         try:
-            # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-            # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-            return_response = ast.literal_eval(payload_str)
-        except Exception as e:
-            raise ValueError(f"Failed to parse data structure: {e}")
+            # Wait for the execution to finish
+            status_code = p.wait()
 
-    try:
-        # Wait for the execution to finish
-        status_code = p.wait()
+            # Raise exception if the status code is != 0
+            if status_code:
+                raise Exception("EOPF error, please see the log.")  # pylint: disable=broad-exception-raised
 
-        # Raise exception if the status code is != 0
-        if status_code:
-            raise Exception("EOPF error, please see the log.")
+        # In all cases, upload the reports dir to the s3 bucket.
+        finally:
+            try:
+                time.sleep(1)
+                # await prefect_utils.s3_upload_dir(
+                #     report_dirname,
+                #     osp.join(output_data_dir, report_dirname),
+                # )
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                logger.error(exception)
 
-    # In all cases, upload the reports dir to the s3 bucket.
-    finally:
-        try:
-            time.sleep(1)
-            # await prefect_utils.s3_upload_dir(
-            #     report_dirname,
-            #     osp.join(output_data_dir, report_dirname),
-            # )
-        except Exception as exception:
-            logger.error(exception)
-
-    return return_response
+        return return_response
 
 
 class GeneralProcessor(BaseProcessor):
+    """Common signature of a processor in DPR-service"""
+
     def __init__(
         self,
         credentials: Request,
@@ -434,9 +432,10 @@ class GeneralProcessor(BaseProcessor):
         return client
 
     # Override from BaseProcessor, execute is async in RSPYProcessor
-    async def execute(  # pylint: disable=too-many-return-statements
+    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
         self,
         data: dict,
+        outputs=None,
     ) -> tuple[str, dict]:
         """
         Asynchronously execute the dpr process in the dask cluster
@@ -479,9 +478,9 @@ class GeneralProcessor(BaseProcessor):
         # Connect to dask cluster
         try:
             dask_client = self.dask_cluster_connect()
-        except RuntimeError as re:
+        except RuntimeError as runtime_error:
             self.logger.error("Failed to start the staging process")
-            return self.log_job_execution(JobStatus.failed, 0, str(re))
+            return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
 
         self.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
 
@@ -595,7 +594,7 @@ class S1L0Processor(GeneralProcessor):
         """
         Initialize S1L0Processor
         """
-        super.__init__(credentials, db_process_manager, cluster, "S1L0Processor")
+        super().__init__(credentials, db_process_manager, cluster, "S1L0Processor")
 
 
 class S3L0Processor(GeneralProcessor):
@@ -610,7 +609,7 @@ class S3L0Processor(GeneralProcessor):
         """
         Initialize S1L0Processor
         """
-        super.__init__(credentials, db_process_manager, cluster, "S3L0Processor")
+        super().__init__(credentials, db_process_manager, cluster, "S3L0Processor")
 
 
 # Register the processor
