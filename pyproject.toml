@@ -51,6 +51,7 @@ opentelemetry-instrumentation-aws-lambda = "^0.53b1"
 opentelemetry-instrumentation-httpx = "^0.53b1"
 pylint = "^3.3.6"
 flake8-pyproject = "^1.2.3"
+httpx = "^0.28.1"
 
 [tool.poetry.group.dev]
 optional = true
@@ -64,7 +65,6 @@ pytest-asyncio = ">=0.24,<0.25"
 pytest-cov = ">=5,<7"
 pytest-docker = "^3.1.0"
 pytest-error-for-skips = "^2.0.2"
-pytest-httpx = ">=0.32,<0.35"
 pytest-mock = "^3.14.0"
 responses = "^0.25.3"
 
