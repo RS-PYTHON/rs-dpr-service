@@ -135,12 +135,6 @@ jobs:
           poetry run bandit -c pyproject.toml -r . -f json -o ./bandit-report.json
         shell: bash
 
-      - id: safety
-        name: Run safety
-        if: always()
-        run: poetry run safety check --full-report
-        shell: bash
-
       - name: Run Trivy vulnerability scanner
         if: always()
         uses: aquasecurity/trivy-action@master
