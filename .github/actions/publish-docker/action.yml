@@ -186,10 +186,10 @@ runs:
     - name: Push Docker tag e.g. 'latest'
       if: always()
       run: | # use sed to replace the last :<tag> by :docker_tag
-        set -x        
-        if [[ -n "${{ inputs.docker_tag }}" ]]; then # Check if docker_tag is non-empty          
-          docker_image_tag=$(echo "${{ env.docker_image }}" | sed "s|\(:[^:]*\)|:${{ inputs.docker_tag }}|")          
-          docker tag "${{ env.docker_image }}" "${docker_image_tag}"          
+        set -x
+        if [[ -n "${{ inputs.docker_tag }}" ]]; then # Check if docker_tag is non-empty
+          docker_image_tag=$(echo "${{ env.docker_image }}" | sed "s|\(:[^:]*\)|:${{ inputs.docker_tag }}|")
+          docker tag "${{ env.docker_image }}" "${docker_image_tag}"
           docker push "${docker_image_tag}"
         fi
       shell: bash
