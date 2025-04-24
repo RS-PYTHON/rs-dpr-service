@@ -135,7 +135,7 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
 
 
 @asynccontextmanager
-async def app_lifespan():
+async def app_lifespan(fastapi_app: FastAPI):
     """Lifespann app to be implemented with start up / stop logic"""
     yield
 
