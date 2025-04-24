@@ -175,11 +175,10 @@ async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: dis
 @router.post("/processes/{resource}/execution")
 async def execute_process(
     request: Request,
-    resource: str,
-    data,
+    resource: str
 ):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
-
+    data = await request.json()
     # check if the input resource exists
     if resource not in api.config["resources"]:
         return HTTPException(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
