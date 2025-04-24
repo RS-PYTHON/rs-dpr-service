@@ -11,3 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+bandit:
+  skips: ["B404", "B607", "B603", "B101"]
+
+assert_used:
+  skips: ['*_test.py', '*test_*.py']

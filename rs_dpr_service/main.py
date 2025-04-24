@@ -12,18 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import pathlib
-import os
-import yaml
-from fastapi import FastAPI, APIRouter
-from string import Template
-from pygeoapi.process.manager.postgresql import PostgreSQLManager
-from pygeoapi.api import API
-from time import sleep
+"""rs dpr service main module."""
+
 import logging
-from sqlalchemy.orm import declarative_base
-from sqlalchemy.exc import SQLAlchemyError
+import os
+import pathlib
 from contextlib import asynccontextmanager
+from string import Template
+from time import sleep
+
+import yaml
+from fastapi import APIRouter, FastAPI, HTTPException
+from pygeoapi.api import API
+from pygeoapi.process.base import JobNotFoundError
+from pygeoapi.process.manager.postgresql import PostgreSQLManager
+from pygeoapi.provider.postgresql import get_engine
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.orm import declarative_base
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.status import (  # pylint: disable=C0411
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_404_NOT_FOUND,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
+
+from rs_dpr_service import opentelemetry
+from rs_dpr_service.processors import processors
 
 # Construct a sqlalchemy base class for declarative class definitions.
 Base = declarative_base()
@@ -33,6 +49,7 @@ router = APIRouter(tags=["DPR service"])
 
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
+
 
 def get_config_path() -> pathlib.Path:
     """Return the pygeoapi configuration path and set the PYGEOAPI_CONFIG env var accordingly."""
@@ -61,6 +78,7 @@ def init_pygeoapi() -> API:
 
 api = init_pygeoapi()
 
+
 # Filelock to be added ?
 def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     """Initialize the PostgreSQL database connection and sets up required table and ENUM type.
@@ -86,7 +104,7 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     manager_def = api.config["manager"]
     if not manager_def or not isinstance(manager_def, dict) or not isinstance(manager_def["connection"], dict):
         message = "Error reading the manager definition for pygeoapi PostgreSQL Manager"
-        #logger.error(message)
+        # logger.error(message)
         raise RuntimeError(message)
     connection = manager_def["connection"]
 
@@ -115,17 +133,87 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     # Initialize PostgreSQLManager with the manager configuration
     return PostgreSQLManager(manager_def)
 
+
 @asynccontextmanager
-async def app_lifespan(fastapi_app: FastAPI): 
+async def app_lifespan(fastapi_app: FastAPI):
+    """Lifespann app to be implemented with start up / stop logic"""
+    logger.info("Starting up the application...")
+    # Create jobs table
+    process_manager = init_db()
+    # In local mode, if the gateway is not defined, create a dask LocalCluster
+    cluster = None
+
+    fastapi_app.extra["process_manager"] = process_manager
+    # fastapi_app.extra["db_table"] = db.table("jobs")
+    fastapi_app.extra["dask_cluster"] = cluster
+    # token refereshment logic
+
+    # Yield control back to the application (this is where the app will run)
     yield
 
+    # Shutdown logic (cleanup)
+    logger.info("Shutting down the application...")
+    logger.info("Application gracefully stopped...")
+
+
 # DPR_SERVICE FRONT LOGIC HERE
+
+
+# Endpoint to get the status of a job by job_id
+@router.get("/jobs/{job_id}")
+async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: disable=W0613
+    """Used to get status of processing job."""
+    try:
+        job = app.extra["process_manager"].get_job(job_id)
+        return JSONResponse(status_code=HTTP_200_OK, content=job)
+    except JobNotFoundError:  # pylint: disable=W0718
+        # Handle case when job_id is not found
+        return HTTPException(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
+
+
+# Endpoint to execute the rs-dpr-service process and generate a job ID
+@router.post("/processes/{resource}/execution")
+async def execute_process(
+    request: Request,
+    resource: str,
+    data,
+):  # pylint: disable=unused-argument
+    """Used to execute processing jobs."""
+
+    # check if the input resource exists
+    if resource not in api.config["resources"]:
+        return HTTPException(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+
+    processor_name = api.config["resources"][resource]["processor"]["name"]
+    if processor_name in processors:
+        processor = processors[processor_name]
+        _, dpr_status = await processor(  # type: ignore
+            request,
+            app.extra["process_manager"],
+            app.extra["dask_cluster"],
+            app.extra["station_token_list"],
+            app.extra["station_token_list_lock"],
+        ).execute(data)
+
+        # Get identifier of the current job
+        status_dict = {
+            "accepted": HTTP_201_CREATED,
+            "running": HTTP_201_CREATED,
+            "successful": HTTP_201_CREATED,
+            "failed": HTTP_500_INTERNAL_SERVER_ERROR,
+            "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
+        }
+        id_key = [status for status in status_dict if status in dpr_status][0]
+        job = app.extra["process_manager"].get_job(dpr_status[id_key])
+        return JSONResponse(status_code=HTTP_201_CREATED, content=job)
+    return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+
 
 # DPR_SERVICE FRONT LOGIC HERE
 
 
 app.include_router(router)
-app.router.lifespan_context = app_lifespan
-
+app.router.lifespan_context = app_lifespan  # type: ignore
+opentelemetry.init_traces(app, "rs.dpr.service")
 # Mount pygeoapi endpoints
 app.mount(path="/oapi", app=api)
