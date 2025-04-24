@@ -22,14 +22,24 @@ from string import Template
 from time import sleep
 
 import yaml
-from fastapi import APIRouter, FastAPI
+from fastapi import APIRouter, FastAPI, HTTPException
 from pygeoapi.api import API
+from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.postgresql import get_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import declarative_base
+from starlette.requests import Request
+from starlette.responses import JSONResponse
+from starlette.status import (  # pylint: disable=C0411
+    HTTP_200_OK,
+    HTTP_201_CREATED,
+    HTTP_404_NOT_FOUND,
+    HTTP_500_INTERNAL_SERVER_ERROR,
+)
 
 from rs_dpr_service import opentelemetry
+from rs_dpr_service.processors import processors
 
 # Construct a sqlalchemy base class for declarative class definitions.
 Base = declarative_base()
@@ -131,6 +141,57 @@ async def app_lifespan():
 
 
 # DPR_SERVICE FRONT LOGIC HERE
+
+
+# Endpoint to get the status of a job by job_id
+@router.get("/jobs/{job_id}")
+async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: disable=W0613
+    """Used to get status of processing job."""
+    try:
+        job = app.extra["process_manager"].get_job(job_id)
+        return JSONResponse(status_code=HTTP_200_OK, content=job)
+    except JobNotFoundError:  # pylint: disable=W0718
+        # Handle case when job_id is not found
+        return HTTPException(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
+
+
+# Endpoint to execute the rs-dpr-service process and generate a job ID
+@router.post("/processes/{resource}/execution")
+async def execute_process(
+    request: Request,
+    resource: str,
+    data,
+):  # pylint: disable=unused-argument
+    """Used to execute processing jobs."""
+
+    # check if the input resource exists
+    if resource not in api.config["resources"]:
+        return HTTPException(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+
+    processor_name = api.config["resources"][resource]["processor"]["name"]
+    if processor_name in processors:
+        processor = processors[processor_name]
+        _, dpr_status = await processor(  # type: ignore
+            request,
+            app.extra["process_manager"],
+            app.extra["dask_cluster"],
+            app.extra["station_token_list"],
+            app.extra["station_token_list_lock"],
+        ).execute(data)
+
+        # Get identifier of the current job
+        status_dict = {
+            "accepted": HTTP_201_CREATED,
+            "running": HTTP_201_CREATED,
+            "successful": HTTP_201_CREATED,
+            "failed": HTTP_500_INTERNAL_SERVER_ERROR,
+            "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
+        }
+        id_key = [status for status in status_dict if status in dpr_status][0]
+        job = app.extra["process_manager"].get_job(dpr_status[id_key])
+        return JSONResponse(status_code=HTTP_201_CREATED, content=job)
+    return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+
 
 # DPR_SERVICE FRONT LOGIC HERE
 
