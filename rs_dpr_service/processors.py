@@ -466,7 +466,7 @@ class GeneralProcessor(BaseProcessor):
         try:
             dask_client = self.dask_cluster_connect()
         except RuntimeError as runtime_error:
-            self.logger.error("Failed to start the staging process")
+            self.logger.error("Failed to start the dpr-service process")
             return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
 
         self.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
@@ -513,7 +513,7 @@ class GeneralProcessor(BaseProcessor):
         """
         job_metadata = {
             "identifier": self.job_id,
-            "processID": "staging",
+            "processID": "dpr-service",
             "status": self.status.value,
             "progress": self.progress,
             "message": self.message,

@@ -202,9 +202,15 @@ async def execute_process(
         }
         id_key = [status for status in status_dict if status in dpr_status][0]
         job = app.extra["process_manager"].get_job(dpr_status[id_key])
-        return JSONResponse(status_code=HTTP_201_CREATED, content=job)
+        return JSONResponse(status_code=HTTP_201_CREATED, content=str(job))
     return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
 
+
+@router.post("/dpr_service/dask/auth", include_in_schema=False)
+async def dask_auth(local_dask_username: str, local_dask_password: str):
+    """Set dask cluster authentication, only in local mode."""
+    os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
+    os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
 
 # DPR_SERVICE FRONT LOGIC HERE
 
