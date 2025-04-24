@@ -262,7 +262,7 @@ class GeneralProcessor(BaseProcessor):
             RuntimeError: Raised if the cluster name is None, required environment variables are missing,
                         cluster creation fails or authentication errors occur.
             KeyError: Raised if the necessary Dask Gateway environment variables (`DASK_GATEWAY__ADDRESS`,
-                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_STAGING_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
+                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
             IndexError: Raised if no clusters are found in the Dask Gateway and new cluster creation is attempted.
             dask_gateway.exceptions.GatewayServerError: Raised when there is a server-side error in Dask Gateway.
             dask_gateway.exceptions.AuthenticationError: Raised if authentication to the Dask Gateway fails.
@@ -302,7 +302,7 @@ class GeneralProcessor(BaseProcessor):
             # Connect to the gateway and get the list of the clusters
             try:
                 # get the name of the cluster
-                cluster_name = os.environ["RSPY_DASK_STAGING_CLUSTER_NAME"]
+                cluster_name = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
                 # In local mode, authenticate to the dask cluster with username/password
                 if LOCAL_MODE:
                     gateway_auth = BasicAuth(
@@ -367,7 +367,7 @@ class GeneralProcessor(BaseProcessor):
                 self.logger.exception(
                     "Failed to retrieve the required connection details for "
                     "the Dask Gateway from one or more of the following environment variables: "
-                    "DASK_GATEWAY__ADDRESS, RSPY_DASK_STAGING_CLUSTER_NAME, "
+                    "DASK_GATEWAY__ADDRESS, RSPY_DASK_DPR_SERVICE_CLUSTER_NAME, "
                     f"JUPYTERHUB_API_TOKEN, DASK_GATEWAY__AUTH__TYPE. {e}",
                 )
 
