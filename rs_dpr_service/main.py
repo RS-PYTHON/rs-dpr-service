@@ -137,7 +137,23 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
 @asynccontextmanager
 async def app_lifespan(fastapi_app: FastAPI):
     """Lifespann app to be implemented with start up / stop logic"""
+    logger.info("Starting up the application...")
+    # Create jobs table
+    process_manager = init_db()
+    # In local mode, if the gateway is not defined, create a dask LocalCluster
+    cluster = None
+
+    fastapi_app.extra["process_manager"] = process_manager
+    # fastapi_app.extra["db_table"] = db.table("jobs")
+    fastapi_app.extra["dask_cluster"] = cluster
+    # token refereshment logic
+
+    # Yield control back to the application (this is where the app will run)
     yield
+
+    # Shutdown logic (cleanup)
+    logger.info("Shutting down the application...")
+    logger.info("Application gracefully stopped...")
 
 
 # DPR_SERVICE FRONT LOGIC HERE
