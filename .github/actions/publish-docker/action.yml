@@ -180,9 +180,7 @@ runs:
       run: docker push ${{ env.docker_image }}
       shell: bash
 
-    # Add a docker image tag and push it into the registry.
-    #if [[ ${{ inputs.docker_tag }}test != test ]]; then # if variable is defined and not empty
-    #docker_image_tag=$(sed "s|\(:[^:]*\)|:${{ inputs.docker_tag }}|g" <<< ${{ env.docker_image }})
+    # Add a docker image tag and push it into the registry.    
     - name: Push Docker tag e.g. 'latest'
       if: always()
       run: | # use sed to replace the last :<tag> by :docker_tag
