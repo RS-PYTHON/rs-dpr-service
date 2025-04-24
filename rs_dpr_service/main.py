@@ -191,8 +191,6 @@ async def execute_process(
             request,
             app.extra["process_manager"],
             app.extra["dask_cluster"],
-            app.extra["station_token_list"],
-            app.extra["station_token_list_lock"],
         ).execute(data)
 
         # Get identifier of the current job

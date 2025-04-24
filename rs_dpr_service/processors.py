@@ -601,4 +601,4 @@ class S3L0Processor(GeneralProcessor):
 
 # Register the processor
 
-processors = {"S1L0Processor": S1L0Processor, "S3L0Processor": S3L0Processor}
+processors = {"S1L0_processor": S1L0Processor, "S3L0_Processor": S3L0Processor}
