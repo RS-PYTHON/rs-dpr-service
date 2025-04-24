@@ -174,7 +174,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger = logger
         self.request = credentials
         self.headers: Headers = credentials.headers
-                
+
         # Database section
         self.job_id: str = str(uuid.uuid4())  # Generate a unique job ID
         self.message: str = "Processing Unit was created"
