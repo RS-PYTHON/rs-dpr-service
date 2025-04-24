@@ -174,20 +174,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger = logger
         self.request = credentials
         self.headers: Headers = credentials.headers
-        # self.stream_list: list[Feature] = []
-        #################
-        # Env section
-        # Set a list containing all possibles server url
-        # self.server_url = [
-        #     os.getenv("RSPY_HOST_CADIP", "http://127.0.0.1:8002"),
-        #     os.getenv("RSPY_HOST_ADGS", "http://127.0.0.1:8001"),
-        # ]
-
-        # self.catalog_url: str = os.environ.get(
-        #     "RSPY_HOST_CATALOG",
-        #     "http://127.0.0.1:8003",
-        # )  # get catalog href, loopback else
-        #################
+                
         # Database section
         self.job_id: str = str(uuid.uuid4())  # Generate a unique job ID
         self.message: str = "Processing Unit was created"
