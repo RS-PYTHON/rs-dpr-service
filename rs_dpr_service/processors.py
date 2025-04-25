@@ -189,8 +189,17 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = cluster
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    def get_task_table(self):
+    def get_tasktable(self, name=None):  # pylint: disable=W0613
         """Will execute eopf tasktable command when available"""
+        # Disabled;
+        # if name:
+        #     with subprocess.Popen(
+        #         ["eopf", "trigger", "tasktable", name],
+        #         stdout=subprocess.PIPE,
+        #         stderr=subprocess.STDOUT,
+        #         text=True,
+        #     ) as p:
+        #         return p.stdout()
         with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
             return json.loads(tf.read())
 
@@ -588,6 +597,10 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, cluster, "S1L0Processor")
 
+    # Will be activated later
+    # def get_tasktable(self, name="l0.s1.s1_l0_processor S1L0Processor"):
+    #     return super().get_tasktable(name)
+
 
 class S3L0Processor(GeneralProcessor):
     """S3L0 Processor implementation"""
@@ -602,6 +615,10 @@ class S3L0Processor(GeneralProcessor):
         Initialize S1L0Processor
         """
         super().__init__(credentials, db_process_manager, cluster, "S3L0Processor")
+
+    # Will be activated later
+    # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
+    #     return super().get_tasktable(name)
 
 
 # Register the processor
