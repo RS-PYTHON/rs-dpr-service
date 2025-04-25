@@ -1,0 +1,32 @@
+{
+    "filter": {
+        "op": "and",
+        "args": [
+            {
+                "op": "=",
+                "args": [
+                    {
+                        "property": "product:type"
+                    },
+                    "AX___OSF_AX"
+                ]
+            },
+            {
+                "op": "=",
+                "args": [
+                    {
+                        "property": "published"
+                    },
+                    "2016-01-01T00:00:00.000Z/2016-12-31T23:59:59.999Z"
+                ]
+            }
+        ]
+    },
+    "sortby": [
+        {
+            "field": "start_datetime",
+            "direction": "desc"
+        }
+    ],
+    "limit": 10
+}
