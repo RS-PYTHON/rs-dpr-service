@@ -28,7 +28,6 @@ from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.postgresql import get_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import declarative_base
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.status import (  # pylint: disable=C0411
@@ -39,10 +38,12 @@ from starlette.status import (  # pylint: disable=C0411
 )
 
 from rs_dpr_service import opentelemetry
+from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.processors import processors
 
-# Construct a sqlalchemy base class for declarative class definitions.
-Base = declarative_base()
+# DON'T REMOVE (needed for SQLAlchemy)
+
+
 # Initialize a FastAPI application
 app = FastAPI(title="rs-dpr-service", root_path="", debug=True)
 router = APIRouter(tags=["DPR service"])
@@ -173,10 +174,7 @@ async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: dis
 
 # Endpoint to execute the rs-dpr-service process and generate a job ID
 @router.post("/processes/{resource}/execution")
-async def execute_process(
-    request: Request,
-    resource: str
-):  # pylint: disable=unused-argument
+async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
     data = await request.json()
     # check if the input resource exists
@@ -211,6 +209,7 @@ async def dask_auth(local_dask_username: str, local_dask_password: str):
     """Set dask cluster authentication, only in local mode."""
     os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
     os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
+
 
 # DPR_SERVICE FRONT LOGIC HERE
 
