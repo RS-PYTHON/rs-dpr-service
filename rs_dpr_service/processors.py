@@ -189,6 +189,11 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = cluster
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
+    def get_task_table(self):
+        """Will execute eopf tasktable command when available"""
+        with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
+            return json.loads(tf.read())
+
     def manage_dask_tasks(self, client: Client, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.

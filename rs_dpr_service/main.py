@@ -173,10 +173,7 @@ async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: dis
 
 # Endpoint to execute the rs-dpr-service process and generate a job ID
 @router.post("/processes/{resource}/execution")
-async def execute_process(
-    request: Request,
-    resource: str
-):  # pylint: disable=unused-argument
+async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
     data = await request.json()
     # check if the input resource exists
@@ -206,11 +203,36 @@ async def execute_process(
     return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
 
 
+@router.get("/processes/{resource}")
+async def get_resource(request: Request, resource: str):
+    """Should return info about a specific resource."""
+    if resource_info := next(  # pylint: disable=W0612
+        (
+            api.config["resources"][defined_resource]
+            for defined_resource in api.config["resources"]
+            if defined_resource == resource
+        ),
+        None,
+    ):
+        processor_name = api.config["resources"][resource]["processor"]["name"]
+        if processor_name in processors:
+            processor = processors[processor_name]
+            task_table = processor(  # type: ignore
+                request,
+                app.extra["process_manager"],
+                app.extra["dask_cluster"],
+            ).get_tasktable()
+
+            return JSONResponse(status_code=HTTP_200_OK, content=task_table)
+    return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+
+
 @router.post("/dpr_service/dask/auth", include_in_schema=False)
 async def dask_auth(local_dask_username: str, local_dask_password: str):
     """Set dask cluster authentication, only in local mode."""
     os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
     os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
+
 
 # DPR_SERVICE FRONT LOGIC HERE
 
