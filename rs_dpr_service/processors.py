@@ -16,7 +16,6 @@
 import ast
 import asyncio  # for handling asynchronous tasks
 import json
-import yaml
 import logging
 import os
 import os.path as osp
@@ -27,6 +26,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import yaml
 from dask.distributed import (
     Client,
     LocalCluster,
@@ -67,10 +67,10 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 CLUSTER_MODE: bool = not LOCAL_MODE
 
 
-def dpr_processor_task(  # pylint: disable=R0914, R0917        
-        data: dict,
-        use_mockup: bool,
-        #output_data_dir,
+def dpr_processor_task(  # pylint: disable=R0914, R0917
+    data: dict,
+    use_mockup: bool,
+    # output_data_dir,
 ):
     """
     Dpr processing inside the dask cluster
@@ -78,7 +78,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
     logger_dask = logging.getLogger(__name__)
     logger_dask.info("The dpr processing task started")
-    #os.environ["OUTPUT_DIR"] = output_data_dir
+    # os.environ["OUTPUT_DIR"] = output_data_dir
     # TODO create the acctual payload_file from data
     payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
     with open(payload_abs_path, "w+", encoding="utf-8") as payload:
@@ -90,7 +90,6 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
         wd = "/src/DPR"
 
-    
     # Trigger EOPF processing, catch output
     with subprocess.Popen(
         command,
@@ -253,13 +252,13 @@ class GeneralProcessor(BaseProcessor):
         except Exception as task_e:  # pylint: disable=broad-exception-caught
             self.logger.error("Task failed with exception: %s", task_e)
             # Update status for the job
-            self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")            
+            self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
             return
 
         # Update status once all features are processed
         self.log_job_execution(JobStatus.successful, 100, "Finished")
-        # write the results in a s3 bucket file 
-        
+        # write the results in a s3 bucket file
+
         # Update the subscribers for token refreshment
         self.logger.info("Tasks monitoring finished")
 
@@ -321,17 +320,21 @@ class GeneralProcessor(BaseProcessor):
 
         # If self.cluster is already initialized, it means the application is running in local mode, and
         # the cluster was created when the application started.
-        
+
         # Connect to the gateway and get the list of the clusters
         try:
             # get the name of the cluster
-            cluster_name = ( os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"] 
-                            if not self.use_mockup 
-                            else os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"])
+            cluster_name = (
+                os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+                if not self.use_mockup
+                else os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+            )
             # and the addres
-            cluster_address = (os.environ["DASK_GATEWAY__ADDRESS"]
-                            if not self.use_mockup
-                            else os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"])
+            cluster_address = (
+                os.environ["DASK_GATEWAY__ADDRESS"]
+                if not self.use_mockup
+                else os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
+            )
             # In local mode, authenticate to the dask cluster with username/password
             if LOCAL_MODE:
                 gateway_auth = BasicAuth(
@@ -351,7 +354,7 @@ class GeneralProcessor(BaseProcessor):
                     raise RuntimeError(f"Unsupported authentication type: {auth_type}")
 
             gateway = Gateway(
-                address = cluster_address,
+                address=cluster_address,
                 auth=gateway_auth,
             )
 
@@ -390,6 +393,9 @@ class GeneralProcessor(BaseProcessor):
                 raise IndexError(f"Dask cluster with 'cluster_name'={cluster_name!r} was not found.")
 
             self.cluster = gateway.connect(cluster_id)
+            if not self.cluster:
+                self.logger.exception("Failed to create the cluster")
+                raise RuntimeError("Failed to create the cluster")
             self.logger.info(f"Successfully connected to the {cluster_name} dask cluster")
 
         except KeyError as e:
@@ -493,7 +499,7 @@ class GeneralProcessor(BaseProcessor):
 
         # Connect to dask cluster
         self.use_mockup = data.get("use_mockup", False)
-        try:            
+        try:
             dask_client = self.dask_cluster_connect()
         except RuntimeError as runtime_error:
             self.logger.error("Failed to start the dpr-service process")
