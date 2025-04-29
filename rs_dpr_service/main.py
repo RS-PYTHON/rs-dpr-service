@@ -231,7 +231,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 @router.get("/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
-    if resource_info := next(  # pylint: disable=W0612
+    if resource_info := next(  # pylint: disable=W0612 # noqa: F841
         (
             api.config["resources"][defined_resource]
             for defined_resource in api.config["resources"]
