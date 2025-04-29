@@ -27,9 +27,8 @@ from datetime import datetime
 from pathlib import Path
 
 import yaml
-from dask.distributed import (
+from dask.distributed import (  # LocalCluster,
     Client,
-    LocalCluster,
 )
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
@@ -68,29 +67,36 @@ CLUSTER_MODE: bool = not LOCAL_MODE
 
 
 def dpr_processor_task(  # pylint: disable=R0914, R0917
-    data: dict,
-    use_mockup: bool,
-    # output_data_dir,
+    dpr_payload: dict,
 ):
     """
     Dpr processing inside the dask cluster
     """
 
     logger_dask = logging.getLogger(__name__)
+    print("Dask task running - print() test")
+    logger_dask.info("Dask logger test")
     logger_dask.info("The dpr processing task started")
+    logger_dask.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
+    use_mockup = dpr_payload.get("use_mockup", False)
     # os.environ["OUTPUT_DIR"] = output_data_dir
-    # TODO create the acctual payload_file from data
-    payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
-    with open(payload_abs_path, "w+", encoding="utf-8") as payload:
-        payload.write(yaml.safe_dump(data))
+    # TODO create the acctual payload_file from dpr_payload
+    try:
+        payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
+        with open(payload_abs_path, "w+", encoding="utf-8") as payload:
+            payload.write(yaml.safe_dump(dpr_payload))
+    except Exception as e:
+        logger_dask.exception("Exception during payload file creation: %s", e)
+        raise
 
     command = ["eopf", "trigger", "local", payload_abs_path]
     wd = "."
     if use_mockup:
         command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
         wd = "/src/DPR"
-
+    logger.debug(f"Working directory for subprocess: {wd} (type: {type(wd)})")
     # Trigger EOPF processing, catch output
+    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
     with subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
@@ -130,7 +136,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             # search for the JSON-like part, parse it, and ignore the rest.
             match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
             if not match:
-                raise ValueError("No valid data structure found in the output.")
+                raise ValueError("No valid dpr_payload structure found in the output.")
 
             payload_str = match.group(1)
 
@@ -140,7 +146,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
                 # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
                 return_response = ast.literal_eval(payload_str)
             except Exception as e:
-                raise ValueError(f"Failed to parse data structure: {e}") from e
+                raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
         try:
             # Wait for the execution to finish
@@ -171,7 +177,6 @@ class GeneralProcessor(BaseProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
         name,
     ):  # pylint: disable=super-init-not-called
         """
@@ -213,7 +218,7 @@ class GeneralProcessor(BaseProcessor):
         with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
             return json.loads(tf.read())
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
         """
         Manages Dask tasks where the dpr processor is started.
 
@@ -235,7 +240,9 @@ class GeneralProcessor(BaseProcessor):
             "In progress",
         )
         try:
-            dpr_task = client.submit(dpr_processor_task, data, self.use_mockup)
+            logger.debug(f"dpr_payload = {dpr_payload}")
+            dpr_payload = {"use_mockup": True, "region_name": "TEST"}
+            dpr_task = client.submit(dpr_processor_task, dpr_payload)
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
@@ -479,11 +486,11 @@ class GeneralProcessor(BaseProcessor):
 
     async def start_processor(  # pylint: disable=too-many-return-statements
         self,
-        data: dict,
+        dpr_payload: dict,
     ) -> tuple[str, dict]:
         """
         Method used to trigger dask distributed streaming process.
-        It creates dask client object, gets the external data sources access token
+        It creates dask client object, gets the external dpr_payload sources access token
         Prepares the tasks for execution
         Manage eventual runtime exceptions
 
@@ -498,7 +505,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         # Connect to dask cluster
-        self.use_mockup = data.get("use_mockup", False)
+        self.use_mockup = dpr_payload.get("use_mockup", False)
         try:
             dask_client = self.dask_cluster_connect()
         except RuntimeError as runtime_error:
@@ -514,7 +521,7 @@ class GeneralProcessor(BaseProcessor):
             await asyncio.to_thread(
                 self.manage_dask_tasks,
                 dask_client,
-                data,
+                dpr_payload,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
@@ -612,12 +619,12 @@ class S1L0Processor(GeneralProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
+        # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
         Initialize S1L0Processor
         """
-        super().__init__(credentials, db_process_manager, cluster, "S1L0Processor")
+        super().__init__(credentials, db_process_manager, "S1L0Processor")
 
     # Will be activated later
     # def get_tasktable(self, name="l0.s1.s1_l0_processor S1L0Processor"):
@@ -631,12 +638,12 @@ class S3L0Processor(GeneralProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
+        # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
         Initialize S1L0Processor
         """
-        super().__init__(credentials, db_process_manager, cluster, "S3L0Processor")
+        super().__init__(credentials, db_process_manager, "S3L0Processor")
 
     # Will be activated later
     # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):

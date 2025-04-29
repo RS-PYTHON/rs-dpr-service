@@ -22,7 +22,8 @@ from string import Template
 from time import sleep
 
 import yaml
-from dask.distributed import LocalCluster
+
+# from dask.distributed import LocalCluster
 from fastapi import APIRouter, FastAPI, HTTPException
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
@@ -158,18 +159,18 @@ async def app_lifespan(fastapi_app: FastAPI):
     process_manager = init_db()
     fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
     # In local mode, if the gateway is not defined, create a dask LocalCluster
-    cluster = None
-    if fastapi_app.extra["local_mode"] and (
-        ("RSPY_DASK_DPR_SERVICE_CLUSTER_NAME" not in os.environ)
-        or ("RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME" not in os.environ)
-    ):
-        # Create the LocalCluster only in local mode
-        cluster = LocalCluster()
-        logger.info("Local Dask cluster created at startup.")
+    # cluster = None
+    # if fastapi_app.extra["local_mode"] and (
+    #     ("RSPY_DASK_DPR_SERVICE_CLUSTER_NAME" not in os.environ)
+    #     or ("RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME" not in os.environ)
+    # ):
+    #     # Create the LocalCluster only in local mode
+    #     cluster = LocalCluster()
+    #     logger.info("Local Dask cluster created at startup.")
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
-    fastapi_app.extra["dask_cluster"] = cluster
+    # fastapi_app.extra["dask_cluster"] = cluster
     # token refereshment logic
 
     # Yield control back to the application (this is where the app will run)
@@ -210,7 +211,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         _, dpr_status = await processor(  # type: ignore
             request,
             app.extra["process_manager"],
-            app.extra["dask_cluster"],
+            # app.extra["dask_cluster"],
         ).execute(data)
 
         # Get identifier of the current job
