@@ -75,12 +75,9 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
     logger_dask = logging.getLogger(__name__)
     print("Dask task running - print() test")
-    logger_dask.info("Dask logger test")
     logger_dask.info("The dpr processing task started")
     logger_dask.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
     use_mockup = dpr_payload.get("use_mockup", False)
-    # os.environ["OUTPUT_DIR"] = output_data_dir
-    # TODO create the acctual payload_file from dpr_payload
     try:
         payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
         with open(payload_abs_path, "w+", encoding="utf-8") as payload:
@@ -158,14 +155,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
         # In all cases, upload the reports dir to the s3 bucket.
         finally:
-            try:
-                time.sleep(1)
-                # await prefect_utils.s3_upload_dir(
-                #     report_dirname,
-                #     osp.join(output_data_dir, report_dirname),
-                # )
-            except Exception as exception:  # pylint: disable=broad-exception-caught
-                logger.error(exception)
+            time.sleep(1)
 
         return return_response
 
@@ -218,6 +208,38 @@ class GeneralProcessor(BaseProcessor):
         with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
             return json.loads(tf.read())
 
+    def replace_placeholders(self, obj):
+        """
+        Recursively replaces placeholders in the form ${PLACEHODER} within a nested structure (dict, list, str)
+        using corresponding environment variable values.
+
+        If an environment variable is not found, the placeholder is left unchanged and a warning is logged.
+
+        Args:
+            obj (Any): The input object, typically a dict or list, containing strings with placeholders.
+
+        Returns:
+            Any: The same structure with all placeholders replaced where possible.
+        """
+        pattern = re.compile(r"\$\{(\w+)\}")
+
+        if isinstance(obj, dict):
+            return {k: self.replace_placeholders(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self.replace_placeholders(item) for item in obj]
+        if isinstance(obj, str):
+
+            def replacer(match):
+                key = match.group(1)
+                value = os.environ.get(key)
+                if value is None:
+                    logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
+                    return match.group(0)
+                return value
+
+            return pattern.sub(replacer, obj)
+        return obj
+
     def manage_dask_tasks(self, client: Client, dpr_payload: dict):
         """
         Manages Dask tasks where the dpr processor is started.
@@ -240,10 +262,7 @@ class GeneralProcessor(BaseProcessor):
             "In progress",
         )
         try:
-            logger.debug(f"dpr_payload = {dpr_payload}")
-            dpr_payload = {"use_mockup": True, "region_name": "TEST"}
-            dpr_task = client.submit(dpr_processor_task, dpr_payload)
-
+            dpr_task = client.submit(dpr_processor_task, self.replace_placeholders(dpr_payload))
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
@@ -252,9 +271,7 @@ class GeneralProcessor(BaseProcessor):
 
         try:
             res = dpr_task.result()  # This will raise the exception from the task if it failed
-            self.logger.debug(f"Task result = {res}")
-
-            self.logger.debug("%s Task streaming completed", dpr_task.key)
+            self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught
             self.logger.error("Task failed with exception: %s", task_e)
@@ -262,8 +279,8 @@ class GeneralProcessor(BaseProcessor):
             self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
             return
 
-        # Update status once all features are processed
-        self.log_job_execution(JobStatus.successful, 100, "Finished")
+        # Update status and insert the result of the dask task in the jobs table
+        self.log_job_execution(JobStatus.successful, 100, str(res))
         # write the results in a s3 bucket file
 
         # Update the subscribers for token refreshment
@@ -331,17 +348,10 @@ class GeneralProcessor(BaseProcessor):
         # Connect to the gateway and get the list of the clusters
         try:
             # get the name of the cluster
-            cluster_name = (
-                os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
-                if not self.use_mockup
-                else os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
-            )
+            cluster_name = os.environ["DASK_CLUSTER_EOPF_NAME"]
             # and the addres
-            cluster_address = (
-                os.environ["DASK_GATEWAY__ADDRESS"]
-                if not self.use_mockup
-                else os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-            )
+            cluster_address = os.environ["DASK_GATEWAY_EOPF_ADDRESS"]
+
             # In local mode, authenticate to the dask cluster with username/password
             if LOCAL_MODE:
                 gateway_auth = BasicAuth(
@@ -507,7 +517,16 @@ class GeneralProcessor(BaseProcessor):
         # Connect to dask cluster
         self.use_mockup = dpr_payload.get("use_mockup", False)
         try:
+            if not self.use_mockup:
+                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
+            else:
+                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
             dask_client = self.dask_cluster_connect()
+        except KeyError as ke:
+            self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
+            return self.log_job_execution(JobStatus.failed, 0, str(ke))
         except RuntimeError as runtime_error:
             self.logger.error("Failed to start the dpr-service process")
             return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
