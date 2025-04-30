@@ -160,6 +160,34 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         return return_response
 
 
+def dpr_tasktable_task(use_mockup=False, tasktable_result={}):
+    """
+    Dpr tasktable inside the dask cluster
+    """
+
+    logger_dask = logging.getLogger(__name__)
+    logger_dask.info("The dpr triggering tasktable task started")
+
+    command = ["eopf", "trigger", "tasktable"]
+    wd = "."
+    # Trigger EOPF processing, catch output
+    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
+    if not use_mockup:
+        with subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            cwd=wd,
+        ) as p:
+            pass
+            # This will be activated when trigger tasktable cmd will work
+            # assert p.stdout is not None  # For mypy
+            # return p.stdout
+
+    return tasktable_result
+
+
 class GeneralProcessor(BaseProcessor):
     """Common signature of a processor in DPR-service"""
 
@@ -194,7 +222,7 @@ class GeneralProcessor(BaseProcessor):
         self.use_mockup = False
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    def get_tasktable(self, name=None):  # pylint: disable=W0613
+    async def get_tasktable(self, client=None, name=None):  # pylint: disable=W0613
         """Will execute eopf tasktable command when available"""
         # Disabled;
         # if name:
@@ -206,7 +234,20 @@ class GeneralProcessor(BaseProcessor):
         #     ) as p:
         #         return p.stdout()
         with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
-            return json.loads(tf.read())
+            tasktable_data = json.loads(tf.read())
+
+        dask_client = self.dask_cluster_connect()
+
+        # Manage dask tasks in a separate thread
+        # starting a thread for managing the dask callbacks
+        self.logger.debug("Starting tasks monitoring thread")
+        try:
+            task_table_task = dask_client.submit(dpr_tasktable_task, True, tasktable_data)
+            return task_table_task.result()
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
+            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
+            return
 
     def replace_placeholders(self, obj):
         """

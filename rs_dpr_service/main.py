@@ -242,7 +242,7 @@ async def get_resource(request: Request, resource: str):
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
             processor = processors[processor_name]
-            task_table = processor(  # type: ignore
+            task_table = await processor(  # type: ignore
                 request,
                 app.extra["process_manager"],
                 # app.extra["dask_cluster"],
