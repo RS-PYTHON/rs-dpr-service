@@ -245,7 +245,7 @@ async def get_resource(request: Request, resource: str):
             task_table = processor(  # type: ignore
                 request,
                 app.extra["process_manager"],
-                app.extra["dask_cluster"],
+                # app.extra["dask_cluster"],
             ).get_tasktable()
 
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
