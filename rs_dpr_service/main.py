@@ -194,7 +194,11 @@ async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: dis
     """Used to get status of processing job."""
     try:
         job = app.extra["process_manager"].get_job(job_id)
-        return JSONResponse(status_code=HTTP_200_OK, content=str(job))
+        pretty_job = {
+            "message": job['message'],
+            "status": job['status']
+        }
+        return JSONResponse(status_code=HTTP_200_OK, content=pretty_job)
     except JobNotFoundError:  # pylint: disable=W0718
         # Handle case when job_id is not found
         return HTTPException(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
