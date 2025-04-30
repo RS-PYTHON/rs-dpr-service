@@ -161,9 +161,9 @@ async def app_lifespan(fastapi_app: FastAPI):
     # There are 2 containers / pods that may be used:
     # - one with the image that has the real eopf processor
     # - one with the image that has the mockup eopf processor
-    # Set by default the env variables for the dask cluster name that will select one of 
-    # these 2 containers / pods to the one with the real processor 
-    # Later on, the user that requests one of the endpoints 
+    # Set by default the env variables for the dask cluster name that will select one of
+    # these 2 containers / pods to the one with the real processor
+    # Later on, the user that requests one of the endpoints
     # - /processes/{resource}/execution
     # - /processes/{resource}
     # may add in the content the following param:
@@ -245,14 +245,14 @@ async def get_resource(request: Request, resource: str):
     ):
         try:
             data = await request.json()
-        except Exception as e:
+        except Exception:  # pylint: disable=broad-exception-caught
             data = None
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
             processor = processors[processor_name]
             task_table = await processor(  # type: ignore
                 request,
-                app.extra["process_manager"],                
+                app.extra["process_manager"],
                 # app.extra["dask_cluster"],
             ).get_tasktable(data)
 

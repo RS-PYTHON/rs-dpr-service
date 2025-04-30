@@ -160,7 +160,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         return return_response
 
 
-def dpr_tasktable_task(use_mockup=False, tasktable_result={}):
+def dpr_tasktable_task(use_mockup=False):
     """
     Dpr tasktable inside the dask cluster
     """
@@ -169,21 +169,21 @@ def dpr_tasktable_task(use_mockup=False, tasktable_result={}):
     logger_dask.info("The dpr triggering tasktable task started")
 
     command = ["eopf", "trigger", "tasktable"]
-    wd = "."
-    # Trigger EOPF processing, catch output
-    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
-    if not use_mockup:
-        with subprocess.Popen(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            text=True,
-            cwd=wd,
-        ) as p:
-            pass
-            # This will be activated when trigger tasktable cmd will work
-            # assert p.stdout is not None  # For mypy
-            # return p.stdout
+    if use_mockup:
+        command = ["sleep", "1"]
+    # Trigger EOPF tasktable command
+    tasktable_result: dict = {}
+    with subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ) as p:
+        # This will be activated when trigger tasktable cmd will work
+        # assert p.stdout is not None  # For mypy
+        # when the eopf command will work, delete the following print and handle the p.stdout
+        print(p.stdout)
+        # tasktable_result = p.stdout
 
     return tasktable_result
 
@@ -218,7 +218,7 @@ class GeneralProcessor(BaseProcessor):
         # Inputs section
         self.assets_info: list = []
 
-        self.cluster = None        
+        self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
     async def get_tasktable(self, data, client=None, name=None):  # pylint: disable=W0613
@@ -235,31 +235,38 @@ class GeneralProcessor(BaseProcessor):
         use_mockup = False
         if data and isinstance(data, dict):
             use_mockup = data.get("use_mockup", False)
-            if use_mockup:     
+            if use_mockup:
                 os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
         with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
             tasktable_data = json.loads(tf.read())
 
         # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
-        # the payload.cfg from the user is comming with a `dask_context:` section that contains 
-        # values to be replaced such as: 
+        # the payload.cfg from the user is comming with a `dask_context:` section that contains
+        # values to be replaced such as:
         # cluster_config:
         #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
         # .....
         # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
-        dask_client = self.dask_cluster_connect(os.environ["DASK_CLUSTER_EOPF_NAME"], os.environ["DASK_GATEWAY_EOPF_ADDRESS"])
+        dask_client = self.dask_cluster_connect(
+            os.environ["DASK_CLUSTER_EOPF_NAME"],
+            os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
+        )
 
         # Manage dask tasks in a separate thread
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup, tasktable_data)
-            return task_table_task.result()
+            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup)
+            res = task_table_task.result()
+            # the eopf tasktable is supposed to fail at the current time, so return something hardcoded
+            if not res:
+                res = tasktable_data
+            return res
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
-            return
+            return {}
 
     def replace_placeholders(self, obj):
         """
@@ -401,7 +408,7 @@ class GeneralProcessor(BaseProcessor):
         # the cluster was created when the application started.
 
         # Connect to the gateway and get the list of the clusters
-        try:            
+        try:
             # In local mode, authenticate to the dask cluster with username/password
             if LOCAL_MODE:
                 gateway_auth = BasicAuth(
@@ -563,20 +570,23 @@ class GeneralProcessor(BaseProcessor):
                 Example: ("application/json", {"running": <job_id>})
         """
         self.logger.debug("Starting main loop")
-        
+
         try:
-            if dpr_payload.get("use_mockup", False):               
+            if dpr_payload.get("use_mockup", False):
                 os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
             # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
-            # the payload.cfg from the user is comming with a `dask_context:` section that contains 
-            # values to be replaced such as: 
+            # the payload.cfg from the user is comming with a `dask_context:` section that contains
+            # values to be replaced such as:
             # cluster_config:
             #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
             # .....
             # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
-            
-            dask_client = self.dask_cluster_connect(os.environ["DASK_CLUSTER_EOPF_NAME"], os.environ["DASK_GATEWAY_EOPF_ADDRESS"])
+
+            dask_client = self.dask_cluster_connect(
+                os.environ["DASK_CLUSTER_EOPF_NAME"],
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
+            )
         except KeyError as ke:
             self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
             return self.log_job_execution(JobStatus.failed, 0, str(ke))
