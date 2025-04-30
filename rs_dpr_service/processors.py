@@ -555,7 +555,6 @@ class GeneralProcessor(BaseProcessor):
         """
         self.logger.debug("Starting main loop")
 
-        # Connect to dask cluster
         self.use_mockup = dpr_payload.get("use_mockup", False)
         try:
             if not self.use_mockup:
