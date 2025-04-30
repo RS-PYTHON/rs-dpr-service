@@ -252,11 +252,13 @@ async def get_resource(request: Request, resource: str):
     return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
 
 
-@router.post("/dpr_service/dask/auth", include_in_schema=False)
-async def dask_auth(local_dask_username: str, local_dask_password: str):
-    """Set dask cluster authentication, only in local mode."""
-    os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
-    os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
+if env_bool("RSPY_LOCAL_MODE", default=False):
+
+    @router.post("/dpr_service/dask/auth", include_in_schema=False)
+    async def dask_auth(local_dask_username: str, local_dask_password: str):
+        """Set dask cluster authentication, only in local mode."""
+        os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
+        os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
 
 
 # DPR_SERVICE FRONT LOGIC HERE
