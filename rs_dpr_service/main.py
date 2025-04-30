@@ -158,15 +158,19 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
     fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
-    # In local mode, if the gateway is not defined, create a dask LocalCluster
-    # cluster = None
-    # if fastapi_app.extra["local_mode"] and (
-    #     ("RSPY_DASK_DPR_SERVICE_CLUSTER_NAME" not in os.environ)
-    #     or ("RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME" not in os.environ)
-    # ):
-    #     # Create the LocalCluster only in local mode
-    #     cluster = LocalCluster()
-    #     logger.info("Local Dask cluster created at startup.")
+    # There are 2 containers / pods that may be used:
+    # - one with the image that has the real eopf processor
+    # - one with the image that has the mockup eopf processor
+    # Set by default the env variables for the dask cluster name that will select one of 
+    # these 2 containers / pods to the one with the real processor 
+    # Later on, the user that requests one of the endpoints 
+    # - /processes/{resource}/execution
+    # - /processes/{resource}
+    # may add in the content the following param:
+    # "use_mockup": True
+    # and the env variables will be changed
+    os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
@@ -239,14 +243,18 @@ async def get_resource(request: Request, resource: str):
         ),
         None,
     ):
+        try:
+            data = await request.json()
+        except Exception as e:
+            data = None
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
             processor = processors[processor_name]
             task_table = await processor(  # type: ignore
                 request,
-                app.extra["process_manager"],
+                app.extra["process_manager"],                
                 # app.extra["dask_cluster"],
-            ).get_tasktable()
+            ).get_tasktable(data)
 
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
     return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
