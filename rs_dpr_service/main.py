@@ -164,8 +164,8 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Set by default the env variables for the dask cluster name that will select one of
     # these 2 containers / pods to the one with the real processor
     # Later on, the user that requests one of the endpoints
-    # - /processes/{resource}/execution
-    # - /processes/{resource}
+    # - /dpr/processes/{resource}/execution
+    # - /dpr/processes/{resource}
     # may add in the content the following param:
     # "use_mockup": True
     # and the env variables will be changed
@@ -185,11 +185,15 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Application gracefully stopped...")
 
 
-# DPR_SERVICE FRONT LOGIC HERE
+# Health check route
+@router.get("/_mgmt/ping", include_in_schema=False)
+async def ping():
+    """Liveliness probe."""
+    return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
 # Endpoint to get the status of a job by job_id
-@router.get("/jobs/{job_id}")
+@router.get("/dpr/jobs/{job_id}")
 async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: disable=W0613
     """Used to get status of processing job."""
     try:
@@ -202,7 +206,7 @@ async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: dis
 
 
 # Endpoint to execute the rs-dpr-service process and generate a job ID
-@router.post("/processes/{resource}/execution")
+@router.post("/dpr/processes/{resource}/execution")
 async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
     data = await request.json()
@@ -233,7 +237,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
     return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
 
 
-@router.get("/processes/{resource}")
+@router.get("/dpr/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
     if resource_info := next(  # pylint: disable=W0612 # noqa: F841
