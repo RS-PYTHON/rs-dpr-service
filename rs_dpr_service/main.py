@@ -22,13 +22,14 @@ from string import Template
 from time import sleep
 
 import yaml
+
+# from dask.distributed import LocalCluster
 from fastapi import APIRouter, FastAPI, HTTPException
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.postgresql import get_engine
 from sqlalchemy.exc import SQLAlchemyError
-from sqlalchemy.orm import declarative_base
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.status import (  # pylint: disable=C0411
@@ -39,16 +40,32 @@ from starlette.status import (  # pylint: disable=C0411
 )
 
 from rs_dpr_service import opentelemetry
+from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.processors import processors
 
-# Construct a sqlalchemy base class for declarative class definitions.
-Base = declarative_base()
+# DON'T REMOVE (needed for SQLAlchemy)
+
+
 # Initialize a FastAPI application
 app = FastAPI(title="rs-dpr-service", root_path="", debug=True)
 router = APIRouter(tags=["DPR service"])
 
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
+
+
+def env_bool(var: str, default: bool) -> bool:
+    """
+    Return True if an environemnt variable is set to 1, true or yes (case insensitive).
+    Return False if set to 0, false or no (case insensitive).
+    Return the default value if not set or set to a different value.
+    """
+    val = os.getenv(var, str(default)).lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return True
+    if val in ("n", "no", "f", "false", "off", "0"):
+        return False
+    return default
 
 
 def get_config_path() -> pathlib.Path:
@@ -140,12 +157,24 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Starting up the application...")
     # Create jobs table
     process_manager = init_db()
-    # In local mode, if the gateway is not defined, create a dask LocalCluster
-    cluster = None
+    fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
+    # There are 2 containers / pods that may be used:
+    # - one with the image that has the real eopf processor
+    # - one with the image that has the mockup eopf processor
+    # Set by default the env variables for the dask cluster name that will select one of
+    # these 2 containers / pods to the one with the real processor
+    # Later on, the user that requests one of the endpoints
+    # - /dpr/processes/{resource}/execution
+    # - /dpr/processes/{resource}
+    # may add in the content the following param:
+    # "use_mockup": True
+    # and the env variables will be changed
+    os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
-    fastapi_app.extra["dask_cluster"] = cluster
+    # fastapi_app.extra["dask_cluster"] = cluster
     # token refereshment logic
 
     # Yield control back to the application (this is where the app will run)
@@ -156,27 +185,29 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Application gracefully stopped...")
 
 
-# DPR_SERVICE FRONT LOGIC HERE
+# Health check route
+@router.get("/_mgmt/ping", include_in_schema=False)
+async def ping():
+    """Liveliness probe."""
+    return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
 # Endpoint to get the status of a job by job_id
-@router.get("/jobs/{job_id}")
+@router.get("/dpr/jobs/{job_id}")
 async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: disable=W0613
     """Used to get status of processing job."""
     try:
         job = app.extra["process_manager"].get_job(job_id)
-        return JSONResponse(status_code=HTTP_200_OK, content=job)
+        pretty_job = {"message": job["message"], "status": job["status"]}
+        return JSONResponse(status_code=HTTP_200_OK, content=pretty_job)
     except JobNotFoundError:  # pylint: disable=W0718
         # Handle case when job_id is not found
         return HTTPException(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
 
 
 # Endpoint to execute the rs-dpr-service process and generate a job ID
-@router.post("/processes/{resource}/execution")
-async def execute_process(
-    request: Request,
-    resource: str
-):  # pylint: disable=unused-argument
+@router.post("/dpr/processes/{resource}/execution")
+async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
     data = await request.json()
     # check if the input resource exists
@@ -189,9 +220,7 @@ async def execute_process(
         _, dpr_status = await processor(  # type: ignore
             request,
             app.extra["process_manager"],
-            app.extra["dask_cluster"],
-            app.extra["station_token_list"],
-            app.extra["station_token_list_lock"],
+            # app.extra["dask_cluster"],
         ).execute(data)
 
         # Get identifier of the current job
@@ -204,8 +233,45 @@ async def execute_process(
         }
         id_key = [status for status in status_dict if status in dpr_status][0]
         job = app.extra["process_manager"].get_job(dpr_status[id_key])
-        return JSONResponse(status_code=HTTP_201_CREATED, content=job)
+        return JSONResponse(status_code=HTTP_201_CREATED, content=str(job))
     return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+
+
+@router.get("/dpr/processes/{resource}")
+async def get_resource(request: Request, resource: str):
+    """Should return info about a specific resource."""
+    if resource_info := next(  # pylint: disable=W0612 # noqa: F841
+        (
+            api.config["resources"][defined_resource]
+            for defined_resource in api.config["resources"]
+            if defined_resource == resource
+        ),
+        None,
+    ):
+        try:
+            data = await request.json()
+        except Exception:  # pylint: disable=broad-exception-caught
+            data = None
+        processor_name = api.config["resources"][resource]["processor"]["name"]
+        if processor_name in processors:
+            processor = processors[processor_name]
+            task_table = await processor(  # type: ignore
+                request,
+                app.extra["process_manager"],
+                # app.extra["dask_cluster"],
+            ).get_tasktable(data)
+
+            return JSONResponse(status_code=HTTP_200_OK, content=task_table)
+    return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+
+
+if env_bool("RSPY_LOCAL_MODE", default=False):
+
+    @router.post("/dpr_service/dask/auth", include_in_schema=False)
+    async def dask_auth(local_dask_username: str, local_dask_password: str):
+        """Set dask cluster authentication, only in local mode."""
+        os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
+        os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
 
 
 # DPR_SERVICE FRONT LOGIC HERE

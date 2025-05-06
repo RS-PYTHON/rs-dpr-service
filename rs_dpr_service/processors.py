@@ -18,6 +18,7 @@ import asyncio  # for handling asynchronous tasks
 import json
 import logging
 import os
+import os.path as osp
 import re
 import subprocess
 import time
@@ -25,9 +26,9 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from dask.distributed import (
+import yaml
+from dask.distributed import (  # LocalCluster,
     Client,
-    LocalCluster,
 )
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
@@ -66,28 +67,39 @@ CLUSTER_MODE: bool = not LOCAL_MODE
 
 
 def dpr_processor_task(  # pylint: disable=R0914, R0917
-    data: dict,
-    output_data_dir,
+    dpr_payload: dict,
 ):
     """
     Dpr processing inside the dask cluster
     """
 
     logger_dask = logging.getLogger(__name__)
+    print("Dask task running - print() test")
     logger_dask.info("The dpr processing task started")
-    os.environ["OUTPUT_DIR"] = output_data_dir
-    # TODO create the acctual payload_file from data
-    payload_abs_path = "./payload.cfg"
-    with open(payload_abs_path, "w+", encoding="utf-8") as payload:
-        payload.write(json.dumps(data))
+    logger_dask.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
+    use_mockup = dpr_payload.get("use_mockup", False)
+    try:
+        payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
+        with open(payload_abs_path, "w+", encoding="utf-8") as payload:
+            payload.write(yaml.safe_dump(dpr_payload))
+    except Exception as e:
+        logger_dask.exception("Exception during payload file creation: %s", e)
+        raise
 
+    command = ["eopf", "trigger", "local", payload_abs_path]
+    wd = "."
+    if use_mockup:
+        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
+        wd = "/src/DPR"
+    logger.debug(f"Working directory for subprocess: {wd} (type: {type(wd)})")
     # Trigger EOPF processing, catch output
+    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
     with subprocess.Popen(
-        ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path],
+        command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        cwd="/src/DPR",
+        cwd=wd,
     ) as p:
         assert p.stdout is not None  # For mypy
         # Log contents
@@ -121,7 +133,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             # search for the JSON-like part, parse it, and ignore the rest.
             match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
             if not match:
-                raise ValueError("No valid data structure found in the output.")
+                raise ValueError("No valid dpr_payload structure found in the output.")
 
             payload_str = match.group(1)
 
@@ -131,7 +143,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
                 # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
                 return_response = ast.literal_eval(payload_str)
             except Exception as e:
-                raise ValueError(f"Failed to parse data structure: {e}") from e
+                raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
         try:
             # Wait for the execution to finish
@@ -143,16 +155,37 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
         # In all cases, upload the reports dir to the s3 bucket.
         finally:
-            try:
-                time.sleep(1)
-                # await prefect_utils.s3_upload_dir(
-                #     report_dirname,
-                #     osp.join(output_data_dir, report_dirname),
-                # )
-            except Exception as exception:  # pylint: disable=broad-exception-caught
-                logger.error(exception)
+            time.sleep(1)
 
         return return_response
+
+
+def dpr_tasktable_task(use_mockup=False):
+    """
+    Dpr tasktable inside the dask cluster
+    """
+
+    logger_dask = logging.getLogger(__name__)
+    logger_dask.info("The dpr triggering tasktable task started")
+
+    command = ["eopf", "trigger", "tasktable"]
+    if use_mockup:
+        command = ["sleep", "1"]
+    # Trigger EOPF tasktable command
+    tasktable_result: dict = {}
+    with subprocess.Popen(
+        command,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+    ) as p:
+        # This will be activated when trigger tasktable cmd will work
+        # assert p.stdout is not None  # For mypy
+        # when the eopf command will work, delete the following print and handle the p.stdout
+        print(p.stdout)
+        # tasktable_result = p.stdout
+
+    return tasktable_result
 
 
 class GeneralProcessor(BaseProcessor):
@@ -162,7 +195,6 @@ class GeneralProcessor(BaseProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
         name,
     ):  # pylint: disable=super-init-not-called
         """
@@ -174,20 +206,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger = logger
         self.request = credentials
         self.headers: Headers = credentials.headers
-        # self.stream_list: list[Feature] = []
-        #################
-        # Env section
-        # Set a list containing all possibles server url
-        # self.server_url = [
-        #     os.getenv("RSPY_HOST_CADIP", "http://127.0.0.1:8002"),
-        #     os.getenv("RSPY_HOST_ADGS", "http://127.0.0.1:8001"),
-        # ]
 
-        # self.catalog_url: str = os.environ.get(
-        #     "RSPY_HOST_CATALOG",
-        #     "http://127.0.0.1:8003",
-        # )  # get catalog href, loopback else
-        #################
         # Database section
         self.job_id: str = str(uuid.uuid4())  # Generate a unique job ID
         self.message: str = "Processing Unit was created"
@@ -199,10 +218,89 @@ class GeneralProcessor(BaseProcessor):
         # Inputs section
         self.assets_info: list = []
 
-        self.cluster = cluster
+        self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    async def get_tasktable(self, data, client=None, name=None):  # pylint: disable=W0613
+        """Will execute eopf tasktable command when available"""
+        # Disabled;
+        # if name:
+        #     with subprocess.Popen(
+        #         ["eopf", "trigger", "tasktable", name],
+        #         stdout=subprocess.PIPE,
+        #         stderr=subprocess.STDOUT,
+        #         text=True,
+        #     ) as p:
+        #         return p.stdout()
+        use_mockup = False
+        if data and isinstance(data, dict):
+            use_mockup = data.get("use_mockup", False)
+            if use_mockup:
+                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
+        with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
+            tasktable_data = json.loads(tf.read())
+
+        # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
+        # the payload.cfg from the user is comming with a `dask_context:` section that contains
+        # values to be replaced such as:
+        # cluster_config:
+        #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
+        # .....
+        # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
+        dask_client = self.dask_cluster_connect(
+            os.environ["DASK_CLUSTER_EOPF_NAME"],
+            os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
+        )
+
+        # Manage dask tasks in a separate thread
+        # starting a thread for managing the dask callbacks
+        self.logger.debug("Starting tasks monitoring thread")
+        try:
+            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup)
+            res = task_table_task.result()
+            # the eopf tasktable is supposed to fail at the current time, so return something hardcoded
+            if not res:
+                res = tasktable_data
+            return res
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
+            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
+            return {}
+
+    def replace_placeholders(self, obj):
+        """
+        Recursively replaces placeholders in the form ${PLACEHODER} within a nested structure (dict, list, str)
+        using corresponding environment variable values.
+
+        If an environment variable is not found, the placeholder is left unchanged and a warning is logged.
+
+        Args:
+            obj (Any): The input object, typically a dict or list, containing strings with placeholders.
+
+        Returns:
+            Any: The same structure with all placeholders replaced where possible.
+        """
+        pattern = re.compile(r"\$\{(\w+)\}")
+
+        if isinstance(obj, dict):
+            return {k: self.replace_placeholders(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [self.replace_placeholders(item) for item in obj]
+        if isinstance(obj, str):
+
+            def replacer(match):
+                key = match.group(1)
+                value = os.environ.get(key)
+                if value is None:
+                    logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
+                    return match.group(0)
+                return value
+
+            return pattern.sub(replacer, obj)
+        return obj
+
+    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
         """
         Manages Dask tasks where the dpr processor is started.
 
@@ -224,8 +322,7 @@ class GeneralProcessor(BaseProcessor):
             "In progress",
         )
         try:
-            dpr_task = client.submit(dpr_processor_task, data, "./output")
-
+            dpr_task = client.submit(dpr_processor_task, self.replace_placeholders(dpr_payload))
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
@@ -234,27 +331,25 @@ class GeneralProcessor(BaseProcessor):
 
         try:
             res = dpr_task.result()  # This will raise the exception from the task if it failed
-            self.logger.debug(f"Task result = {res}")
-
-            self.logger.debug("%s Task streaming completed", dpr_task.key)
+            self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught
             self.logger.error("Task failed with exception: %s", task_e)
-            # Wait for all the current running tasks to complete.
-            # self.wait_for_dask_completion(client)
             # Update status for the job
             self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
-            # ???????
-            # self.delete_files_from_bucket()
             return
 
-        # Update status once all features are processed
-        self.log_job_execution(JobStatus.successful, 100, "Finished")
+        # Update status and insert the result of the dask task in the jobs table
+        self.log_job_execution(JobStatus.successful, 100, str(res))
+        # write the results in a s3 bucket file
+
         # Update the subscribers for token refreshment
         self.logger.info("Tasks monitoring finished")
 
     def dask_cluster_connect(
         self,
+        cluster_name,
+        cluster_address,
     ):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
@@ -275,7 +370,7 @@ class GeneralProcessor(BaseProcessor):
             RuntimeError: Raised if the cluster name is None, required environment variables are missing,
                         cluster creation fails or authentication errors occur.
             KeyError: Raised if the necessary Dask Gateway environment variables (`DASK_GATEWAY__ADDRESS`,
-                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_STAGING_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
+                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
             IndexError: Raised if no clusters are found in the Dask Gateway and new cluster creation is attempted.
             dask_gateway.exceptions.GatewayServerError: Raised when there is a server-side error in Dask Gateway.
             dask_gateway.exceptions.AuthenticationError: Raised if authentication to the Dask Gateway fails.
@@ -311,85 +406,86 @@ class GeneralProcessor(BaseProcessor):
 
         # If self.cluster is already initialized, it means the application is running in local mode, and
         # the cluster was created when the application started.
-        if not self.cluster:
-            # Connect to the gateway and get the list of the clusters
-            try:
-                # get the name of the cluster
-                cluster_name = os.environ["RSPY_DASK_STAGING_CLUSTER_NAME"]
-                # In local mode, authenticate to the dask cluster with username/password
-                if LOCAL_MODE:
-                    gateway_auth = BasicAuth(
-                        os.environ["LOCAL_DASK_USERNAME"],
-                        os.environ["LOCAL_DASK_PASSWORD"],
-                    )
 
-                # Cluster mode
-                else:
-                    # check the auth type, only jupyterhub type supported for now
-                    auth_type = os.environ["DASK_GATEWAY__AUTH__TYPE"]
-                    # Handle JupyterHub authentication
-                    if auth_type == "jupyterhub":
-                        gateway_auth = JupyterHubAuth(api_token=os.environ["JUPYTERHUB_API_TOKEN"])
-                    else:
-                        self.logger.error(f"Unsupported authentication type: {auth_type}")
-                        raise RuntimeError(f"Unsupported authentication type: {auth_type}")
-
-                gateway = Gateway(
-                    address=os.environ["DASK_GATEWAY__ADDRESS"],
-                    auth=gateway_auth,
+        # Connect to the gateway and get the list of the clusters
+        try:
+            # In local mode, authenticate to the dask cluster with username/password
+            if LOCAL_MODE:
+                gateway_auth = BasicAuth(
+                    os.environ["LOCAL_DASK_USERNAME"],
+                    os.environ["LOCAL_DASK_PASSWORD"],
                 )
 
-                # Sort the clusters by newest first
-                clusters = sorted(gateway.list_clusters(), key=lambda cluster: cluster.start_time, reverse=True)
-                self.logger.debug(f"Cluster list for gateway {os.environ['DASK_GATEWAY__ADDRESS']!r}: {clusters}")
-
-                # In local mode, get the first cluster from the gateway.
-                cluster_id = None
-                if LOCAL_MODE:
-                    if clusters:
-                        cluster_id = clusters[0].name
-
-                # In cluster mode, get the identifier of the cluster whose name is equal to the cluster_name variable.
-                # Protection for the case when this cluster does not exit
+            # Cluster mode
+            else:
+                # check the auth type, only jupyterhub type supported for now
+                auth_type = os.environ["DASK_GATEWAY__AUTH__TYPE"]
+                # Handle JupyterHub authentication
+                if auth_type == "jupyterhub":
+                    gateway_auth = JupyterHubAuth(api_token=os.environ["JUPYTERHUB_API_TOKEN"])
                 else:
-                    self.logger.info(f"my cluster name: {cluster_name}")
+                    self.logger.error(f"Unsupported authentication type: {auth_type}")
+                    raise RuntimeError(f"Unsupported authentication type: {auth_type}")
 
-                    for cluster in clusters:
-                        self.logger.info(f"Existing cluster names: {cluster.options.get('cluster_name')}")
+            gateway = Gateway(
+                address=cluster_address,
+                auth=gateway_auth,
+            )
 
-                        is_equal = cluster.options.get("cluster_name") == cluster_name
-                        self.logger.info(f"Is equal: {is_equal}")
+            # Sort the clusters by newest first
+            clusters = sorted(gateway.list_clusters(), key=lambda cluster: cluster.start_time, reverse=True)
+            self.logger.debug(f"Cluster list for gateway {cluster_address!r}: {clusters}")
 
-                    cluster_id = next(
-                        (
-                            cluster.name
-                            for cluster in clusters
-                            if isinstance(cluster.options, dict) and cluster.options.get("cluster_name") == cluster_name
-                        ),
-                        None,
-                    )
-                    self.logger.info(f"Cluster id vaut: {cluster_id}")
+            # In local mode, get the first cluster from the gateway.
+            cluster_id = None
+            if LOCAL_MODE:
+                if clusters:
+                    cluster_id = clusters[0].name
 
-                if not cluster_id:
-                    raise IndexError(f"Dask cluster with 'cluster_name'={cluster_name!r} was not found.")
+            # In cluster mode, get the identifier of the cluster whose name is equal to the cluster_name variable.
+            # Protection for the case when this cluster does not exit
+            else:
+                self.logger.info(f"my cluster name: {cluster_name}")
 
-                self.cluster = gateway.connect(cluster_id)
-                self.logger.info(f"Successfully connected to the {cluster_name} dask cluster")
+                for cluster in clusters:
+                    self.logger.info(f"Existing cluster names: {cluster.options.get('cluster_name')}")
 
-            except KeyError as e:
-                self.logger.exception(
-                    "Failed to retrieve the required connection details for "
-                    "the Dask Gateway from one or more of the following environment variables: "
-                    "DASK_GATEWAY__ADDRESS, RSPY_DASK_STAGING_CLUSTER_NAME, "
-                    f"JUPYTERHUB_API_TOKEN, DASK_GATEWAY__AUTH__TYPE. {e}",
+                    is_equal = cluster.options.get("cluster_name") == cluster_name
+                    self.logger.info(f"Is equal: {is_equal}")
+
+                cluster_id = next(
+                    (
+                        cluster.name
+                        for cluster in clusters
+                        if isinstance(cluster.options, dict) and cluster.options.get("cluster_name") == cluster_name
+                    ),
+                    None,
                 )
+                self.logger.info(f"Cluster id vaut: {cluster_id}")
 
-                raise RuntimeError(
-                    f"Failed to retrieve the required connection details for Dask Gateway. Missing key:{e}",
-                ) from e
-            except IndexError as e:
-                self.logger.exception(f"Failed to find the specified dask cluster: {e}")
-                raise RuntimeError(f"No dask cluster named '{cluster_name}' was found.") from e
+            if not cluster_id:
+                raise IndexError(f"Dask cluster with 'cluster_name'={cluster_name!r} was not found.")
+
+            self.cluster = gateway.connect(cluster_id)
+            if not self.cluster:
+                self.logger.exception("Failed to create the cluster")
+                raise RuntimeError("Failed to create the cluster")
+            self.logger.info(f"Successfully connected to the {cluster_name} dask cluster")
+
+        except KeyError as e:
+            self.logger.exception(
+                "Failed to retrieve the required connection details for "
+                "the Dask Gateway from one or more of the following environment variables: "
+                "DASK_GATEWAY__ADDRESS, RSPY_DASK_DPR_SERVICE_CLUSTER_NAME, "
+                f"JUPYTERHUB_API_TOKEN, DASK_GATEWAY__AUTH__TYPE. {e}",
+            )
+
+            raise RuntimeError(
+                f"Failed to retrieve the required connection details for Dask Gateway. Missing key:{e}",
+            ) from e
+        except IndexError as e:
+            self.logger.exception(f"Failed to find the specified dask cluster: {e}")
+            raise RuntimeError(f"No dask cluster named '{cluster_name}' was found.") from e
 
         self.logger.debug("Cluster dashboard: %s", self.cluster.dashboard_link)
         # create the client as well
@@ -457,11 +553,11 @@ class GeneralProcessor(BaseProcessor):
 
     async def start_processor(  # pylint: disable=too-many-return-statements
         self,
-        data: dict,
+        dpr_payload: dict,
     ) -> tuple[str, dict]:
         """
         Method used to trigger dask distributed streaming process.
-        It creates dask client object, gets the external data sources access token
+        It creates dask client object, gets the external dpr_payload sources access token
         Prepares the tasks for execution
         Manage eventual runtime exceptions
 
@@ -475,11 +571,27 @@ class GeneralProcessor(BaseProcessor):
         """
         self.logger.debug("Starting main loop")
 
-        # Connect to dask cluster
         try:
-            dask_client = self.dask_cluster_connect()
+            if dpr_payload.get("use_mockup", False):
+                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
+            # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
+            # the payload.cfg from the user is comming with a `dask_context:` section that contains
+            # values to be replaced such as:
+            # cluster_config:
+            #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
+            # .....
+            # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
+
+            dask_client = self.dask_cluster_connect(
+                os.environ["DASK_CLUSTER_EOPF_NAME"],
+                os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
+            )
+        except KeyError as ke:
+            self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
+            return self.log_job_execution(JobStatus.failed, 0, str(ke))
         except RuntimeError as runtime_error:
-            self.logger.error("Failed to start the staging process")
+            self.logger.error("Failed to start the dpr-service process")
             return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
 
         self.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
@@ -491,7 +603,7 @@ class GeneralProcessor(BaseProcessor):
             await asyncio.to_thread(
                 self.manage_dask_tasks,
                 dask_client,
-                data,
+                dpr_payload,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
@@ -526,7 +638,7 @@ class GeneralProcessor(BaseProcessor):
         """
         job_metadata = {
             "identifier": self.job_id,
-            "processID": "staging",
+            "processID": "dpr-service",
             "status": self.status.value,
             "progress": self.progress,
             "message": self.message,
@@ -589,12 +701,16 @@ class S1L0Processor(GeneralProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
+        # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
         Initialize S1L0Processor
         """
-        super().__init__(credentials, db_process_manager, cluster, "S1L0Processor")
+        super().__init__(credentials, db_process_manager, "S1L0Processor")
+
+    # Will be activated later
+    # def get_tasktable(self, name="l0.s1.s1_l0_processor S1L0Processor"):
+    #     return super().get_tasktable(name)
 
 
 class S3L0Processor(GeneralProcessor):
@@ -604,14 +720,18 @@ class S3L0Processor(GeneralProcessor):
         self,
         credentials: Request,
         db_process_manager: PostgreSQLManager,
-        cluster: LocalCluster,
+        # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
         Initialize S1L0Processor
         """
-        super().__init__(credentials, db_process_manager, cluster, "S3L0Processor")
+        super().__init__(credentials, db_process_manager, "S3L0Processor")
+
+    # Will be activated later
+    # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
+    #     return super().get_tasktable(name)
 
 
 # Register the processor
 
-processors = {"S1L0Processor": S1L0Processor, "S3L0Processor": S3L0Processor}
+processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor}

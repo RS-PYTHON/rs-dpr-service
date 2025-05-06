@@ -26,8 +26,8 @@ logging:
 
 metadata:
   identification:
-    title: RS-Staging Service
-    description: A service to ingest external data as STAC items.
+    title: DPR service
+    description: A service to start the dpr processor.
     keywords:
       - ogc
       - api
