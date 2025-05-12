@@ -1,14 +1,17 @@
 [project]
 name = "rs-dpr-service"
-version = "0.1.0"
+version = "0.0.0" # see: https://github.com/mtkennerly/poetry-dynamic-versioning
 
 [tool.poetry]
 name = "rs-dpr-service"
 version = "0.0.0"
-description = ""
+description = "Copernicus Sentinel rs-server, DPR as a service."
 license = "Apache-2.0"
 authors = ["ESA under contract with Airbus and CS <ops_coprs@airbus.com>"]
 readme = "README.md"
+homepage = "https://home.rs-python.eu/"
+repository = "https://github.com/RS-PYTHON/rs-dpr-service"
+documentation = "https://home.rs-python.eu/rs-documentation/rs-server/docs/doc/"
 keywords = ["stac", "copernicus", "sentinel", "processing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -23,8 +26,12 @@ classifiers = [
 ]
 
 packages = [
-
     { include = "rs_dpr_service", from = "."},
+]
+
+# Add configuration files to the .whl package
+include = [
+    { path = "config", format = ["wheel"] }
 ]
 
 [tool.poetry.dependencies]
@@ -69,12 +76,6 @@ pytest-error-for-skips = "^2.0.2"
 pytest-mock = "^3.14.0"
 responses = "^0.25.3"
 
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
-
 [tool.black]
 line-length = 120
 
@@ -118,3 +119,12 @@ skips = ['*/*.py']
 
 [tool.bandit]
 skips = ['B603', 'B607', 'B404']
+
+
+[tool.poetry-dynamic-versioning] # needs: poetry self add "poetry-dynamic-versioning[plugin]"
+enable = true
+metadata = false
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
