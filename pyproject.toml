@@ -1,14 +1,17 @@
 [project]
 name = "rs-dpr-service"
-version = "0.1.0"
+dynamic = ["version"] # see: https://github.com/mtkennerly/poetry-dynamic-versioning
 
 [tool.poetry]
 name = "rs-dpr-service"
 version = "0.0.0"
-description = ""
+description = "Copernicus Sentinel rs-server, DPR as a service."
 license = "Apache-2.0"
 authors = ["ESA under contract with Airbus and CS <ops_coprs@airbus.com>"]
 readme = "README.md"
+homepage = "https://home.rs-python.eu/"
+repository = "https://github.com/RS-PYTHON/rs-dpr-service"
+documentation = "https://home.rs-python.eu/rs-documentation/rs-server/docs/doc/"
 keywords = ["stac", "copernicus", "sentinel", "processing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -23,13 +26,18 @@ classifiers = [
 ]
 
 packages = [
-
     { include = "rs_dpr_service", from = "."},
+]
+
+# Add configuration files to the .whl package
+include = [
+    { path = "config", format = ["wheel"] }
 ]
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pygeoapi = { git = "https://github.com/geopython/pygeoapi.git", branch = "master" }
+pygeoapi = ">=0.21.dev0"
+flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.34.1,<0.35.0"
 fastapi = ">=0.115.12,<0.116.0"
 geoalchemy2 = ">=0.17.1,<0.18.0"
@@ -59,6 +67,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 python = "^3.11"
+pygeoapi = { git = "https://github.com/geopython/pygeoapi.git", branch = "master" }
 pre-commit = ">=3.7.1,<5.0.0"
 pylint = "^3.3.2"
 pytest = "^8.3.3"
@@ -68,12 +77,7 @@ pytest-docker = "^3.1.0"
 pytest-error-for-skips = "^2.0.2"
 pytest-mock = "^3.14.0"
 responses = "^0.25.3"
-
-
-[build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
-build-backend = "poetry.core.masonry.api"
-
+safety = "^3.5.1"
 
 [tool.black]
 line-length = 120
@@ -118,3 +122,15 @@ skips = ['*/*.py']
 
 [tool.bandit]
 skips = ['B603', 'B607', 'B404']
+
+
+[tool.poetry.requires-plugins]
+poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
+
+[tool.poetry-dynamic-versioning]
+enable = true
+metadata = false
+
+[build-system]
+requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
+build-backend = "poetry_dynamic_versioning.backend"
