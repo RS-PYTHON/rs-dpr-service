@@ -41,12 +41,6 @@ flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.34.1,<0.35.0"
 fastapi = ">=0.115.12,<0.116.0"
 geoalchemy2 = ">=0.17.1,<0.18.0"
-opentelemetry-api = "^1.32.0"
-opentelemetry-sdk = "^1.32.0"
-opentelemetry-instrumentation = "^0.53b0"
-opentelemetry-instrumentation-fastapi = "^0.53b0"
-opentelemetry-exporter-otlp = "^1.32.0"
-opentelemetry-distro = "^0.53b0"
 SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
 dask-gateway = "2024.1.0"
@@ -55,12 +49,14 @@ dask = {extras = ["distributed"], version = "2024.5.2"}
 openapi-core = "^0.19.5"
 bandit = "^1.8.3"
 mypy = "^1.15.0"
-opentelemetry-instrumentation-aws-lambda = "^0.53b1"
-opentelemetry-instrumentation-httpx = "^0.53b1"
 pylint = "^3.3.6"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.10"
+opentelemetry-distro = "^0.53b1" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-instrumentation-aws-lambda = "^0.53b1"
+opentelemetry-test-utils = "^0.53b1"
+opentelemetry-exporter-otlp = "^1.32.1"
 
 [tool.poetry.group.dev]
 optional = true
