@@ -141,6 +141,14 @@ jobs:
           poetry run bandit -c pyproject.toml -r . -f json -o ./bandit-report.json
         shell: bash
 
+      - id: safety
+        name: Run safety
+        if: always() && github.actor != 'dependabot[bot]' # dependabot does not have access to secrets
+        run: |
+          set -x
+          poetry run safety --key ${{ secrets.SAFETY_API_KEY }} scan --detailed-output
+        shell: bash
+
       - name: Run Trivy vulnerability scanner
         if: always()
         uses: aquasecurity/trivy-action@master
