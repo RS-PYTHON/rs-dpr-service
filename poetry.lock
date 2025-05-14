@@ -2341,28 +2341,6 @@ packaging = ">=18.0"
 wrapt = ">=1.0.0,<2.0.0"
 
 [[package]]
-name = "opentelemetry-instrumentation-asgi"
-version = "0.53b1"
-description = "ASGI instrumentation for OpenTelemetry"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "opentelemetry_instrumentation_asgi-0.53b1-py3-none-any.whl", hash = "sha256:5f8422eff0a9e3ecb052a8726335925610bb9bd7bb1acf1619c2c28dc3c04842"},
-    {file = "opentelemetry_instrumentation_asgi-0.53b1.tar.gz", hash = "sha256:74b7a023787c574f2dd5ed9376e5b921c14501ba1b281ec8527eaadc442563e7"},
-]
-
-[package.dependencies]
-asgiref = ">=3.0,<4.0"
-opentelemetry-api = ">=1.12,<2.0"
-opentelemetry-instrumentation = "0.53b1"
-opentelemetry-semantic-conventions = "0.53b1"
-opentelemetry-util-http = "0.53b1"
-
-[package.extras]
-instruments = ["asgiref (>=3.0,<4.0)"]
-
-[[package]]
 name = "opentelemetry-instrumentation-aws-lambda"
 version = "0.53b1"
 description = "OpenTelemetry AWS Lambda instrumentation"
@@ -2378,50 +2356,6 @@ files = [
 opentelemetry-instrumentation = "0.53b1"
 opentelemetry-propagator-aws-xray = ">=1.0,<2.0"
 opentelemetry-semantic-conventions = "0.53b1"
-
-[[package]]
-name = "opentelemetry-instrumentation-fastapi"
-version = "0.53b1"
-description = "OpenTelemetry FastAPI Instrumentation"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "opentelemetry_instrumentation_fastapi-0.53b1-py3-none-any.whl", hash = "sha256:f8ed5b65e9086b86caeae191fcf798ec7b47469ac7f0341461acc03886278741"},
-    {file = "opentelemetry_instrumentation_fastapi-0.53b1.tar.gz", hash = "sha256:24e98ddd1bd8164069e68e36c47bb729fefb0a851e6dd520f4fc81c3bbc54147"},
-]
-
-[package.dependencies]
-opentelemetry-api = ">=1.12,<2.0"
-opentelemetry-instrumentation = "0.53b1"
-opentelemetry-instrumentation-asgi = "0.53b1"
-opentelemetry-semantic-conventions = "0.53b1"
-opentelemetry-util-http = "0.53b1"
-
-[package.extras]
-instruments = ["fastapi (>=0.58,<1.0)"]
-
-[[package]]
-name = "opentelemetry-instrumentation-httpx"
-version = "0.53b1"
-description = "OpenTelemetry HTTPX Instrumentation"
-optional = false
-python-versions = ">=3.8"
-groups = ["main"]
-files = [
-    {file = "opentelemetry_instrumentation_httpx-0.53b1-py3-none-any.whl", hash = "sha256:34d0057f2601036b85ad958ed052f1b8ea3439f964cb8f8493cb6cf05d7d1715"},
-    {file = "opentelemetry_instrumentation_httpx-0.53b1.tar.gz", hash = "sha256:aa8636ad704a99c6dcb73b649035d820506e93d5a80e45254fa435f131611a9c"},
-]
-
-[package.dependencies]
-opentelemetry-api = ">=1.12,<2.0"
-opentelemetry-instrumentation = "0.53b1"
-opentelemetry-semantic-conventions = "0.53b1"
-opentelemetry-util-http = "0.53b1"
-wrapt = ">=1.0.0,<2.0.0"
-
-[package.extras]
-instruments = ["httpx (>=0.18.0)"]
 
 [[package]]
 name = "opentelemetry-propagator-aws-xray"
@@ -2487,16 +2421,21 @@ deprecated = ">=1.2.6"
 opentelemetry-api = "1.32.1"
 
 [[package]]
-name = "opentelemetry-util-http"
+name = "opentelemetry-test-utils"
 version = "0.53b1"
-description = "Web util for OpenTelemetry"
+description = "Test utilities for OpenTelemetry unit tests"
 optional = false
 python-versions = ">=3.8"
 groups = ["main"]
 files = [
-    {file = "opentelemetry_util_http-0.53b1-py3-none-any.whl", hash = "sha256:ee7ecc1cbe4598535a95eaf7742f80c0c924843bf8f7ef3bab4963a228a94dd0"},
-    {file = "opentelemetry_util_http-0.53b1.tar.gz", hash = "sha256:7b0356584400b3406a643e244d36ff1bbb7c95e3b5ed0509d212e4a11c050a0e"},
+    {file = "opentelemetry_test_utils-0.53b1-py3-none-any.whl", hash = "sha256:b64bf069e526440de304b4dc88667a0dbdb5341a4f96e9743ef8d03e3c378809"},
+    {file = "opentelemetry_test_utils-0.53b1.tar.gz", hash = "sha256:2e8720b857c38ebb348c976c784cd3d3b40423a1795245849ac80b75f2af12ac"},
 ]
+
+[package.dependencies]
+asgiref = ">=3.0,<4.0"
+opentelemetry-api = "1.32.1"
+opentelemetry-sdk = "1.32.1"
 
 [[package]]
 name = "packaging"
@@ -4599,4 +4538,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.11"
-content-hash = "bfb47b90f65970f61a771718c5ad050a221c217645103e4fadb527312a4aa300"
+content-hash = "18df293392fdae54d4e7d184a59792b55ea17af67b7416219f247de5c1452c12"
