@@ -13,12 +13,10 @@
 # limitations under the License.
 
 """S1L0 and S3L0 Processors"""
-import ast
 import asyncio  # for handling asynchronous tasks
 import json
 import logging
 import os
-import os.path as osp
 import re
 import subprocess
 import time
@@ -26,7 +24,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-import yaml
 from dask.distributed import (  # LocalCluster,
     Client,
 )
@@ -39,6 +36,7 @@ from pygeoapi.process.manager.postgresql import (
 from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
+from rs_dpr_service.call_dask import upload_this_module, dpr_processor_task
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -64,100 +62,6 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 # Cluster mode is the opposite of local mode
 CLUSTER_MODE: bool = not LOCAL_MODE
-
-
-def dpr_processor_task(  # pylint: disable=R0914, R0917
-    dpr_payload: dict,
-):
-    """
-    Dpr processing inside the dask cluster
-    """
-
-    logger_dask = logging.getLogger(__name__)
-    print("Dask task running - print() test")
-    logger_dask.info("The dpr processing task started")
-    logger_dask.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
-    use_mockup = dpr_payload.get("use_mockup", False)
-    try:
-        payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
-        with open(payload_abs_path, "w+", encoding="utf-8") as payload:
-            payload.write(yaml.safe_dump(dpr_payload))
-    except Exception as e:
-        logger_dask.exception("Exception during payload file creation: %s", e)
-        raise
-
-    command = ["eopf", "trigger", "local", payload_abs_path]
-    wd = "."
-    if use_mockup:
-        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
-        wd = "/src/DPR"
-    logger.debug(f"Working directory for subprocess: {wd} (type: {type(wd)})")
-    # Trigger EOPF processing, catch output
-    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
-    with subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-        cwd=wd,
-    ) as p:
-        assert p.stdout is not None  # For mypy
-        # Log contents
-        log_str = ""
-        return_response = {}
-        # Write output to a log file and string + redirect to the prefect logger
-        with open(Path(payload_abs_path).with_suffix(".log").name, "w+", encoding="utf-8") as log_file:
-            while (line := p.stdout.readline()) != "":
-
-                # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
-                for key in (
-                    "key",
-                    "secret",
-                    "endpoint_url",
-                    "region_name",
-                    "api_token",
-                    "password",
-                ):
-                    line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
-
-                # Write to log file and string
-                log_file.write(line)
-                log_str += line
-
-                # Write to prefect logger if not empty
-                line = line.rstrip()
-                if line:
-                    logger.info(line)
-
-            logger.info(f"log_str = {log_str}")
-            # search for the JSON-like part, parse it, and ignore the rest.
-            match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-            if not match:
-                raise ValueError("No valid dpr_payload structure found in the output.")
-
-            payload_str = match.group(1)
-
-            # Use `ast.literal_eval` to safely evaluate the structure
-            try:
-                # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-                # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                return_response = ast.literal_eval(payload_str)
-            except Exception as e:
-                raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
-
-        try:
-            # Wait for the execution to finish
-            status_code = p.wait()
-
-            # Raise exception if the status code is != 0
-            if status_code:
-                raise Exception("EOPF error, please see the log.")  # pylint: disable=broad-exception-raised
-
-        # In all cases, upload the reports dir to the s3 bucket.
-        finally:
-            time.sleep(1)
-
-        return return_response
 
 
 def dpr_tasktable_task(use_mockup=False):
@@ -587,6 +491,10 @@ class GeneralProcessor(BaseProcessor):
                 os.environ["DASK_CLUSTER_EOPF_NAME"],
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
             )
+
+            # Upload local module to the dask client.
+            upload_this_module(dask_client)
+
         except KeyError as ke:
             self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
             return self.log_job_execution(JobStatus.failed, 0, str(ke))
