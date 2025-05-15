@@ -80,6 +80,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/poetry-install
+        with:
+          rm-plugin-dir: true
 
       - name: Run pylint
         if: always() # even if previous steps returned a non-zero exit code
@@ -113,6 +115,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/poetry-install
+        with:
+          rm-plugin-dir: true
       - name: Run mypy
         run: poetry run mypy --install-types --non-interactive --explicit-package-bases .
         shell: bash
@@ -125,6 +129,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/poetry-install
+        with:
+          rm-plugin-dir: true
 
         # Remove the installed poetry plugins that trigger security issues
       - name: Remove Poetry plugins folder
