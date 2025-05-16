@@ -16,33 +16,33 @@
 This module contains the code that is related to dask and/or sent to the dask workers.
 Avoid import unnecessary dependencies here.
 """
-import re
-import time
-import os
-from pathlib import Path
-import subprocess
-import tempfile
-import zipfile
+import ast
 import json
 import logging
+import os
+import os.path as osp
+import re
+import subprocess
+import tempfile
+import time
+import zipfile
+from pathlib import Path
 
 import yaml
-import ast
-import os.path as osp
-
 from distributed.client import Client as DaskClient
+
 
 def upload_this_module(dask_client: DaskClient):
     """
     Upload this current module from the caller environment to the dask client.
-    
-    WARNING: These modules should not import other modules that are not installed in the dask 
+
+    WARNING: These modules should not import other modules that are not installed in the dask
     environment or you'll have import errors.
 
     Args:
         clients: list of dask clients to which upload the modules.
     """
-    
+
     this_module = Path(__file__).absolute()
     this_init = this_module.parent / "__init__.py"
     this_project = this_module.parent.parent
@@ -77,8 +77,6 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
     """
 
     logger = logging.getLogger(__name__)
-
-    logger.critical("######################## test ########################")
 
     print("Dask task running - print() test")
     logger.info("The dpr processing task started")

@@ -36,7 +36,8 @@ from pygeoapi.process.manager.postgresql import (
 from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
-from rs_dpr_service.call_dask import upload_this_module, dpr_processor_task
+
+from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -365,7 +366,7 @@ class GeneralProcessor(BaseProcessor):
                     ),
                     None,
                 )
-                self.logger.info(f"Cluster id vaut: {cluster_id}")
+                self.logger.info(f"Cluster id: {cluster_id}")
 
             if not cluster_id:
                 raise IndexError(f"Dask cluster with 'cluster_name'={cluster_name!r} was not found.")
@@ -397,6 +398,9 @@ class GeneralProcessor(BaseProcessor):
 
         # Forward logging from dask workers to the caller
         client.forward_logging()
+
+        # Upload local module to the dask client.
+        upload_this_module(client)
 
         def set_dask_env(host_env: dict):
             """Pass environment variables to the dask workers."""
@@ -491,9 +495,6 @@ class GeneralProcessor(BaseProcessor):
                 os.environ["DASK_CLUSTER_EOPF_NAME"],
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
             )
-
-            # Upload local module to the dask client.
-            upload_this_module(dask_client)
 
         except KeyError as ke:
             self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
