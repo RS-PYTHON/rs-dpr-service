@@ -318,15 +318,6 @@ async def get_job_status_endpoint(request: Request, job_id: str = Path(..., titl
         return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
 
-if env_bool("RSPY_LOCAL_MODE", default=False):
-
-    @router.post("/dpr_service/dask/auth", include_in_schema=False)
-    async def dask_auth(local_dask_username: str, local_dask_password: str):
-        """Set dask cluster authentication, only in local mode."""
-        os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
-        os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
-
-
 # DPR_SERVICE FRONT LOGIC HERE
 
 
