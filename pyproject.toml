@@ -53,10 +53,10 @@ pylint = "^3.3.6"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.10"
-opentelemetry-distro = "^0.53b1" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-instrumentation-aws-lambda = "^0.53b1"
-opentelemetry-test-utils = "^0.53b1"
-opentelemetry-exporter-otlp = "^1.32.1"
+opentelemetry-distro = "^0.54b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-instrumentation-aws-lambda = "^0.54b0"
+opentelemetry-test-utils = "^0.54b0"
+opentelemetry-exporter-otlp = "^1.33.0"
 
 [tool.poetry.group.dev]
 optional = true
