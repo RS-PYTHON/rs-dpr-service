@@ -48,6 +48,7 @@ from rs_dpr_service.openapi_validation import (
 )
 from rs_dpr_service.processors import env_bool, processors
 
+# flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
 from . import jobs_table  # pylint: disable=unused-import
 
