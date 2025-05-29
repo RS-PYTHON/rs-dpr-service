@@ -22,9 +22,13 @@ from string import Template
 from time import sleep
 
 import yaml
+from eopf.common.constants import OpeningMode
+from eopf.common.file_utils import AnyPath
+from eopf.store.convert import convert
 
 # from dask.distributed import LocalCluster
 from fastapi import APIRouter, FastAPI, HTTPException
+from pydantic import BaseModel
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
@@ -52,6 +56,20 @@ router = APIRouter(tags=["DPR service"])
 
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
+
+
+class ConvertRequest(BaseModel):
+    """
+    Request schema for the SAFE→EOPF conversion endpoint.
+
+    Attributes:
+        safe_path (str):
+            The S3 URI of the input SAFE product to convert.
+            Must be of the form "s3://<bucket>/<path‐to‐SAFE>".
+    """
+
+    input_safe_path: str  # S3 URI pointing to the SAFE input product (e.g. "s3://rs-test-bucket/.../PRODUCT")
+    output_zarr_dir_path: str  # S3 URI pointing to the ZARR output product (e.g. "s3://rs-test-bucket/.../")
 
 
 def env_bool(var: str, default: bool) -> bool:
@@ -263,6 +281,52 @@ async def get_resource(request: Request, resource: str):
 
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
     return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+
+
+@router.post(
+    "/dpr/convert/safe-to-eopf",
+    summary="Convert a SAFE product to EOPF (Zarr)",
+    response_description="URI of converted EOPF product",
+)
+async def convert_safe_to_eopf(req: ConvertRequest):
+    """
+    Synchronously convert a Sentinel-1 SAFE (or any EO SAFE) product
+    into EOPF-compliant Zarr using the eopf-cpm library.
+    """
+
+    # Validate required environment variables
+    try:
+        s3_config = {
+            "key": os.environ["S3_ACCESSKEY"],
+            "secret": os.environ["S3_SECRETKEY"],
+            "client_kwargs": {
+                "endpoint_url": os.environ["S3_ENDPOINT"],
+                "region_name": os.environ["S3_REGION"],
+            },
+        }
+    except KeyError as e:
+        raise HTTPException(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Missing required S3 config environment variable: {e.args[0]}",
+        ) from e
+
+    # Extract base name without extension
+    safe_uri = req.input_safe_path
+    safe_name = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
+    zarr_uri = req.output_zarr_dir_path.rstrip("/") + f"/{safe_name}.zarr"
+
+    # Convert SAFE → Zarr
+    try:
+        target_store_config = dict(mode=OpeningMode.CREATE_OVERWRITE)
+        convert(
+            AnyPath(safe_uri, **s3_config),
+            AnyPath(zarr_uri, **s3_config),
+            target_store_kwargs=target_store_config,
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Conversion failed: {exc}") from exc
+
+    return JSONResponse(status_code=HTTP_200_OK, content={"message": "Conversion finished", "zarr_uri": zarr_uri})
 
 
 if env_bool("RSPY_LOCAL_MODE", default=False):
