@@ -13,18 +13,19 @@
 # limitations under the License.
 
 """rs dpr service main module."""
-
+import copy
 import logging
 import os
 import pathlib
 from contextlib import asynccontextmanager
+from datetime import datetime
 from string import Template
 from time import sleep
 
 import yaml
 
 # from dask.distributed import LocalCluster
-from fastapi import APIRouter, FastAPI, HTTPException
+from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
@@ -41,31 +42,39 @@ from starlette.status import (  # pylint: disable=C0411
 
 from rs_dpr_service import opentelemetry
 from rs_dpr_service.jobs_table import Base
-from rs_dpr_service.processors import processors
+from rs_dpr_service.openapi_validation import (
+    validate_request,
+    validate_response,
+)
+from rs_dpr_service.processors import env_bool, processors
 
+# flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
-
+from . import jobs_table  # pylint: disable=unused-import
 
 # Initialize a FastAPI application
 app = FastAPI(title="rs-dpr-service", root_path="", debug=True)
 router = APIRouter(tags=["DPR service"])
 
+JOB_ATTRS_MAPPING = {"identifier": "jobID"}
+OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
+
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
 
 
-def env_bool(var: str, default: bool) -> bool:
-    """
-    Return True if an environemnt variable is set to 1, true or yes (case insensitive).
-    Return False if set to 0, false or no (case insensitive).
-    Return the default value if not set or set to a different value.
-    """
-    val = os.getenv(var, str(default)).lower()
-    if val in ("y", "yes", "t", "true", "on", "1"):
-        return True
-    if val in ("n", "no", "f", "false", "off", "0"):
-        return False
-    return default
+def ogc_error_response(status_code: int, detail: str):
+    """Generate an OGC-compliant error response"""
+    error_response = {
+        "type": f"https://developer.mozilla.org/en/docs/Web/HTTP/Reference/Status/{status_code}",
+        "status": status_code,
+        "detail": detail,
+    }
+    return JSONResponse(status_code=status_code, content=error_response)
+
+
+class DatabaseJobFormatError(Exception):
+    """Exception raised when an error occurred during the init of a provider."""
 
 
 def get_config_path() -> pathlib.Path:
@@ -192,51 +201,6 @@ async def ping():
     return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
-# Endpoint to get the status of a job by job_id
-@router.get("/dpr/jobs/{job_id}")
-async def get_job_status_endpoint(request: Request, job_id: str):  # pylint: disable=W0613
-    """Used to get status of processing job."""
-    try:
-        job = app.extra["process_manager"].get_job(job_id)
-        pretty_job = {"message": job["message"], "status": job["status"]}
-        return JSONResponse(status_code=HTTP_200_OK, content=pretty_job)
-    except JobNotFoundError:  # pylint: disable=W0718
-        # Handle case when job_id is not found
-        return HTTPException(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
-
-
-# Endpoint to execute the rs-dpr-service process and generate a job ID
-@router.post("/dpr/processes/{resource}/execution")
-async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
-    """Used to execute processing jobs."""
-    data = await request.json()
-    # check if the input resource exists
-    if resource not in api.config["resources"]:
-        return HTTPException(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
-
-    processor_name = api.config["resources"][resource]["processor"]["name"]
-    if processor_name in processors:
-        processor = processors[processor_name]
-        _, dpr_status = await processor(  # type: ignore
-            request,
-            app.extra["process_manager"],
-            # app.extra["dask_cluster"],
-        ).execute(data)
-
-        # Get identifier of the current job
-        status_dict = {
-            "accepted": HTTP_201_CREATED,
-            "running": HTTP_201_CREATED,
-            "successful": HTTP_201_CREATED,
-            "failed": HTTP_500_INTERNAL_SERVER_ERROR,
-            "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
-        }
-        id_key = [status for status in status_dict if status in dpr_status][0]
-        job = app.extra["process_manager"].get_job(dpr_status[id_key])
-        return JSONResponse(status_code=HTTP_201_CREATED, content=str(job))
-    return HTTPException(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
-
-
 @router.get("/dpr/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
@@ -262,16 +226,97 @@ async def get_resource(request: Request, resource: str):
             ).get_tasktable(data)
 
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
-    return HTTPException(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+    return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
 
 
-if env_bool("RSPY_LOCAL_MODE", default=False):
+def format_job_data(job: dict):
+    """
+    Method to apply reformatting on job data to make it compliant with OGC (process) standards
+    Args:
+        job: information on a specific job to fromat: the job must have the same attributes
+        than the columns from the PostgreSql database
+    Result:
+        reformatted and validated job_data variable to put in the response
+    """
+    # Check that the input job have the same struture as the jobs contained in the PostgreSQL database
+    if "identifier" not in job:
+        raise DatabaseJobFormatError(
+            """Input job must have the same structure than the jobs stored in the """
+            """PostgreSql database: attribute 'identifier' is missing""",
+        )
+    job_data = copy.deepcopy(job)
+    # Rename attribute "identifier" to be compliant with OGC standards
+    job_data[JOB_ATTRS_MAPPING["identifier"]] = job_data.pop("identifier")
+    # Remove attributes which should not be part of the response
+    for attr in OGC_UNCOMPLIANT_JOB_ATTRS:
+        if attr in job_data:
+            job_data.pop(attr)
+    for key, value in job_data.items():
+        # Reformat datetime object to string
+        if isinstance(value, datetime):
+            job_data[key] = value.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Remove "finished" attribute if its value is None
+    if "finished" in job_data and job_data.get("finished") is None:
+        job_data.pop("finished")
+    return job_data
 
-    @router.post("/dpr_service/dask/auth", include_in_schema=False)
-    async def dask_auth(local_dask_username: str, local_dask_password: str):
-        """Set dask cluster authentication, only in local mode."""
-        os.environ["LOCAL_DASK_USERNAME"] = local_dask_username
-        os.environ["LOCAL_DASK_PASSWORD"] = local_dask_password
+
+# Endpoint to execute the rs-dpr-service process and generate a job ID
+@router.post("/dpr/processes/{resource}/execution")
+async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
+    """Used to execute processing jobs."""
+
+    # check if the input resource exists
+    if resource not in api.config["resources"]:
+        return ogc_error_response(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+
+    # Validate request payload
+    try:
+        valid_body = await validate_request(request)
+    except Exception as e:  # pylint: disable=W0718
+        # Handle exceptions and return an appropriate error message
+        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+
+    processor_name = api.config["resources"][resource]["processor"]["name"]
+    if processor_name in processors:
+        processor = processors[processor_name]
+        _, dpr_status = await processor(  # type: ignore
+            request,
+            app.extra["process_manager"],
+            # app.extra["dask_cluster"],
+        ).execute(valid_body)
+
+        # Get identifier of the current job
+        status_dict = {
+            "accepted": HTTP_201_CREATED,
+            "running": HTTP_201_CREATED,
+            "successful": HTTP_201_CREATED,
+            "failed": HTTP_500_INTERNAL_SERVER_ERROR,
+            "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
+        }
+        id_key = [status for status in status_dict if status in dpr_status][0]
+        formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
+        validate_response(request, formatted_job_data, HTTP_201_CREATED)
+        return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
+    return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+
+
+# Endpoint to get the status of a job by job_id
+@router.get("/dpr/jobs/{job_id}")
+async def get_job_status_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job")):
+    """Used to get status of processing job."""
+    try:
+        job = app.extra["process_manager"].get_job(job_id)
+    except JobNotFoundError:  # pylint: disable=W0718
+        # Handle case when job_id is not found
+        return ogc_error_response(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
+
+    try:
+        formatted_job_data = format_job_data(job)
+        validate_response(request, formatted_job_data)
+        return JSONResponse(status_code=HTTP_200_OK, content=formatted_job_data)
+    except Exception as e:  # pylint: disable=W0718
+        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
 
 # DPR_SERVICE FRONT LOGIC HERE

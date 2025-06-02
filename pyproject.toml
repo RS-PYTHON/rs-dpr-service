@@ -57,6 +57,7 @@ opentelemetry-distro = "^0.54b0" # then run 'poetry run opentelemetry-bootstrap 
 opentelemetry-instrumentation-aws-lambda = "^0.54b0"
 opentelemetry-test-utils = "^0.54b0"
 opentelemetry-exporter-otlp = "^1.33.0"
+tornado = "^6.5" # fix trivy vulnerability
 
 [tool.poetry.group.dev]
 optional = true
