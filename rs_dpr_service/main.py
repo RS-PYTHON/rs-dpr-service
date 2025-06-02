@@ -17,10 +17,12 @@
 import logging
 import os
 import pathlib
+import uuid
 from contextlib import asynccontextmanager
 from string import Template
 from time import sleep
 
+import fsspec
 import yaml
 from eopf.common.constants import OpeningMode
 from eopf.common.file_utils import AnyPath
@@ -39,6 +41,8 @@ from starlette.responses import JSONResponse
 from starlette.status import (  # pylint: disable=C0411
     HTTP_200_OK,
     HTTP_201_CREATED,
+    HTTP_400_BAD_REQUEST,
+    HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
@@ -310,10 +314,71 @@ async def convert_safe_to_eopf(req: ConvertRequest):
             detail=f"Missing required S3 config environment variable: {e.args[0]}",
         ) from e
 
+    # Create fsspec filesystem
+    try:
+        fs = fsspec.filesystem("s3", **s3_config)
+    except Exception as e:
+        raise HTTPException(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to connect to S3 with given credentials: {e}",
+        ) from e
+
+    # Validate that both input_safe_path and output_zarr_dir_path use the "s3://" scheme
+    if not req.input_safe_path.startswith("s3://"):
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Invalid input_safe_path format (must start with 's3://'): {req.input_safe_path}",
+        )
+    if not req.output_zarr_dir_path.startswith("s3://"):
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Invalid output_zarr_dir_path format (must start with 's3://'): {req.output_zarr_dir_path}",
+        )
+
     # Extract base name without extension
     safe_uri = req.input_safe_path
+    zarr_base = req.output_zarr_dir_path.rstrip("/")
     safe_name = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
-    zarr_uri = req.output_zarr_dir_path.rstrip("/") + f"/{safe_name}.zarr"
+    zarr_uri = f"{zarr_base}/{safe_name}.zarr"
+
+    # Check if input SAFE exists
+    if not fs.exists(safe_uri.replace("s3://", "")):
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Input SAFE path does not exist: {safe_uri}",
+        )
+
+    # Check if output_zarr_dir_path exists (i.e., the target S3 bucket must exist; prefix can be empty)
+    output_prefix = req.output_zarr_dir_path.rstrip("/")
+    output_path_no_scheme = output_prefix.replace("s3://", "")
+    output_bucket = output_path_no_scheme.split("/", 1)[0]
+    if not fs.exists(output_bucket):
+        # If the bucket itself doesn’t exist, abort early before attempting conversion
+        raise HTTPException(
+            status_code=HTTP_400_BAD_REQUEST,
+            detail=f"Output S3 bucket does not exist: {req.output_zarr_dir_path}",
+        )
+
+    # Attempt a zero-byte write to verify “putObject” permission (and immediately delete it)
+    test_key = f"{output_bucket}/.permission_test_{uuid.uuid4().hex}"
+    try:
+        # Create a zero-byte object
+        with fs.open(test_key, "wb"):
+            pass
+        # Clean up the test object
+        fs.rm(test_key)
+    except Exception as e:
+        # If access is denied, abort early
+        if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
+            raise HTTPException(
+                status_code=HTTP_403_FORBIDDEN,
+                detail=f"No write permission on bucket: {req.output_zarr_dir_path}",
+            )
+        # Otherwise, propagate unexpected errors
+        raise HTTPException(
+            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error checking write permissions on {req.output_zarr_dir_path}: {e}",
+        )
 
     # Convert SAFE → Zarr
     try:
