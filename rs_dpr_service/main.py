@@ -373,16 +373,16 @@ async def convert_safe_to_eopf(req: ConvertRequest):
             raise HTTPException(
                 status_code=HTTP_403_FORBIDDEN,
                 detail=f"No write permission on bucket: {req.output_zarr_dir_path}",
-            )
+            ) from e
         # Otherwise, propagate unexpected errors
         raise HTTPException(
             status_code=HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error checking write permissions on {req.output_zarr_dir_path}: {e}",
-        )
+        ) from e
 
     # Convert SAFE → Zarr
     try:
-        target_store_config = dict(mode=OpeningMode.CREATE_OVERWRITE)
+        target_store_config = {"mode": OpeningMode.CREATE_OVERWRITE}
         convert(
             AnyPath(safe_uri, **s3_config),
             AnyPath(zarr_uri, **s3_config),
