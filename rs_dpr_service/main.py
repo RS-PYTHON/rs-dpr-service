@@ -26,6 +26,7 @@ import fsspec
 import yaml
 from eopf.common.constants import OpeningMode
 from eopf.common.file_utils import AnyPath
+from eopf.daskconfig.dask_context_manager import ClusterType, DaskContext
 from eopf.store.convert import convert
 
 # from dask.distributed import LocalCluster
