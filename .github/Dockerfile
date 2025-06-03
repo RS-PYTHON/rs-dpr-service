@@ -62,7 +62,7 @@ RUN pip install --no-cache-dir \
     --extra-index-url=https://gitlab.eopf.copernicus.eu/api/v4/projects/78/packages/pypi/simple \
     --extra-index-url=https://gitlab.eopf.copernicus.eu/api/v4/projects/52/packages/pypi/simple \
     --extra-index-url=https://gitlab.eopf.copernicus.eu/api/v4/projects/14/packages/pypi/simple \
-    eopf==2.5.8
+    eopf==2.4.4
 
 # Clean everything
 RUN rm -rf /tmp/whl /root/.cache/pip /var/cache/apt/archives /var/lib/apt/lists/*
