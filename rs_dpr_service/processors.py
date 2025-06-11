@@ -641,6 +641,17 @@ class S3L0Processor(GeneralProcessor):
     #     return super().get_tasktable(name)
 
 
+class ConversionProcessor(GeneralProcessor):
+    """Runs an EO‐product conversion as a Dask job via subprocess."""
+
+    def __init__(
+        self,
+        credentials: Request,
+        db_process_manager: PostgreSQLManager,
+    ):
+        super().__init__(credentials, db_process_manager, "ConversionProcessor")
+
+
 # Register the processor
 
-processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor}
+processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor, "Conversion_Processor": ConversionProcessor}
