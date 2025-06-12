@@ -37,7 +37,7 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module
+from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module, convert_safe_to_zarr
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -651,6 +651,38 @@ class ConversionProcessor(GeneralProcessor):
     ):
         super().__init__(credentials, db_process_manager, "ConversionProcessor")
 
+
+    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
+        """
+        Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
+        """
+        # Log start
+        self.log_job_execution(JobStatus.running, 0, "Preparing conversion")
+        try:
+            # extract payload parameters
+            safe_uri = dpr_payload.get("input_safe_path")
+            out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
+            basename = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
+            zarr_uri = f"{out_dir}/{basename}.zarr"
+            
+            cfg = {"safe_uri": safe_uri, "zarr_uri": zarr_uri, "s3_config": dpr_payload.get("s3_config", {})}
+            # submit the task
+            future = client.submit(convert_safe_to_zarr, cfg)
+            self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
+
+            # wait for result
+            res = future.result()
+            
+            self.log_job_execution(
+                JobStatus.successful,
+                100,
+                "Conversion finished",
+            )
+        except Exception as e:
+            self.logger.error(f"Conversion failed: {e}")
+            self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
+        finally:
+            client.close()
 
 # Register the processor
 

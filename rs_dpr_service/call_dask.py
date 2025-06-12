@@ -162,3 +162,32 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             time.sleep(1)
 
         return return_response
+
+def convert_safe_to_zarr(cfg):
+    import subprocess, sys, json
+    code = rf"""
+import os, json
+import eopf
+from eopf.config import EOConfiguration
+EOConfiguration()["store__convert__use_multithreading"] = False
+from eopf.store.convert import convert
+from eopf.common.file_utils import AnyPath
+from eopf.common.constants import OpeningMode
+cfg = json.loads(r'''{json.dumps(cfg)}''')
+safe_uri = cfg['safe_uri']
+zarr_uri = cfg['zarr_uri']
+s3_cfg = cfg['s3_config']
+safe = AnyPath(safe_uri, **s3_cfg)
+zarr = AnyPath(zarr_uri, **s3_cfg)
+convert(
+    safe,
+    zarr,
+    target_store_kwargs={{"mode": OpeningMode.CREATE_OVERWRITE}}
+)
+print(json.dumps({{"msg": "Conversion finished", "eopf_version": eopf.__version__, "safe_uri": safe_uri, "zarr_uri": zarr_uri}}))
+"""
+
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"Dummy conversion failed: {result.stderr}")
+    return result.stdout.strip()
