@@ -17,19 +17,14 @@ import copy
 import logging
 import os
 import pathlib
-import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template
 from time import sleep
 
 import yaml
-import fsspec
-from eopf.daskconfig.dask_context_manager import ClusterType, DaskContext
 
-# from dask.distributed import LocalCluster
-from dask.distributed import get_client
-from fastapi import APIRouter, FastAPI, Path, HTTPException
+from fastapi import APIRouter, FastAPI, Path
 from pydantic import BaseModel, Field
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
@@ -41,8 +36,6 @@ from starlette.responses import JSONResponse
 from starlette.status import (  # pylint: disable=C0411
     HTTP_200_OK,
     HTTP_201_CREATED,
-    HTTP_400_BAD_REQUEST,
-    HTTP_403_FORBIDDEN,
     HTTP_404_NOT_FOUND,
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
@@ -69,6 +62,7 @@ OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
 
+
 class ConvertRequest(BaseModel):
     class S3ClientKwargs(BaseModel):
         endpoint_url: str
@@ -93,6 +87,7 @@ class ConvertRequest(BaseModel):
     output_zarr_dir_path: str = Field(..., description="S3 URI to the destination Zarr directory")
     s3_config: "ConvertRequest.S3Config"
     cluster_config: "ConvertRequest.ClusterConfig"
+
 
 def ogc_error_response(status_code: int, detail: str):
     """Generate an OGC-compliant error response"""
@@ -349,162 +344,6 @@ async def get_job_status_endpoint(request: Request, job_id: str = Path(..., titl
     except Exception as e:  # pylint: disable=W0718
         return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
-@router.post(
-    "/dpr/convert/safe-to-eopf",
-    summary="Convert a SAFE product to EOPF (Zarr)",
-    response_description="URI of converted EOPF product",
-)
-async def convert_safe_to_eopf(req: ConvertRequest):
-    """
-    Synchronously convert a Sentinel-1 SAFE (or any EO SAFE) product
-    into EOPF-compliant Zarr using the eopf-cpm library.
-    ! TO BE DELETED when /dpr/processes/conv_safe_zarr/execution is ready
-    """
-
-    # Validate required environment variables
-    try:
-        s3_config = {
-            "key": req.s3_config.key,
-            "secret": req.s3_config.secret,
-            "client_kwargs": {
-                "endpoint_url": req.s3_config.client_kwargs.endpoint_url,
-                "region_name": req.s3_config.client_kwargs.region_name,
-            },
-        }
-    except KeyError as e:
-        raise HTTPException(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Missing required S3 config environment variable: {e.args[0]}",
-        ) from e
-
-    # Create fsspec filesystem
-    try:
-        fs = fsspec.filesystem("s3", **s3_config)
-    except Exception as e:
-        raise HTTPException(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to connect to S3 with given credentials: {e}",
-        ) from e
-
-    # Validate that both input_safe_path and output_zarr_dir_path use the "s3://" scheme
-    if not req.input_safe_path.startswith("s3://"):
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST,
-            detail=f"Invalid input_safe_path format (must start with 's3://'): {req.input_safe_path}",
-        )
-    if not req.output_zarr_dir_path.startswith("s3://"):
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST,
-            detail=f"Invalid output_zarr_dir_path format (must start with 's3://'): {req.output_zarr_dir_path}",
-        )
-
-    # Extract base name without extension
-    safe_uri = req.input_safe_path
-    zarr_base = req.output_zarr_dir_path.rstrip("/")
-    safe_name = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
-    zarr_uri = f"{zarr_base}/{safe_name}.zarr"
-
-    # Check if input SAFE exists
-    if not fs.exists(safe_uri.replace("s3://", "")):
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST,
-            detail=f"Input SAFE path does not exist: {safe_uri}",
-        )
-
-    # Check if output_zarr_dir_path exists (i.e., the target S3 bucket must exist; prefix can be empty)
-    output_prefix = req.output_zarr_dir_path.rstrip("/")
-    output_path_no_scheme = output_prefix.replace("s3://", "")
-    output_bucket = output_path_no_scheme.split("/", 1)[0]
-    if not fs.exists(output_bucket):
-        # If the bucket itself doesn’t exist, abort early before attempting conversion
-        raise HTTPException(
-            status_code=HTTP_400_BAD_REQUEST,
-            detail=f"Output S3 bucket does not exist: {req.output_zarr_dir_path}",
-        )
-
-    # Attempt a zero-byte write to verify “putObject” permission (and immediately delete it)
-    test_key = f"{output_bucket}/.permission_test_{uuid.uuid4().hex}"
-    try:
-        # Create a zero-byte object
-        with fs.open(test_key, "wb"):
-            pass
-        # Clean up the test object
-        fs.rm(test_key)
-    except Exception as e:
-        # If access is denied, abort early
-        if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
-            raise HTTPException(
-                status_code=HTTP_403_FORBIDDEN,
-                detail=f"No write permission on bucket: {req.output_zarr_dir_path}",
-            ) from e
-        # Otherwise, propagate unexpected errors
-        raise HTTPException(
-            status_code=HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Error checking write permissions on {req.output_zarr_dir_path}: {e}",
-        ) from e
-
-    ctx = DaskContext(
-        cluster_type=ClusterType.GATEWAY,
-        cluster_config={
-            "reuse_cluster": req.cluster_config.reuse_cluster,
-            "auth": {
-                "type": req.cluster_config.auth.type,
-                "username": req.cluster_config.auth.username,
-                "password": req.cluster_config.auth.password,
-            },
-            "address": req.cluster_config.address,
-        },
-    )
-
-    def convert_safe_to_zarr(cfg):
-        import subprocess, sys, json
-
-        code = rf"""
-import os, json
-import eopf
-from eopf.config import EOConfiguration
-EOConfiguration()["store__convert__use_multithreading"] = False
-from eopf.store.convert import convert
-from eopf.common.file_utils import AnyPath
-from eopf.common.constants import OpeningMode
-cfg = json.loads(r'''{json.dumps(cfg)}''')
-safe_uri = cfg['safe_uri']
-zarr_uri = cfg['zarr_uri']
-s3_cfg = cfg['s3_config']
-safe = AnyPath(safe_uri, **s3_cfg)
-zarr = AnyPath(zarr_uri, **s3_cfg)
-convert(
-    safe,
-    zarr,
-    target_store_kwargs={{"mode": OpeningMode.CREATE_OVERWRITE}}
-)
-print(json.dumps({{"msg": "hello from subprocess", "pid": os.getpid(), "eopf_version": eopf.__version__, "safe_uri": safe_uri, "zarr_uri": zarr_uri, "s3_cfg": s3_cfg}}))
-"""
-
-        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
-        print("STDOUT:", result.stdout)
-        print("STDERR:", result.stderr)
-        result.check_returncode()
-        return result.stdout.strip()
-
-    with ctx:
-        # Convert SAFE → Zarr
-        try:
-            client = get_client()
-            s3_config['client_kwargs']['endpoint_url'] = 'http://minio:9000'
-            cfg = {
-                "safe_uri": safe_uri,
-                "zarr_uri": zarr_uri,
-                "s3_config": s3_config,
-            }
-            
-            future = client.submit(convert_safe_to_zarr, cfg)
-            print(future.result())
-
-        except Exception as exc:
-            raise HTTPException(status_code=HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Conversion failed: {exc}") from exc
-
-    return JSONResponse(status_code=HTTP_200_OK, content={"message": "Conversion finished", "zarr_uri": zarr_uri})
 
 # DPR_SERVICE FRONT LOGIC HERE
 

@@ -163,8 +163,12 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
         return return_response
 
+
 def convert_safe_to_zarr(cfg):
-    import subprocess, sys, json
+    import json
+    import subprocess
+    import sys
+
     code = rf"""
 import os, json
 import eopf

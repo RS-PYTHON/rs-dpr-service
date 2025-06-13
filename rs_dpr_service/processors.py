@@ -24,6 +24,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
+import fsspec
 from dask.distributed import (  # LocalCluster,
     Client,
 )
@@ -37,7 +38,11 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module, convert_safe_to_zarr
+from rs_dpr_service.call_dask import (
+    convert_safe_to_zarr,
+    dpr_processor_task,
+    upload_this_module,
+)
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -651,6 +656,103 @@ class ConversionProcessor(GeneralProcessor):
     ):
         super().__init__(credentials, db_process_manager, "ConversionProcessor")
 
+    # Override from GeneralProcessor
+    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
+        self,
+        data: dict,
+        outputs=None,
+    ) -> tuple[str, dict]:
+        """
+        Asynchronously execute the dpr process in the dask cluster
+        """
+        # 1. Validate required S3 config
+        try:
+            s3_cfg = data.get("s3_config", {})
+            s3_config = {
+                "key": s3_cfg["key"],
+                "secret": s3_cfg["secret"],
+                "client_kwargs": {
+                    "endpoint_url": s3_cfg["client_kwargs"]["endpoint_url"],
+                    "region_name": s3_cfg["client_kwargs"]["region_name"],
+                },
+            }
+        except Exception as e:
+            msg = f"Missing S3 config parameter: {e}"
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # 2. Create filesystem
+        try:
+            fs = fsspec.filesystem("s3", **s3_config)
+        except Exception as e:
+            msg = f"Failed to connect to S3: {e}"
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # 3. Validate SAFE & Zarr URIs
+        safe_uri = data.get("input_safe_path", "")
+        out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
+        if not safe_uri.startswith("s3://"):
+            msg = f"Invalid input_safe_path format (must start with 's3://'): {safe_uri}"
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+        if not out_dir.startswith("s3://"):
+            msg = f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}"
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # derive zarr URI
+        basename = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
+        zarr_uri = f"{out_dir}/{basename}.zarr"
+
+        # 4. Check SAFE existence
+        try:
+            if not fs.exists(safe_uri.replace("s3://", "")):
+                raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
+        except Exception as e:
+            msg = str(e)
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # 5. Check output bucket exists
+        bucket = out_dir.replace("s3://", "").split("/", 1)[0]
+        try:
+            if not fs.exists(bucket):
+                raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
+        except Exception as e:
+            msg = str(e)
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # 6. Test write permission
+        test_key = f"{bucket}/.perm_test_{uuid.uuid4().hex}"
+        try:
+            with fs.open(test_key, "wb"):
+                pass
+            fs.rm(test_key)
+        except Exception as e:
+            if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
+                msg = f"No write permission on bucket: {out_dir}"
+            else:
+                msg = f"Error checking write permissions: {e}"
+            self.logger.error(f"Conversion failed: {msg}")
+            self.log_job_execution(JobStatus.failed, None, msg)
+            return self._get_execute_result()
+
+        # Start execution
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.create_task(self.start_processor(data))
+        else:
+            loop.run_until_complete(self.start_processor(data))
+
+        return self._get_execute_result()
 
     def manage_dask_tasks(self, client: Client, dpr_payload: dict):
         """
@@ -659,31 +761,34 @@ class ConversionProcessor(GeneralProcessor):
         # Log start
         self.log_job_execution(JobStatus.running, 0, "Preparing conversion")
         try:
+
             # extract payload parameters
             safe_uri = dpr_payload.get("input_safe_path")
             out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
             basename = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
             zarr_uri = f"{out_dir}/{basename}.zarr"
-            
-            cfg = {"safe_uri": safe_uri, "zarr_uri": zarr_uri, "s3_config": dpr_payload.get("s3_config", {})}
+
             # submit the task
+            cfg = {"safe_uri": safe_uri, "zarr_uri": zarr_uri, "s3_config": dpr_payload.get("s3_config", {})}
+
             future = client.submit(convert_safe_to_zarr, cfg)
             self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
             # wait for result
             res = future.result()
-            
-            self.log_job_execution(
-                JobStatus.successful,
-                100,
-                "Conversion finished",
-            )
+
+            self.log_job_execution(JobStatus.successful, 100, f"Conversion finished {res}")
         except Exception as e:
             self.logger.error(f"Conversion failed: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
         finally:
             client.close()
 
+
 # Register the processor
 
-processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor, "Conversion_Processor": ConversionProcessor}
+processors = {
+    "S1L0_processor": S1L0Processor,
+    "S3L0_processor": S3L0Processor,
+    "Conversion_Processor": ConversionProcessor,
+}
