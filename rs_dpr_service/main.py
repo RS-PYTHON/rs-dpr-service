@@ -23,9 +23,7 @@ from string import Template
 from time import sleep
 
 import yaml
-
 from fastapi import APIRouter, FastAPI, Path
-from pydantic import BaseModel, Field
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
@@ -61,32 +59,6 @@ OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 
 logger = logging.getLogger("my_logger")
 logger.setLevel(logging.DEBUG)
-
-
-class ConvertRequest(BaseModel):
-    class S3ClientKwargs(BaseModel):
-        endpoint_url: str
-        region_name: str
-
-    class S3Config(BaseModel):
-        key: str
-        secret: str
-        client_kwargs: "ConvertRequest.S3ClientKwargs"
-
-    class DaskAuth(BaseModel):
-        type: str
-        username: str
-        password: str
-
-    class ClusterConfig(BaseModel):
-        reuse_cluster: str
-        auth: "ConvertRequest.DaskAuth"
-        address: str
-
-    input_safe_path: str = Field(..., description="S3 URI to the SAFE product")
-    output_zarr_dir_path: str = Field(..., description="S3 URI to the destination Zarr directory")
-    s3_config: "ConvertRequest.S3Config"
-    cluster_config: "ConvertRequest.ClusterConfig"
 
 
 def ogc_error_response(status_code: int, detail: str):
