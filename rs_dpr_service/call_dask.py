@@ -23,6 +23,7 @@ import os
 import os.path as osp
 import re
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -165,9 +166,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
 
 def convert_safe_to_zarr(cfg):
-    import json
-    import subprocess
-    import sys
+    """Convert a SAFE archive to Zarr format using EOPF in a subprocess."""
 
     code = rf"""
 import os, json
@@ -191,7 +190,7 @@ convert(
 print(json.dumps({{"msg": "Conversion finished", "eopf_version": eopf.__version__, "safe_uri": safe_uri, "zarr_uri": zarr_uri}}))
 """
 
-    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+    result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     if result.returncode != 0:
         raise RuntimeError(f"Dummy conversion failed: {result.stderr}")
     return result.stdout.strip()

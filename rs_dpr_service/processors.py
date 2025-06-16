@@ -656,16 +656,7 @@ class ConversionProcessor(GeneralProcessor):
     ):
         super().__init__(credentials, db_process_manager, "ConversionProcessor")
 
-    # Override from GeneralProcessor
-    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
-        self,
-        data: dict,
-        outputs=None,
-    ) -> tuple[str, dict]:
-        """
-        Asynchronously execute the dpr process in the dask cluster
-        """
-        # 1. Validate required S3 config
+    def _check_s3_config(self, data: dict):
         try:
             s3_cfg = data.get("s3_config", {})
             s3_config = {
@@ -676,76 +667,61 @@ class ConversionProcessor(GeneralProcessor):
                     "region_name": s3_cfg["client_kwargs"]["region_name"],
                 },
             }
-        except Exception as e:
-            msg = f"Missing S3 config parameter: {e}"
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+        except (KeyError, TypeError) as e:
+            raise ValueError(f"Missing S3 config parameter: {e}") from e
 
-        # 2. Create filesystem
         try:
-            fs = fsspec.filesystem("s3", **s3_config)
+            return fsspec.filesystem("s3", **s3_config)
         except Exception as e:
-            msg = f"Failed to connect to S3: {e}"
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+            raise ConnectionError(f"Failed to connect to S3: {e}") from e
 
-        # 3. Validate SAFE & Zarr URIs
+    def _check_input_output_uris(self, fs, data: dict):
         safe_uri = data.get("input_safe_path", "")
         out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
         if not safe_uri.startswith("s3://"):
-            msg = f"Invalid input_safe_path format (must start with 's3://'): {safe_uri}"
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+            raise ValueError(f"Invalid input_safe_path format (must start with 's3://'): {safe_uri}")
         if not out_dir.startswith("s3://"):
-            msg = f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}"
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+            raise ValueError(f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}")
 
-        # derive zarr URI
-        basename = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
-        zarr_uri = f"{out_dir}/{basename}.zarr"
+        path = safe_uri.replace("s3://", "")
+        if not fs.exists(path):
+            raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
 
-        # 4. Check SAFE existence
-        try:
-            if not fs.exists(safe_uri.replace("s3://", "")):
-                raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
-        except Exception as e:
-            msg = str(e)
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
-
-        # 5. Check output bucket exists
         bucket = out_dir.replace("s3://", "").split("/", 1)[0]
-        try:
-            if not fs.exists(bucket):
-                raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
-        except Exception as e:
-            msg = str(e)
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+        if not fs.exists(bucket):
+            raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
 
-        # 6. Test write permission
+    def _check_write_permission(self, fs, out_dir: str):
+        bucket = out_dir.replace("s3://", "").split("/", 1)[0]
         test_key = f"{bucket}/.perm_test_{uuid.uuid4().hex}"
         try:
             with fs.open(test_key, "wb"):
                 pass
-            fs.rm(test_key)
+            fs.rm(test_key, recursive=False)
         except Exception as e:
             if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
-                msg = f"No write permission on bucket: {out_dir}"
-            else:
-                msg = f"Error checking write permissions: {e}"
+                raise PermissionError(f"No write permission on bucket: {out_dir}") from e
+            raise RuntimeError(f"Error checking write permissions: {e}") from e
+
+    # Override from GeneralProcessor
+    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
+        self,
+        data: dict,
+        outputs=None,
+    ) -> tuple[str, dict]:
+        """
+        Asynchronously execute the dpr process in the dask cluster
+        """
+        try:
+            fs = self._check_s3_config(data)
+            self._check_input_output_uris(fs, data)
+            self._check_write_permission(fs, data["output_zarr_dir_path"])
+        except Exception as e:  # pylint: disable=broad-exception-caught
+            msg = str(e)
             self.logger.error(f"Conversion failed: {msg}")
             self.log_job_execution(JobStatus.failed, None, msg)
             return self._get_execute_result()
 
-        # Start execution
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.create_task(self.start_processor(data))
@@ -765,7 +741,7 @@ class ConversionProcessor(GeneralProcessor):
             # extract payload parameters
             safe_uri = dpr_payload.get("input_safe_path")
             out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
-            basename = safe_uri.rsplit("/", 1)[-1].split(".", 1)[0]
+            basename = str(safe_uri).rsplit("/", 1)[-1].split(".", 1)[0]
             zarr_uri = f"{out_dir}/{basename}.zarr"
 
             # submit the task
@@ -778,7 +754,7 @@ class ConversionProcessor(GeneralProcessor):
             res = future.result()
 
             self.log_job_execution(JobStatus.successful, 100, f"Conversion finished {res}")
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.error(f"Conversion failed: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
         finally:
