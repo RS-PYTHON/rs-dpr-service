@@ -196,7 +196,6 @@ async def app_lifespan(fastapi_app: FastAPI):
 @router.get("/_mgmt/ping", include_in_schema=False)
 async def ping():
     """Liveliness probe."""
-    print("BOO DEBUG !!")
     return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
