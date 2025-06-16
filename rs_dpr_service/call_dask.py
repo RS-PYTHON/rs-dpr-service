@@ -187,7 +187,12 @@ convert(
     zarr,
     target_store_kwargs={{"mode": OpeningMode.CREATE_OVERWRITE}}
 )
-print(json.dumps({{"msg": "Conversion finished", "eopf_version": eopf.__version__, "safe_uri": safe_uri, "zarr_uri": zarr_uri}}))
+print(json.dumps({{
+    "msg": "Conversion finished",
+    "eopf_version": eopf.__version__,
+    "safe_uri": safe_uri,
+    "zarr_uri": zarr_uri
+}}))
 """
 
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)

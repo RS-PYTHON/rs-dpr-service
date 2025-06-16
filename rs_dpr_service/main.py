@@ -27,7 +27,7 @@ from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
-from pygeoapi.provider.postgresql import get_engine
+from pygeoapi.provider.postgresql import get_engine  # pylint: disable=no-name-in-module
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -196,6 +196,7 @@ async def app_lifespan(fastapi_app: FastAPI):
 @router.get("/_mgmt/ping", include_in_schema=False)
 async def ping():
     """Liveliness probe."""
+    print("BOO DEBUG !!")
     return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
