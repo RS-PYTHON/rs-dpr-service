@@ -704,7 +704,7 @@ class ConversionProcessor(GeneralProcessor):
             raise RuntimeError(f"Error checking write permissions: {e}") from e
 
     # Override from GeneralProcessor
-    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
+    async def execute(
         self,
         data: dict,
         outputs=None,
