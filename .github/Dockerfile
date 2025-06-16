@@ -20,6 +20,9 @@ RUN apt update && apt upgrade -y && apt install -y libpq-dev gcc git
 # Update pip version
 RUN pip install --no-cache-dir --upgrade pip
 
+# Add this to install s3fs for S3 support via fsspec
+RUN pip install --no-cache-dir s3fs
+
 # The CI builds the wheel packages, downloads them into ./whl/, then builds this Dockerfile from ./whl/,
 # so the .whl files are under ./*.whl
 # We copy them into a /tmp directory that we can clean at the end.
