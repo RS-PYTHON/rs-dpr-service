@@ -166,7 +166,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
 
 def convert_safe_to_zarr(cfg):
-    """Convert a SAFE archive to Zarr format using EOPF in a subprocess."""
+    """Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess."""
 
     code = rf"""
 import os, json

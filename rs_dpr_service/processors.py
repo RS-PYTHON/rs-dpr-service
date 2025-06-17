@@ -782,7 +782,7 @@ class ConversionProcessor(GeneralProcessor):
             # wait for result
             res = future.result()
 
-            self.log_job_execution(JobStatus.successful, 100, f"{json.dumps(res)}")
+            self.log_job_execution(JobStatus.successful, 100, res)
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.error(f"Conversion failed: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
