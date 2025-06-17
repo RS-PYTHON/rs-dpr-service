@@ -188,7 +188,7 @@ convert(
     target_store_kwargs={{"mode": OpeningMode.CREATE_OVERWRITE}}
 )
 print(json.dumps({{
-    "msg": "Conversion finished",
+    "message": "Conversion finished",
     "eopf_version": eopf.__version__,
     "safe_uri": safe_uri,
     "zarr_uri": zarr_uri
@@ -197,5 +197,5 @@ print(json.dumps({{
 
     result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=False)
     if result.returncode != 0:
-        raise RuntimeError(f"Dummy conversion failed: {result.stderr}")
+        raise RuntimeError(f"Conversion failed: {result.stderr}")
     return result.stdout.strip()

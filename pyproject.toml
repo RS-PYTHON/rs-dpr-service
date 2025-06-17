@@ -58,6 +58,7 @@ opentelemetry-instrumentation-aws-lambda = "^0.55b1"
 opentelemetry-test-utils = "^0.55b1"
 opentelemetry-exporter-otlp = "^1.34.1"
 tornado = "^6.5" # fix trivy vulnerability
+s3fs = "^2025.5.1"
 
 [tool.poetry.group.dev]
 optional = true
