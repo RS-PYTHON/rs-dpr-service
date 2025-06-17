@@ -179,9 +179,10 @@ from eopf.common.constants import OpeningMode
 cfg = json.loads(r'''{json.dumps(cfg)}''')
 safe_uri = cfg['safe_uri']
 zarr_uri = cfg['zarr_uri']
-s3_cfg = cfg['s3_config']
-safe = AnyPath(safe_uri, **s3_cfg)
-zarr = AnyPath(zarr_uri, **s3_cfg)
+safe_s3_cfg = cfg['safe_s3_config']
+zarr_s3_cfg = cfg['zarr_s3_config']
+safe = AnyPath(safe_uri, **safe_s3_cfg)
+zarr = AnyPath(zarr_uri, **zarr_s3_cfg)
 convert(
     safe,
     zarr,

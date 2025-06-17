@@ -656,26 +656,49 @@ class ConversionProcessor(GeneralProcessor):
     ):
         super().__init__(credentials, db_process_manager, "ConversionProcessor")
 
-    def _check_s3_config(self, data: dict):
+    def _check_safe_s3_config(self, data: dict):
         try:
-            s3_cfg = data.get("s3_config", {})
-            s3_config = {
-                "key": s3_cfg["key"],
-                "secret": s3_cfg["secret"],
+            safe_s3_cfg = data.get("safe_s3_config", {})
+            safe_s3_config = {
+                "key": safe_s3_cfg["key"],
+                "secret": safe_s3_cfg["secret"],
                 "client_kwargs": {
-                    "endpoint_url": s3_cfg["client_kwargs"]["endpoint_url"],
-                    "region_name": s3_cfg["client_kwargs"]["region_name"],
+                    "endpoint_url": safe_s3_cfg["client_kwargs"]["endpoint_url"],
+                    "region_name": safe_s3_cfg["client_kwargs"]["region_name"],
                 },
             }
         except (KeyError, TypeError) as e:
-            raise ValueError(f"Missing S3 config parameter: {e}") from e
+            raise ValueError(f"Missing safe S3 config parameter: {e}") from e
 
         try:
-            return fsspec.filesystem("s3", **s3_config)
+            fs = fsspec.filesystem("s3", **safe_s3_config)
+            fs.ls("/")  # Minimal check to force auth
+            return fs
         except Exception as e:
-            raise ConnectionError(f"Failed to connect to S3: {e}") from e
+            raise ConnectionError(f"Failed to connect to safe S3: {e}") from e
 
-    def _check_input_output_uris(self, fs, data: dict):
+    def _check_zarr_s3_config(self, data: dict):
+        try:
+            zarr_s3_cfg = data.get("zarr_s3_config", {})
+            zarr_s3_config = {
+                "key": zarr_s3_cfg["key"],
+                "secret": zarr_s3_cfg["secret"],
+                "client_kwargs": {
+                    "endpoint_url": zarr_s3_cfg["client_kwargs"]["endpoint_url"],
+                    "region_name": zarr_s3_cfg["client_kwargs"]["region_name"],
+                },
+            }
+        except (KeyError, TypeError) as e:
+            raise ValueError(f"Missing zarr S3 config parameter: {e}") from e
+
+        try:
+            fs = fsspec.filesystem("s3", **zarr_s3_config)
+            fs.ls("/")  # Minimal check to force auth
+            return fs
+        except Exception as e:
+            raise ConnectionError(f"Failed to connect to zarr S3: {e}") from e
+
+    def _check_input_output_uris(self, safe_fs, zarr_fs, data: dict):
         safe_uri = data.get("input_safe_path", "")
         out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
         if not safe_uri.startswith("s3://"):
@@ -684,11 +707,11 @@ class ConversionProcessor(GeneralProcessor):
             raise ValueError(f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}")
 
         path = safe_uri.replace("s3://", "")
-        if not fs.exists(path):
+        if not safe_fs.exists(path):
             raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
 
         bucket = out_dir.replace("s3://", "").split("/", 1)[0]
-        if not fs.exists(bucket):
+        if not zarr_fs.exists(bucket):
             raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
 
     def _check_write_permission(self, fs, out_dir: str):
@@ -713,9 +736,10 @@ class ConversionProcessor(GeneralProcessor):
         Asynchronously execute the dpr process in the dask cluster
         """
         try:
-            fs = self._check_s3_config(data)
-            self._check_input_output_uris(fs, data)
-            self._check_write_permission(fs, data["output_zarr_dir_path"])
+            safe_fs = self._check_safe_s3_config(data)
+            zarr_fs = self._check_zarr_s3_config(data)
+            self._check_input_output_uris(safe_fs, zarr_fs, data)
+            self._check_write_permission(zarr_fs, data["output_zarr_dir_path"])
         except Exception as e:  # pylint: disable=broad-exception-caught
             msg = str(e)
             self.logger.error(f"Conversion failed: {msg}")
@@ -745,7 +769,12 @@ class ConversionProcessor(GeneralProcessor):
             zarr_uri = f"{out_dir}/{basename}.zarr"
 
             # submit the task
-            cfg = {"safe_uri": safe_uri, "zarr_uri": zarr_uri, "s3_config": dpr_payload.get("s3_config", {})}
+            cfg = {
+                "safe_uri": safe_uri,
+                "zarr_uri": zarr_uri,
+                "safe_s3_config": dpr_payload.get("safe_s3_config", {}),
+                "zarr_s3_config": dpr_payload.get("zarr_s3_config", {}),
+            }
 
             future = client.submit(convert_safe_to_zarr, cfg)
             self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
