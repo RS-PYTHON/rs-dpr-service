@@ -746,6 +746,8 @@ class ConversionProcessor(GeneralProcessor):
             self.log_job_execution(JobStatus.failed, None, msg)
             return self._get_execute_result()
 
+        self.log_job_execution(JobStatus.running, 1, "Input configuration accepted")
+        # Start execution
         loop = asyncio.get_event_loop()
         if loop.is_running():
             asyncio.create_task(self.start_processor(data))
@@ -759,7 +761,7 @@ class ConversionProcessor(GeneralProcessor):
         Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
         """
         # Log start
-        self.log_job_execution(JobStatus.running, 0, "Preparing conversion")
+        self.log_job_execution(JobStatus.running, 5, "Preparing conversion")
         try:
 
             # extract payload parameters
