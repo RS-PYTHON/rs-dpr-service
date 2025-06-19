@@ -183,11 +183,7 @@ safe_s3_cfg = cfg['safe_s3_config']
 zarr_s3_cfg = cfg['zarr_s3_config']
 safe = AnyPath(safe_uri, **safe_s3_cfg)
 zarr = AnyPath(zarr_uri, **zarr_s3_cfg)
-convert(
-    safe,
-    zarr,
-    target_store_kwargs={{"mode": OpeningMode.CREATE_OVERWRITE}}
-)
+convert(safe, zarr)
 print(json.dumps({{
     "message": "Conversion finished",
     "eopf_version": eopf.__version__,
