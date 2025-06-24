@@ -17,6 +17,7 @@ This module contains the code that is related to dask and/or sent to the dask wo
 Avoid import unnecessary dependencies here.
 """
 import ast
+import importlib
 import json
 import logging
 import os
@@ -69,13 +70,33 @@ def upload_this_module(dask_client: DaskClient):
         dask_client.upload_file(zip_path)
 
 
+def dpr_tasktable_task(use_mockup: bool, module_name: str, class_name: str):
+    """
+    Dpr tasktable inside the dask cluster
+    """
+    logger = logging.getLogger(__name__)
+
+    if use_mockup:
+        time.sleep(1)
+        return {}
+
+    # Load the python class
+    class_ = getattr(importlib.import_module(module_name), class_name)
+
+    # Get the tasktable for default mode.
+    # See: https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
+    logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
+    default_mode = class_.get_default_mode()
+    tasktable = class_.get_tasktable_description(default_mode)
+    return tasktable
+
+
 def dpr_processor_task(  # pylint: disable=R0914, R0917
     dpr_payload: dict,
 ):
     """
     Dpr processing inside the dask cluster
     """
-
     logger = logging.getLogger(__name__)
 
     print("Dask task running - print() test")

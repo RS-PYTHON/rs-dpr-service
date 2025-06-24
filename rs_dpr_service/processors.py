@@ -18,7 +18,6 @@ import json
 import logging
 import os
 import re
-import subprocess
 import time
 import uuid
 from datetime import datetime
@@ -37,7 +36,11 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module
+from rs_dpr_service.call_dask import (
+    dpr_processor_task,
+    dpr_tasktable_task,
+    upload_this_module,
+)
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -63,34 +66,6 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 # Cluster mode is the opposite of local mode
 CLUSTER_MODE: bool = not LOCAL_MODE
-
-
-def dpr_tasktable_task(use_mockup=False):
-    """
-    Dpr tasktable inside the dask cluster
-    """
-
-    logger_dask = logging.getLogger(__name__)
-    logger_dask.info("The dpr triggering tasktable task started")
-
-    command = ["eopf", "trigger", "tasktable"]
-    if use_mockup:
-        command = ["sleep", "1"]
-    # Trigger EOPF tasktable command
-    tasktable_result: dict = {}
-    with subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    ) as p:
-        # This will be activated when trigger tasktable cmd will work
-        # assert p.stdout is not None  # For mypy
-        # when the eopf command will work, delete the following print and handle the p.stdout
-        print(p.stdout)
-        # tasktable_result = p.stdout
-
-    return tasktable_result
 
 
 class GeneralProcessor(BaseProcessor):
@@ -126,25 +101,14 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    async def get_tasktable(self, data, client=None, name=None):  # pylint: disable=W0613
-        """Will execute eopf tasktable command when available"""
-        # Disabled;
-        # if name:
-        #     with subprocess.Popen(
-        #         ["eopf", "trigger", "tasktable", name],
-        #         stdout=subprocess.PIPE,
-        #         stderr=subprocess.STDOUT,
-        #         text=True,
-        #     ) as p:
-        #         return p.stdout()
+    async def get_tasktable(self, data, module_name: str, class_name: str):
+        """Return the EOPF tasktable for a given module and class names"""
         use_mockup = False
         if data and isinstance(data, dict):
             use_mockup = data.get("use_mockup", False)
             if use_mockup:
                 os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-        with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
-            tasktable_data = json.loads(tf.read())
 
         # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
         # the payload.cfg from the user is comming with a `dask_context:` section that contains
@@ -162,11 +126,13 @@ class GeneralProcessor(BaseProcessor):
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup)
+            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup, module_name, class_name)
             res = task_table_task.result()
-            # the eopf tasktable is supposed to fail at the current time, so return something hardcoded
-            if not res:
-                res = tasktable_data
+
+            # Return a default hardcoded value for the mockup
+            if (not res) and use_mockup:
+                with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
+                    return json.loads(tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
@@ -617,9 +583,14 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S1L0Processor")
 
-    # Will be activated later
-    # def get_tasktable(self, name="l0.s1.s1_l0_processor S1L0Processor"):
-    #     return super().get_tasktable(name)
+    async def get_tasktable(self, *args, **kwargs):
+        """Return the EOPF tasktable for S1L0"""
+        return await super().get_tasktable(
+            *args,
+            **kwargs,
+            module_name="l0.s1.s1_l0_processor",
+            class_name="S1L0Processor",
+        )
 
 
 class S3L0Processor(GeneralProcessor):
@@ -632,13 +603,18 @@ class S3L0Processor(GeneralProcessor):
         # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
-        Initialize S1L0Processor
+        Initialize S3L0Processor
         """
         super().__init__(credentials, db_process_manager, "S3L0Processor")
 
-    # Will be activated later
-    # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
-    #     return super().get_tasktable(name)
+    async def get_tasktable(self, *args, **kwargs):
+        """Return the EOPF tasktable for S1L0"""
+        return await super().get_tasktable(
+            *args,
+            **kwargs,
+            module_name="l0.s3.s3_l0_processor",
+            class_name="S3L0Processor",
+        )
 
 
 # Register the processor
