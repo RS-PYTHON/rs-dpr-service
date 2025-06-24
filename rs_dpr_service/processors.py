@@ -15,7 +15,6 @@
 """S1L0 and S3L0 Processors"""
 import asyncio  # for handling asynchronous tasks
 import json
-import logging
 import os
 import re
 import time
@@ -28,6 +27,7 @@ from dask.distributed import (  # LocalCluster,
 )
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
+from opentelemetry import trace
 from pygeoapi.process.base import BaseProcessor
 from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
@@ -41,23 +41,10 @@ from rs_dpr_service.call_dask import (
     dpr_tasktable_task,
     upload_this_module,
 )
+from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.utils import env_bool
 
-logger = logging.getLogger("processors")
-logger.setLevel(logging.DEBUG)
-
-
-def env_bool(var: str, default: bool) -> bool:
-    """
-    Return True if an environemnt variable is set to 1, true or yes (case insensitive).
-    Return False if set to 0, false or no (case insensitive).
-    Return the default value if not set or set to a different value.
-    """
-    val = os.getenv(var, str(default)).lower()
-    if val in ("y", "yes", "t", "true", "on", "1"):
-        return True
-    if val in ("n", "no", "f", "false", "off", "0"):
-        return False
-    return default
+default_logger = Logging.default(__name__)
 
 
 # True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
@@ -83,7 +70,7 @@ class GeneralProcessor(BaseProcessor):
         #################
         # Locals
         self.name = name
-        self.logger = logger
+        self.logger = default_logger
         self.request = credentials
         self.headers: Headers = credentials.headers
 
@@ -122,11 +109,21 @@ class GeneralProcessor(BaseProcessor):
             os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
         )
 
+        # Extract span infos to send to Dask
+        flow_span_context = trace.get_current_span().get_span_context()
+
         # Manage dask tasks in a separate thread
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup, module_name, class_name)
+            task_table_task = dask_client.submit(
+                dpr_tasktable_task,
+                caller_env=os.environ,
+                flow_span_context=flow_span_context,
+                use_mockup=use_mockup,
+                module_name=module_name,
+                class_name=class_name,
+            )
             res = task_table_task.result()
 
             # Return a default hardcoded value for the mockup
@@ -164,7 +161,7 @@ class GeneralProcessor(BaseProcessor):
                 key = match.group(1)
                 value = os.environ.get(key)
                 if value is None:
-                    logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
+                    self.logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
                     return match.group(0)
                 return value
 
@@ -193,12 +190,19 @@ class GeneralProcessor(BaseProcessor):
             "In progress",
         )
         try:
-            dpr_task = client.submit(dpr_processor_task, self.replace_placeholders(dpr_payload))
+            # For the mockup, replace placeholders by env vars.
+            # For the real processor, it is done automatically by eopf.
+            use_mockup = dpr_payload.get("use_mockup", False)
+            if use_mockup:
+                dpr_payload = self.replace_placeholders(dpr_payload)
+
+            # Run processor
+            dpr_task = client.submit(dpr_processor_task, dpr_payload, use_mockup)
+
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
             return
-        # counter to be used for percentage
 
         try:
             res = dpr_task.result()  # This will raise the exception from the task if it failed

@@ -15,9 +15,11 @@
 """OpenTelemetry utility"""
 
 import inspect
+import json
 import os
 import pkgutil
 import sys
+from collections.abc import Iterator
 
 import fastapi
 import opentelemetry.instrumentation
@@ -29,45 +31,114 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
 from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
-from opentelemetry.sdk.resources import Resource
+from opentelemetry.sdk.resources import Resource  # type: ignore
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace.span import NonRecordingSpan, Span, SpanContext, TraceFlags
+from opentelemetry.util._decorator import _agnosticcontextmanager
+
+from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.utils import env_bool
+
+default_logger = Logging.default(__name__)
 
 FROM_PYTEST = False
+
+
+# Show details of http headers and body/content in tempo/grafana ?
+# Don't store results in global variables because the env var values can change
+# after this module was loaded.
+def trace_headers():
+    """Trace request headers ?"""
+    return env_bool("OTEL_PYTHON_REQUESTS_TRACE_HEADERS", default=False)
+
+
+def trace_body():
+    """Trace request bodies and response contents ?"""
+    return env_bool("OTEL_PYTHON_REQUESTS_TRACE_BODY", default=False)
+
+
+def parse_data(data) -> str:
+    """Convert data to a string representation"""
+
+    if not data:
+        return ""
+
+    # Try to decode bytes
+    if isinstance(data, bytes):
+        data = data.decode("utf-8")
+
+    # Try to convert to a dict
+    try:
+        data = dict(data)
+    except Exception:  # pylint: disable=broad-exception-caught # nosec
+        pass
+
+    # Or to parse to a dict
+    try:
+        data = json.loads(data)
+    except Exception:  # pylint: disable=broad-exception-caught # nosec
+        pass
+
+    # If we have a dict, try to format it as json
+    if isinstance(data, dict):
+        data = json.dumps(data, indent=2)
+
+    return data or ""
 
 
 def request_hook(span, request):
     """
     HTTP requests intrumentation
     """
-    if span:
-        span.set_attribute("http.request.headers", str(request.headers))
+    if not span:
+        return
+
+    # Copy the http.url attribute into _url so it appears at the
+    # top in the grafana UI, it's more readable
+    span.set_attribute("_url", span.attributes.get("http.url"))
+
+    if trace_headers():
+        span.set_attribute("http.request.headers", parse_data(request.headers))
+
+    if trace_body():
+        span.set_attribute("http.request.body", parse_data(request.body))
 
 
 def response_hook(span, request, response):  # pylint: disable=W0613
     """
     HTTP responses intrumentation
     """
-    if span:
-        span.set_attribute("http.response.headers", str(response.headers))
+    if not span:
+        return
+
+    if trace_headers():
+        span.set_attribute("http.response.headers", parse_data(response.headers))
+
+    if trace_body():
+        span.set_attribute("http.response.content", parse_data(response.content))
 
 
-def init_traces(app: fastapi.FastAPI, service_name: str):
+def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):
     """
     Init instrumentation of OpenTelemetry traces.
 
     Args:
         app (fastapi.FastAPI): FastAPI application
         service_name (str): service name
+        logger: non-default logger to user
     """
 
     # See: https://github.com/softwarebloat/python-tracing-demo/tree/main
+
+    logger = logger or default_logger
 
     # Don't call this line from pytest because it causes errors:
     # Transient error StatusCode.UNAVAILABLE encountered while exporting metrics to localhost:4317, retrying in ..s.
     if not FROM_PYTEST:
         tempo_endpoint = os.getenv("TEMPO_ENDPOINT")
         if not tempo_endpoint:
+            logger.warning("'TEMPO_ENDPOINT' variable is missing, cannot initialize OpenTelemetry")
             return
 
         # TODO: to avoid errors in local mode:
@@ -88,8 +159,9 @@ def init_traces(app: fastapi.FastAPI, service_name: str):
     if not FROM_PYTEST:
         otel_tracer.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=tempo_endpoint)))
 
-    FastAPIInstrumentor.instrument_app(app, tracer_provider=otel_tracer)
-    # logger.debug(f"OpenTelemetry instrumentation of 'fastapi.FastAPIInstrumentor'")
+    if app:
+        FastAPIInstrumentor.instrument_app(app, tracer_provider=otel_tracer)
+        # logger.debug(f"OpenTelemetry instrumentation of 'fastapi.FastAPIInstrumentor'")
 
     # Instrument all the dependencies under opentelemetry.instrumentation.*
     # NOTE: we need 'poetry run opentelemetry-bootstrap -a install' to install these.
@@ -129,7 +201,7 @@ def init_traces(app: fastapi.FastAPI, service_name: str):
             if callable(_instrument):
 
                 _class_instance = _class()
-                if _class == RequestsInstrumentor and os.getenv("OTEL_PYTHON_REQUESTS_TRACE_HEADERS"):
+                if _class == RequestsInstrumentor and (trace_headers() or trace_body()):
                     _class_instance.instrument(
                         tracer_provider=otel_tracer,
                         request_hook=request_hook,
@@ -139,3 +211,44 @@ def init_traces(app: fastapi.FastAPI, service_name: str):
                     _class_instance.instrument(tracer_provider=otel_tracer)
                 # name = f"{module_str}.{_class.__name__}".removeprefix(prefix)
                 # logger.debug(f"OpenTelemetry instrumentation of {name!r}")
+
+
+@_agnosticcontextmanager
+def start_span(
+    instrumenting_module_name: str,
+    name: str,
+    span_context: SpanContext | None = None,
+) -> Iterator[Span]:
+    """
+    Context manager for creating a new main or child OpenTelemetry span and set it
+    as the current span in this tracer's context.
+
+    Args:
+        instrumenting_module_name: Caller module name, just pass __name__
+        name: The name of the span to be created (use a custom name)
+        span_context: Parent span context. Only to create a child span.
+
+    Yields:
+        The newly-created span.
+    """
+    tracer = trace.get_tracer(instrumenting_module_name)
+
+    # Create a main span
+    if not span_context:
+        with tracer.start_as_current_span(name) as span:
+            yield span
+
+    # Create a child span
+    else:
+        main_span_context = SpanContext(
+            trace_id=span_context.trace_id,
+            span_id=span_context.span_id,
+            is_remote=True,
+            trace_flags=TraceFlags(TraceFlags.SAMPLED),
+        )
+        main_span = NonRecordingSpan(main_span_context)
+        with trace.use_span(main_span):  # pylint: disable=not-context-manager
+            # Optionnaly, we could use the main span instead of creating
+            # a new one, to be discussed.
+            with tracer.start_as_current_span(name) as span:
+                yield span
