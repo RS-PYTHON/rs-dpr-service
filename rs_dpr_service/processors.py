@@ -24,7 +24,6 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-import fsspec
 from dask.distributed import (  # LocalCluster,
     Client,
 )
@@ -39,7 +38,6 @@ from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from rs_dpr_service.call_dask import (
-    convert_safe_to_zarr,
     dpr_processor_task,
     upload_this_module,
 )
@@ -452,7 +450,7 @@ class GeneralProcessor(BaseProcessor):
 
         # self.logger.debug(f"Executing staging processor for {data}")
 
-        self.log_job_execution(JobStatus.running, 0, "Successfully searched catalog")
+        self.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -644,158 +642,3 @@ class S3L0Processor(GeneralProcessor):
     # Will be activated later
     # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
     #     return super().get_tasktable(name)
-
-
-class ConversionProcessor(GeneralProcessor):
-    """Runs an EO‐product conversion as a Dask job via subprocess."""
-
-    def __init__(
-        self,
-        credentials: Request,
-        db_process_manager: PostgreSQLManager,
-    ):
-        super().__init__(credentials, db_process_manager, "ConversionProcessor")
-
-    def _check_safe_s3_config(self, data: dict):
-        try:
-            safe_s3_cfg = data.get("safe_s3_config", {})
-            safe_s3_config = {
-                "key": safe_s3_cfg["key"],
-                "secret": safe_s3_cfg["secret"],
-                "client_kwargs": {
-                    "endpoint_url": safe_s3_cfg["client_kwargs"]["endpoint_url"],
-                    "region_name": safe_s3_cfg["client_kwargs"]["region_name"],
-                },
-            }
-        except (KeyError, TypeError) as e:
-            raise ValueError(f"Missing safe S3 config parameter: {e}") from e
-
-        try:
-            fs = fsspec.filesystem("s3", **safe_s3_config)
-            fs.ls("/")  # Minimal check to force auth
-            return fs
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to safe S3: {e}") from e
-
-    def _check_zarr_s3_config(self, data: dict):
-        try:
-            zarr_s3_cfg = data.get("zarr_s3_config", {})
-            zarr_s3_config = {
-                "key": zarr_s3_cfg["key"],
-                "secret": zarr_s3_cfg["secret"],
-                "client_kwargs": {
-                    "endpoint_url": zarr_s3_cfg["client_kwargs"]["endpoint_url"],
-                    "region_name": zarr_s3_cfg["client_kwargs"]["region_name"],
-                },
-            }
-        except (KeyError, TypeError) as e:
-            raise ValueError(f"Missing zarr S3 config parameter: {e}") from e
-
-        try:
-            fs = fsspec.filesystem("s3", **zarr_s3_config)
-            fs.ls("/")  # Minimal check to force auth
-            return fs
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to zarr S3: {e}") from e
-
-    def _check_input_output_uris(self, safe_fs, zarr_fs, data: dict):
-        safe_uri = data.get("input_safe_path", "")
-        out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
-        if not safe_uri.startswith("s3://"):
-            raise ValueError(f"Invalid input_safe_path format (must start with 's3://'): {safe_uri}")
-        if not out_dir.startswith("s3://"):
-            raise ValueError(f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}")
-
-        path = safe_uri.replace("s3://", "")
-        if not safe_fs.exists(path):
-            raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
-
-        bucket = out_dir.replace("s3://", "").split("/", 1)[0]
-        if not zarr_fs.exists(bucket):
-            raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
-
-    def _check_write_permission(self, fs, out_dir: str):
-        bucket = out_dir.replace("s3://", "").split("/", 1)[0]
-        test_key = f"{bucket}/.perm_test_{uuid.uuid4().hex}"
-        try:
-            with fs.open(test_key, "wb"):
-                pass
-            fs.rm(test_key, recursive=False)
-        except Exception as e:
-            if "AccessDenied" in str(e) or "UnauthorizedOperation" in str(e):
-                raise PermissionError(f"No write permission on bucket: {out_dir}") from e
-            raise RuntimeError(f"Error checking write permissions: {e}") from e
-
-    # Override from GeneralProcessor
-    async def execute(
-        self,
-        data: dict,
-        outputs=None,
-    ) -> tuple[str, dict]:
-        """
-        Asynchronously execute the dpr process in the dask cluster
-        """
-        try:
-            safe_fs = self._check_safe_s3_config(data)
-            zarr_fs = self._check_zarr_s3_config(data)
-            self._check_input_output_uris(safe_fs, zarr_fs, data)
-            self._check_write_permission(zarr_fs, data["output_zarr_dir_path"])
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            msg = str(e)
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
-
-        self.log_job_execution(JobStatus.running, 1, "Input configuration accepted")
-        # Start execution
-        loop = asyncio.get_event_loop()
-        if loop.is_running():
-            asyncio.create_task(self.start_processor(data))
-        else:
-            loop.run_until_complete(self.start_processor(data))
-
-        return self._get_execute_result()
-
-    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
-        """
-        Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
-        """
-        # Log start
-        self.log_job_execution(JobStatus.running, 5, "Preparing conversion")
-        try:
-
-            # extract payload parameters
-            safe_uri = dpr_payload.get("input_safe_path")
-            out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
-            basename = str(safe_uri).rsplit("/", 1)[-1].split(".", 1)[0]
-            zarr_uri = f"{out_dir}/{basename}.zarr"
-
-            # submit the task
-            cfg = {
-                "safe_uri": safe_uri,
-                "zarr_uri": zarr_uri,
-                "safe_s3_config": dpr_payload.get("safe_s3_config", {}),
-                "zarr_s3_config": dpr_payload.get("zarr_s3_config", {}),
-            }
-
-            future = client.submit(convert_safe_to_zarr, cfg)
-            self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
-
-            # wait for result
-            res = future.result()
-
-            self.log_job_execution(JobStatus.successful, 100, res)
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error(f"Conversion failed: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
-        finally:
-            client.close()
-
-
-# Register the processor
-
-processors = {
-    "S1L0_processor": S1L0Processor,
-    "S3L0_processor": S3L0Processor,
-    "Conversion_Processor": ConversionProcessor,
-}
