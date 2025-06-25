@@ -12,17 +12,19 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-""" Conversion Processor for converting a legacy product (safe format) into new Zarr format """
+"""Conversion Processor for converting a legacy product (safe format) into new Zarr format"""
 import uuid
+
 import fsspec
 from dask.distributed import Client
-from starlette.requests import Request
-from pygeoapi.util import JobStatus
 from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
 )
-from rs_dpr_service.processors import GeneralProcessor
+from pygeoapi.util import JobStatus
+from starlette.requests import Request
+
 from rs_dpr_service.call_dask import convert_safe_to_zarr
+from rs_dpr_service.processors import GeneralProcessor
 
 
 class ConversionProcessor(GeneralProcessor):
@@ -55,7 +57,7 @@ class ConversionProcessor(GeneralProcessor):
 
         try:
             fs = fsspec.filesystem("s3", **safe_s3_config)
-            fs.ls("/")
+            fs.ls("/")  # Minimal check to force auth
             return fs
         except Exception as e:
             raise ConnectionError(f"Failed to connect to safe S3: {e}") from e
@@ -77,7 +79,7 @@ class ConversionProcessor(GeneralProcessor):
 
         try:
             fs = fsspec.filesystem("s3", **zarr_s3_config)
-            fs.ls("/")
+            fs.ls("/")  # Minimal check to force auth
             return fs
         except Exception as e:
             raise ConnectionError(f"Failed to connect to zarr S3: {e}") from e
@@ -132,19 +134,23 @@ class ConversionProcessor(GeneralProcessor):
             self.log_job_execution(JobStatus.failed, None, msg)
             return self._get_execute_result()
 
+        # Start execution
         return await super().execute(data, outputs)
 
     def manage_dask_tasks(self, client: Client, dpr_payload: dict):
         """
         Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
         """
+        # Log start
         self.log_job_execution(JobStatus.running, 5, "Preparing conversion")
         try:
+            # extract payload parameters
             safe_uri = dpr_payload.get("input_safe_path")
             out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
             basename = str(safe_uri).rsplit("/", 1)[-1].split(".", 1)[0]
             zarr_uri = f"{out_dir}/{basename}.zarr"
 
+            # submit the task
             cfg = {
                 "safe_uri": safe_uri,
                 "zarr_uri": zarr_uri,
@@ -155,6 +161,7 @@ class ConversionProcessor(GeneralProcessor):
             future = client.submit(convert_safe_to_zarr, cfg)
             self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
+            # wait for result
             res = future.result()
             self.log_job_execution(JobStatus.successful, 100, res)
         except Exception as e:  # pylint: disable=broad-exception-caught
