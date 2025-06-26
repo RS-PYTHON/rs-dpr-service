@@ -157,7 +157,6 @@ class ConversionProcessor(GeneralProcessor):
                 "safe_s3_config": dpr_payload.get("safe_s3_config", {}),
                 "zarr_s3_config": dpr_payload.get("zarr_s3_config", {}),
             }
-
             future = client.submit(convert_safe_to_zarr, cfg)
             self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
