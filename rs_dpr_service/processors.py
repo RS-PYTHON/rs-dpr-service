@@ -36,11 +36,7 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import (
-    dpr_processor_task,
-    dpr_tasktable_task,
-    upload_this_module,
-)
+from rs_dpr_service import call_dask
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.utils import env_bool
 
@@ -117,12 +113,13 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting tasks monitoring thread")
         try:
             task_table_task = dask_client.submit(
-                dpr_tasktable_task,
+                call_dask.dpr_tasktable_task,
                 caller_env=os.environ,
                 flow_span_context=flow_span_context,
                 use_mockup=use_mockup,
                 module_name=module_name,
                 class_name=class_name,
+                pure=False,  # disable cache
             )
             res = task_table_task.result()
 
@@ -168,7 +165,7 @@ class GeneralProcessor(BaseProcessor):
             return pattern.sub(replacer, obj)
         return obj
 
-    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
+    def manage_dask_tasks(self, client: Client, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
 
@@ -192,12 +189,18 @@ class GeneralProcessor(BaseProcessor):
         try:
             # For the mockup, replace placeholders by env vars.
             # For the real processor, it is done automatically by eopf.
-            use_mockup = dpr_payload.get("use_mockup", False)
+            use_mockup = data.get("use_mockup", False)
             if use_mockup:
-                dpr_payload = self.replace_placeholders(dpr_payload)
+                data = self.replace_placeholders(data)
 
-            # Run processor
-            dpr_task = client.submit(dpr_processor_task, dpr_payload, use_mockup)
+            # Run processor in the dask client
+            dpr_task = client.submit(
+                call_dask.dpr_processor_task,
+                caller_env=os.environ,
+                data=data,
+                use_mockup=use_mockup,
+                pure=False,  # disable cache
+            )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
@@ -370,7 +373,7 @@ class GeneralProcessor(BaseProcessor):
         client.forward_logging()
 
         # Upload local module to the dask client.
-        upload_this_module(client)
+        call_dask.upload_this_module(client)
 
         def set_dask_env(host_env: dict):
             """Pass environment variables to the dask workers."""
@@ -431,7 +434,7 @@ class GeneralProcessor(BaseProcessor):
 
     async def start_processor(  # pylint: disable=too-many-return-statements
         self,
-        dpr_payload: dict,
+        data: dict,
     ) -> tuple[str, dict]:
         """
         Method used to trigger dask distributed streaming process.
@@ -450,7 +453,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         try:
-            if dpr_payload.get("use_mockup", False):
+            if data.get("use_mockup", False):
                 os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
             # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
@@ -482,7 +485,7 @@ class GeneralProcessor(BaseProcessor):
             await asyncio.to_thread(
                 self.manage_dask_tasks,
                 dask_client,
-                dpr_payload,
+                data,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")

@@ -149,12 +149,21 @@ def dpr_tasktable_task(
 
 def dpr_processor_task(  # pylint: disable=R0914, R0917
     caller_env: dict[str, str],
-    dpr_payload: dict,
+    data: dict,
     use_mockup: bool,
 ):
     """
     Dpr processing inside the dask cluster
     """
+    # Copy env vars from the caller
+    copy_caller_env(caller_env)
+
+    # TEMP
+    logger.critical(__file__)
+
+    # Get S3 file handler
+    AnyPath("s3://rs-dev-cluster-temp/prefect-share/users/jgaucher/", **s3_config)
+
     print("Dask task running - print() test")
     logger.info("The dpr processing task started")
     logger.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
