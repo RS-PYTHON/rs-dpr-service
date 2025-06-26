@@ -23,6 +23,7 @@ import logging
 import os
 import os.path as osp
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -41,7 +42,9 @@ SERVICE_NAME = "rs.dpr.dask"
 local_mode: bool = os.getenv("RSPY_LOCAL_MODE") == "1"
 cluster_mode: bool = not local_mode
 
+# Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 def upload_this_module(dask_client: DaskClient):
@@ -97,7 +100,7 @@ def copy_caller_env(caller_env: dict[str, str]):
     cluster_mode = not local_mode
 
     # Copy env vars from the caller
-    for key in [
+    keys = [
         "RSPY_LOCAL_MODE",
         "S3_ACCESSKEY",
         "S3_SECRETKEY",
@@ -112,7 +115,22 @@ def copy_caller_env(caller_env: dict[str, str]):
         "TEMPO_ENDPOINT",
         "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
         "OTEL_PYTHON_REQUESTS_TRACE_BODY",
-    ] + (["LOCAL_DASK_USERNAME", "LOCAL_DASK_PASSWORD"] if local_mode else ["JUPYTERHUB_API_TOKEN"]):
+    ]
+    if local_mode:
+        keys.extend(
+            [
+                "LOCAL_DASK_USERNAME",
+                "LOCAL_DASK_PASSWORD",
+                "access_key",
+                "bucket_location",
+                "host_base",
+                "host_bucket",
+                "secret_key",
+            ],
+        )
+    else:
+        keys.extend(["JUPYTERHUB_API_TOKEN"])
+    for key in keys:
         if value := caller_env.get(key):
             os.environ[key] = value
 
@@ -125,7 +143,7 @@ def dpr_tasktable_task(
     class_name: str,
 ):
     """
-    Dpr tasktable inside the dask cluster
+    Return the DPR tasktable. This function is run from inside the dask pod.
     """
     # Copy env vars from the caller
     copy_caller_env(caller_env)
@@ -155,73 +173,108 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
     use_mockup: bool,
 ):
     """
-    Dpr processing inside the dask cluster
+    Run the DPR processor. This function is run from inside the dask pod.
     """
     # Copy env vars from the caller
     copy_caller_env(caller_env)
 
-    # TEMP
-    logger.critical(__file__)
+    # Read arguments
+    s3_config_dir = data["s3_config_dir"]
+    payload_subpath = data["payload_subpath"]
+    s3_report_dir = data["s3_report_dir"]
 
     # Get S3 file handler
-    AnyPath("s3://rs-dev-cluster-temp/prefect-share/users/jgaucher/", **s3_config)
+    from eopf.common.file_utils import AnyPath
 
-    print("Dask task running - print() test")
+    s3 = AnyPath(
+        s3_config_dir,
+        key=os.environ["S3_ACCESSKEY"],
+        secret=os.environ["S3_SECRETKEY"],
+        client_kwargs={
+            "endpoint_url": os.environ["S3_ENDPOINT"],
+            "region_name": os.environ["S3_REGION"],
+        },
+    )
+
     logger.info("The dpr processing task started")
-    logger.info("Task started. Received dpr_payload = %s", json.dumps(dpr_payload, indent=2))
-    try:
-        payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
-        with open(payload_abs_path, "w+", encoding="utf-8") as payload:
-            payload.write(yaml.safe_dump(dpr_payload))
-    except Exception as e:
-        logger.exception("Exception during payload file creation: %s", e)
-        raise
 
-    command = ["eopf", "trigger", "local", payload_abs_path]
-    wd = "."
+    # Download the configuration folder from the S3 bucket into a local temp folder
+    local_config_dir = s3.get(recursive=True)
+
+    # Payload path and parent dir
+    payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
+    payload_dir = osp.dirname(payload_file)
+
+    with open(payload_file, encoding="utf-8") as opened:
+        payload_contents = yaml.safe_load(opened)
+        logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(payload_contents, indent=2)}")
+
+    # Change working directory
+    working_dir = osp.join(local_config_dir, payload_dir)
+    os.chdir(working_dir)
+
+    # Create the reports dir
+    # WARNING: fields from the payload file: dask__export_graphs, performance_report_file, ... should
+    # also use this directory: ./reports
+    local_report_dir = osp.realpath("./reports")
+    log_path = osp.join(local_report_dir, Path(payload_file).with_suffix(".processor.log").name)
+    shutil.rmtree(local_report_dir, ignore_errors=True)
+    os.makedirs(local_report_dir, exist_ok=True)
+
     if use_mockup:
-        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
-        wd = "/src/DPR"
-    logger.debug(f"Working directory for subprocess: {wd} (type: {type(wd)})")
+        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_file]
+        working_dir = "/src/DPR"
+    else:
+        command = ["eopf", "trigger", "local", payload_file]
+
     # Trigger EOPF processing, catch output
-    assert isinstance(wd, str), f"Expected working directory (cwd) to be str, got {type(wd)}"
-    with subprocess.Popen(
+    p = subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        cwd=wd,
-    ) as p:
-        assert p.stdout is not None  # For mypy
-        # Log contents
-        log_str = ""
-        return_response = {}
-        # Write output to a log file and string + redirect to the prefect logger
-        with open(Path(payload_abs_path).with_suffix(".log").name, "w+", encoding="utf-8") as log_file:
-            while (line := p.stdout.readline()) != "":
+        cwd=working_dir,
+    )
 
-                # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
-                for key in (
-                    "key",
-                    "secret",
-                    "endpoint_url",
-                    "region_name",
-                    "api_token",
-                    "password",
-                ):
-                    line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
+    # Log contents
+    log_str = ""
 
-                # Write to log file and string
-                log_file.write(line)
-                log_str += line
+    return_response = {}
 
-                # Write to prefect logger if not empty
-                line = line.rstrip()
-                if line:
-                    logger.info(line)
+    # Write output to a log file and string + redirect to the prefect logger
+    with open(log_path, "w+", encoding="utf-8") as log_file:
+        while (line := p.stdout.readline()) != "":
 
-            logger.info(f"log_str = {log_str}")
-            # search for the JSON-like part, parse it, and ignore the rest.
+            # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
+            for key in (
+                "key",
+                "secret",
+                "endpoint_url",
+                "region_name",
+                "api_token",
+                "password",
+            ):
+                line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
+
+            # Write to log file and string
+            log_file.write(line)
+            log_str += line
+
+            # Write to logger if not empty
+            line = line.rstrip()
+            if line:
+                logger.info(line)
+
+    try:
+        # Wait for the execution to finish
+        status_code = p.wait()
+
+        # Raise exception if the status code is != 0
+        if status_code:
+            raise Exception("EOPF error, please see the log.")
+
+        # search for the JSON-like part, parse it, and ignore the rest.
+        if use_mockup:
             match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
             if not match:
                 raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
@@ -236,17 +289,13 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             except Exception as e:
                 raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
+    # In all cases, upload the reports dir to the s3 bucket.
+    finally:
         try:
-            # Wait for the execution to finish
-            status_code = p.wait()
-
-            # Raise exception if the status code is != 0
-            if status_code:
-                raise Exception("EOPF error, please see the log.")  # pylint: disable=broad-exception-raised
-
-        # In all cases, upload the reports dir to the s3 bucket.
-        finally:
-            time.sleep(1)
+            logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
+            s3._fs.put(local_report_dir, s3_report_dir, recursive=True)
+        except Exception as exception:
+            logger.error(exception)
 
         return return_response
 
