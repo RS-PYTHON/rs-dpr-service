@@ -420,7 +420,7 @@ class GeneralProcessor(BaseProcessor):
 
         # self.logger.debug(f"Executing staging processor for {data}")
 
-        self.log_job_execution(JobStatus.running, 0, "Successfully searched catalog")
+        self.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -622,8 +622,3 @@ class S3L0Processor(GeneralProcessor):
             module_name="l0.s3.s3_l0_processor",
             class_name="S3L0Processor",
         )
-
-
-# Register the processor
-
-processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor}
