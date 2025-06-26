@@ -23,6 +23,7 @@ import os
 import os.path as osp
 import re
 import subprocess
+import sys
 import tempfile
 import time
 import zipfile
@@ -46,11 +47,13 @@ def upload_this_module(dask_client: DaskClient):
     this_module = Path(__file__).absolute()
     this_init = this_module.parent / "__init__.py"
     this_project = this_module.parent.parent
+    safe_to_zarr = this_module.parent / "safe_to_zarr.py"
 
     # Files to upload and associated name in the zip archive
     files = {
         this_init: this_init.relative_to(this_project),
         this_module: this_module.relative_to(this_project),
+        safe_to_zarr: safe_to_zarr.relative_to(this_project),
     }
 
     # From a temp dir
@@ -162,3 +165,39 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             time.sleep(1)
 
         return return_response
+
+
+def convert_safe_to_zarr(cfg):
+    """
+    Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
+
+    This runs the rs_dpr_service.safe_to_zarr module as a subprocess, passing config as JSON string.
+    """
+
+    # Serialize the config
+    cfg_str = json.dumps(cfg)
+
+    # Find the ZIP that this code lives in
+    module_path = Path(__file__).resolve()
+    zip_path = Path(str(module_path).split(".zip", maxsplit=1)[0] + ".zip")
+    if not zip_path.is_file():
+        raise RuntimeError(f"Cannot locate rs_dpr_service.zip at {zip_path}")
+
+    # Prepare an env that lets Python import from inside the ZIP
+    env = os.environ.copy()
+    # prepend the zip onto PYTHONPATH (so zipimport will kick in)
+    env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
+
+    # Run the converter as a module
+    cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str]
+    result = subprocess.run(
+        cmd,
+        env=env,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"Conversion failed: {result.stderr.strip()}")
+    return result.stdout.strip()

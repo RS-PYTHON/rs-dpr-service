@@ -44,6 +44,10 @@ manager:
   output_dir: /tmp
 
 resources:
+  conv_safe_zarr:
+    type: process
+    processor:
+      name: Conversion_Processor
   s1_l0:
     type: process
     processor:

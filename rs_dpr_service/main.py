@@ -23,13 +23,11 @@ from string import Template
 from time import sleep
 
 import yaml
-
-# from dask.distributed import LocalCluster
 from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
-from pygeoapi.provider.postgresql import get_engine
+from pygeoapi.provider.postgresql import get_engine  # pylint: disable=no-name-in-module
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -41,16 +39,24 @@ from starlette.status import (  # pylint: disable=C0411
 )
 
 from rs_dpr_service import opentelemetry
+from rs_dpr_service.conversion_processor import ConversionProcessor
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import env_bool, processors
+from rs_dpr_service.processors import S1L0Processor, S3L0Processor, env_bool
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
 from . import jobs_table  # pylint: disable=unused-import
+
+# Register all the processors
+processors = {
+    "S1L0_processor": S1L0Processor,
+    "S3L0_processor": S3L0Processor,
+    "Conversion_Processor": ConversionProcessor,
+}
 
 # Initialize a FastAPI application
 app = FastAPI(title="rs-dpr-service", root_path="", debug=True)

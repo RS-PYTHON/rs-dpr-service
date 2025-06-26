@@ -37,7 +37,10 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import dpr_processor_task, upload_this_module
+from rs_dpr_service.call_dask import (
+    dpr_processor_task,
+    upload_this_module,
+)
 
 logger = logging.getLogger("processors")
 logger.setLevel(logging.DEBUG)
@@ -447,7 +450,7 @@ class GeneralProcessor(BaseProcessor):
 
         # self.logger.debug(f"Executing staging processor for {data}")
 
-        self.log_job_execution(JobStatus.running, 0, "Successfully searched catalog")
+        self.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
         loop = asyncio.get_event_loop()
         if loop.is_running():
@@ -639,8 +642,3 @@ class S3L0Processor(GeneralProcessor):
     # Will be activated later
     # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
     #     return super().get_tasktable(name)
-
-
-# Register the processor
-
-processors = {"S1L0_processor": S1L0Processor, "S3L0_processor": S3L0Processor}
