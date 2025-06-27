@@ -39,9 +39,6 @@ from rs_dpr_service.utils import init_opentelemetry
 
 SERVICE_NAME = "rs.dpr.dask"
 
-local_mode: bool = os.getenv("RSPY_LOCAL_MODE") == "1"
-cluster_mode: bool = not local_mode
-
 # Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -94,10 +91,7 @@ def copy_caller_env(caller_env: dict[str, str]):
     Args:
         caller_env: os.environ coming from caller
     """
-    # Update the local/clsuter mode global variable with the env var coming from the caller
-    global local_mode, cluster_mode
     local_mode = caller_env.get("RSPY_LOCAL_MODE") == "1"
-    cluster_mode = not local_mode
 
     # Copy env vars from the caller
     keys = [
@@ -159,8 +153,8 @@ def dpr_tasktable_task(
         # Load the python class
         class_ = getattr(importlib.import_module(module_name), class_name)
 
-        # Get the tasktable for default mode.
-        # See: https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
+        # Get the tasktable for default mode. See:
+        # https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
         logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
         default_mode = class_.get_default_mode()
         tasktable = class_.get_tasktable_description(default_mode)
@@ -183,8 +177,12 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
     payload_subpath = data["payload_subpath"]
     s3_report_dir = data["s3_report_dir"]
 
-    # Get S3 file handler
-    from eopf.common.file_utils import AnyPath
+    # Get S3 file handler.
+    # NOTE: eopf exists in the dask worker environment, not in the rs-dpr-service env,
+    # so we cannot import it from the top of this module.
+    from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
+        AnyPath,
+    )
 
     s3 = AnyPath(
         s3_config_dir,
@@ -228,74 +226,76 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         command = ["eopf", "trigger", "local", payload_file]
 
     # Trigger EOPF processing, catch output
-    p = subprocess.Popen(
+    with subprocess.Popen(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
         cwd=working_dir,
-    )
+    ) as proc:
 
-    # Log contents
-    log_str = ""
+        # Log contents
+        log_str = ""
 
-    # Write output to a log file and string + redirect to the prefect logger
-    with open(log_path, "w+", encoding="utf-8") as log_file:
-        while (line := p.stdout.readline()) != "":
+        # Write output to a log file and string + redirect to the prefect logger
+        with open(log_path, "w+", encoding="utf-8") as log_file:
+            while (line := proc.stdout.readline()) != "":
 
-            # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
-            for key in (
-                "key",
-                "secret",
-                "endpoint_url",
-                "region_name",
-                "api_token",
-                "password",
-            ):
-                line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
+                # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
+                for key in (
+                    "key",
+                    "secret",
+                    "endpoint_url",
+                    "region_name",
+                    "api_token",
+                    "password",
+                ):
+                    line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
 
-            # Write to log file and string
-            log_file.write(line)
-            log_str += line
+                # Write to log file and string
+                log_file.write(line)
+                log_str += line
 
-            # Write to logger if not empty
-            line = line.rstrip()
-            if line:
-                logger.info(line)
+                # Write to logger if not empty
+                line = line.rstrip()
+                if line:
+                    logger.info(line)
 
-    try:
-        # Wait for the execution to finish
-        status_code = p.wait()
+        try:
+            # Wait for the execution to finish
+            status_code = proc.wait()
 
-        # Raise exception if the status code is != 0
-        if status_code:
-            raise Exception(f"EOPF error, status code {status_code!r}, please see the log.")
-        else:
+            # Raise exception if the status code is != 0
+            if status_code:
+                raise RuntimeError(f"EOPF error, status code {status_code!r}, please see the log.")
             logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
-        # search for the JSON-like part, parse it, and ignore the rest.
-        if use_mockup:
-            match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-            if not match:
-                raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
+            # search for the JSON-like part, parse it, and ignore the rest.
+            if use_mockup:
+                match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
+                if not match:
+                    raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
 
-            payload_str = match.group(1)
+                payload_str = match.group(1)
 
-            # Use `ast.literal_eval` to safely evaluate the structure
+                # Use `ast.literal_eval` to safely evaluate the structure
+                try:
+                    # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
+                    # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
+                    return ast.literal_eval(payload_str)
+                except Exception as e:
+                    raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
+
+            # NOTE: with the real processor, what should we return ?
+            return {}
+
+        # In all cases, upload the reports dir to the s3 bucket.
+        finally:
             try:
-                # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-                # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                return ast.literal_eval(payload_str)
-            except Exception as e:
-                raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
-
-    # In all cases, upload the reports dir to the s3 bucket.
-    finally:
-        try:
-            logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
-            s3._fs.put(local_report_dir, s3_report_dir, recursive=True)
-        except Exception as exception:
-            logger.error(exception)
+                logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
+                s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+            except Exception as exception:  # pylint: disable=broad-exception-caught
+                logger.error(exception)
 
 
 def convert_safe_to_zarr(cfg):
