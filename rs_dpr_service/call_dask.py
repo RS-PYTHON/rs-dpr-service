@@ -239,8 +239,6 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
     # Log contents
     log_str = ""
 
-    return_response = {}
-
     # Write output to a log file and string + redirect to the prefect logger
     with open(log_path, "w+", encoding="utf-8") as log_file:
         while (line := p.stdout.readline()) != "":
@@ -271,7 +269,9 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
         # Raise exception if the status code is != 0
         if status_code:
-            raise Exception("EOPF error, please see the log.")
+            raise Exception(f"EOPF error, status code {status_code!r}, please see the log.")
+        else:
+            logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
         # search for the JSON-like part, parse it, and ignore the rest.
         if use_mockup:
@@ -285,7 +285,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             try:
                 # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
                 # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                return_response = ast.literal_eval(payload_str)
+                return ast.literal_eval(payload_str)
             except Exception as e:
                 raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
@@ -296,8 +296,6 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             s3._fs.put(local_report_dir, s3_report_dir, recursive=True)
         except Exception as exception:
             logger.error(exception)
-
-        return return_response
 
 
 def convert_safe_to_zarr(cfg):
