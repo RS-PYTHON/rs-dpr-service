@@ -239,7 +239,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 
         # Write output to a log file and string + redirect to the prefect logger
         with open(log_path, "w+", encoding="utf-8") as log_file:
-            while (line := proc.stdout.readline()) != "":
+            while proc.stdout and (line := proc.stdout.readline()) != "":
 
                 # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
                 for key in (

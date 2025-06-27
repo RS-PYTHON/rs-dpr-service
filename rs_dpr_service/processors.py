@@ -84,7 +84,7 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    async def get_tasktable(self, data, module_name: str, class_name: str):
+    async def _get_tasktable(self, data, module_name: str, class_name: str):
         """Return the EOPF tasktable for a given module and class names"""
         use_mockup = False
         if data and isinstance(data, dict):
@@ -590,14 +590,9 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S1L0Processor")
 
-    async def get_tasktable(self, *args, **kwargs):
+    async def get_tasktable(self, data):
         """Return the EOPF tasktable for S1L0"""
-        return await super().get_tasktable(
-            *args,
-            **kwargs,
-            module_name="l0.s1.s1_l0_processor",
-            class_name="S1L0Processor",
-        )
+        return await self._get_tasktable(data, module_name="l0.s1.s1_l0_processor", class_name="S1L0Processor")
 
 
 class S3L0Processor(GeneralProcessor):
@@ -614,11 +609,6 @@ class S3L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S3L0Processor")
 
-    async def get_tasktable(self, *args, **kwargs):
+    async def get_tasktable(self, data):
         """Return the EOPF tasktable for S1L0"""
-        return await super().get_tasktable(
-            *args,
-            **kwargs,
-            module_name="l0.s3.s3_l0_processor",
-            class_name="S3L0Processor",
-        )
+        return await self._get_tasktable(data, module_name="l0.s3.s3_l0_processor", class_name="S3L0Processor")
