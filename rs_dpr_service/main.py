@@ -173,18 +173,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
     fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
-    # There are 2 containers / pods that may be used:
-    # - one with the image that has the real eopf processor
-    # - one with the image that has the mockup eopf processor
-    # Set by default the env variables for the dask cluster name that will select one of
-    # these 2 containers / pods to the one with the real processor
-    # Later on, the user that requests one of the endpoints
-    # - /dpr/processes/{resource}/execution
-    # - /dpr/processes/{resource}
-    # may add in the content the following param:
-    # "use_mockup": True
-    # and the env variables will be changed
-    os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
     os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager

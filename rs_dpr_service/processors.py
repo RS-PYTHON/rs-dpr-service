@@ -84,13 +84,33 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
+    @staticmethod
+    def get_cluster_option_name(use_mockup: bool) -> str:
+        """
+        Return the dask cluster name to give to cluster.options
+
+        There are 2 containers / pods that may be used:
+        - one with the image that has the real eopf processor
+        - one with the image that has the mockup eopf processor
+        Later on, the user that requests one of the endpoints
+        - /dpr/processes/{resource}/execution
+        - /dpr/processes/{resource}
+        may add in the content the following param:
+        "use_mockup": True
+        and the returned value will be changed
+        """
+        return (
+            os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+            if use_mockup
+            else os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+        )
+
     async def _get_tasktable(self, data, module_name: str, class_name: str):
         """Return the EOPF tasktable for a given module and class names"""
         use_mockup = False
         if data and isinstance(data, dict):
             use_mockup = data.get("use_mockup", False)
             if use_mockup:
-                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
 
         # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
@@ -98,10 +118,8 @@ class GeneralProcessor(BaseProcessor):
         # values to be replaced such as:
         # cluster_config:
         #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
-        # .....
-        # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
         dask_client = self.dask_cluster_connect(
-            os.environ["DASK_CLUSTER_EOPF_NAME"],
+            use_mockup,
             os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
         )
 
@@ -226,7 +244,7 @@ class GeneralProcessor(BaseProcessor):
 
     def dask_cluster_connect(
         self,
-        cluster_name,
+        use_mockup: bool,
         cluster_address,
     ):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
@@ -284,6 +302,8 @@ class GeneralProcessor(BaseProcessor):
 
         # If self.cluster is already initialized, it means the application is running in local mode, and
         # the cluster was created when the application started.
+
+        cluster_name = self.get_cluster_option_name(use_mockup)
 
         # Connect to the gateway and get the list of the clusters
         try:
@@ -349,6 +369,9 @@ class GeneralProcessor(BaseProcessor):
                 self.logger.exception("Failed to create the cluster")
                 raise RuntimeError("Failed to create the cluster")
             self.logger.info(f"Successfully connected to the {cluster_name} dask cluster")
+
+            # This cluster id is needed by eopf to connect again later to the same cluster
+            os.environ["DASK_CLUSTER_EOPF_NAME"] = cluster_id
 
         except KeyError as e:
             self.logger.exception(
@@ -453,19 +476,17 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         try:
-            if data.get("use_mockup", False):
-                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
+            use_mockup = data.get("use_mockup", False)
+            if use_mockup:
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
             # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
             # the payload.cfg from the user is comming with a `dask_context:` section that contains
             # values to be replaced such as:
             # cluster_config:
             #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
-            # .....
-            # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
 
             dask_client = self.dask_cluster_connect(
-                os.environ["DASK_CLUSTER_EOPF_NAME"],
+                use_mockup,
                 os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
             )
 

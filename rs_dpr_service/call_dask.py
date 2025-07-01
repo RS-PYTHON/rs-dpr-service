@@ -292,8 +292,9 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         # In all cases, upload the reports dir to the s3 bucket.
         finally:
             try:
-                logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
-                s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+                if s3_report_dir:
+                    logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
+                    s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 logger.error(exception)
 
