@@ -18,6 +18,7 @@ import json
 import os
 import re
 import time
+import traceback
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -230,7 +231,7 @@ class GeneralProcessor(BaseProcessor):
             self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Task failed with exception: %s", task_e)
+            self.logger.error("Task failed with exception: %s", traceback.format_exc())
             # Update status for the job
             self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
             return

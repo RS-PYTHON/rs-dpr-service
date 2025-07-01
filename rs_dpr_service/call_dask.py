@@ -168,62 +168,79 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
 ):
     """
     Run the DPR processor. This function is run from inside the dask pod.
+
+    Args:
+        caller_env: env variables coming from the caller
+        data: data to send to the processor
+        use_mockup: use the mockup or real processor
     """
     # Copy env vars from the caller
     copy_caller_env(caller_env)
 
-    # Read arguments
-    s3_config_dir = data["s3_config_dir"]
-    payload_subpath = data["payload_subpath"]
-    s3_report_dir = data["s3_report_dir"]
-
-    # Get S3 file handler.
-    # NOTE: eopf exists in the dask worker environment, not in the rs-dpr-service env,
-    # so we cannot import it from the top of this module.
-    from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
-        AnyPath,
-    )
-
-    s3 = AnyPath(
-        s3_config_dir,
-        key=os.environ["S3_ACCESSKEY"],
-        secret=os.environ["S3_SECRETKEY"],
-        client_kwargs={
-            "endpoint_url": os.environ["S3_ENDPOINT"],
-            "region_name": os.environ["S3_REGION"],
-        },
-    )
-
-    logger.info("The dpr processing task started")
-
-    # Download the configuration folder from the S3 bucket into a local temp folder
-    local_config_dir = s3.get(recursive=True)
-
-    # Payload path and parent dir
-    payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
-    payload_dir = osp.dirname(payload_file)
-
-    with open(payload_file, encoding="utf-8") as opened:
-        payload_contents = yaml.safe_load(opened)
-        logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(payload_contents, indent=2)}")
-
-    # Change working directory
-    working_dir = osp.join(local_config_dir, payload_dir)
-    os.chdir(working_dir)
-
-    # Create the reports dir
-    # WARNING: fields from the payload file: dask__export_graphs, performance_report_file, ... should
-    # also use this directory: ./reports
-    local_report_dir = osp.realpath("./reports")
-    log_path = osp.join(local_report_dir, Path(payload_file).with_suffix(".processor.log").name)
-    shutil.rmtree(local_report_dir, ignore_errors=True)
-    os.makedirs(local_report_dir, exist_ok=True)
-
+    # Mockup processor
     if use_mockup:
-        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_file]
+        try:
+            payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
+            with open(payload_abs_path, "w+", encoding="utf-8") as payload:
+                payload.write(yaml.safe_dump(data))
+        except Exception as e:
+            logger.exception("Exception during payload file creation: %s", e)
+            raise
+        command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
         working_dir = "/src/DPR"
+        log_path = "./mockup.log"  # not used
+        logger.debug(f"Working directory for subprocess: {working_dir} (type: {type(working_dir)})")
+
+    # Real processor
     else:
+        # Read arguments
+        s3_config_dir = data["s3_config_dir"]
+        payload_subpath = data["payload_subpath"]
+        s3_report_dir = data["s3_report_dir"]
+
+        # Get S3 file handler.
+        # NOTE: eopf exists in the dask worker environment, not in the rs-dpr-service env,
+        # so we cannot import it from the top of this module.
+        from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
+            AnyPath,
+        )
+
+        s3 = AnyPath(
+            s3_config_dir,
+            key=os.environ["S3_ACCESSKEY"],
+            secret=os.environ["S3_SECRETKEY"],
+            client_kwargs={
+                "endpoint_url": os.environ["S3_ENDPOINT"],
+                "region_name": os.environ["S3_REGION"],
+            },
+        )
+
+        logger.info("The dpr processing task started")
+
+        # Download the configuration folder from the S3 bucket into a local temp folder
+        local_config_dir = s3.get(recursive=True)
+
+        # Payload path and parent dir
+        payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
+        payload_dir = osp.dirname(payload_file)
+
+        with open(payload_file, encoding="utf-8") as opened:
+            payload_contents = yaml.safe_load(opened)
+            logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(payload_contents, indent=2)}")
+
         command = ["eopf", "trigger", "local", payload_file]
+
+        # Change working directory
+        working_dir = osp.join(local_config_dir, payload_dir)
+        os.chdir(working_dir)
+
+        # Create the reports dir
+        # WARNING: fields from the payload file: dask__export_graphs, performance_report_file, ... should
+        # also use this directory: ./reports
+        local_report_dir = osp.realpath("./reports")
+        log_path = osp.join(local_report_dir, Path(payload_file).with_suffix(".processor.log").name)
+        shutil.rmtree(local_report_dir, ignore_errors=True)
+        os.makedirs(local_report_dir, exist_ok=True)
 
     # Trigger EOPF processing, catch output
     with subprocess.Popen(
@@ -292,7 +309,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         # In all cases, upload the reports dir to the s3 bucket.
         finally:
             try:
-                if s3_report_dir:
+                if not use_mockup:
                     logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
                     s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
             except Exception as exception:  # pylint: disable=broad-exception-caught
