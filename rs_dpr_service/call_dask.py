@@ -81,7 +81,13 @@ def upload_this_module(dask_client: DaskClient):
 
         # Upload zip file to dask clients.
         # This also installs the zipped modules inside the dask python interpreter.
-        dask_client.upload_file(zip_path)
+        try:
+            dask_client.upload_file(zip_path)
+
+        # We have this error if we scale up the number of workers.
+        # But it's OK, the zip file is automatically uploaded to them anyway.
+        except KeyError as e:
+            logger.debug(f"Ignoring error {e}")
 
 
 def copy_caller_env(caller_env: dict[str, str]):

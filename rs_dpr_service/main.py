@@ -173,6 +173,8 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
     fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
+
+    # This url is needed by the eopf dask scheduler to connect later to this cluster
     os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
