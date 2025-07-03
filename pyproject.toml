@@ -109,6 +109,7 @@ disable = [
     "R0913", # too-many-arguments
     "too-many-statements",
     "not-context-manager",
+    "too-many-branches",
 ]
 ignore-paths = '^docs/.*$'
 
