@@ -137,16 +137,16 @@ class ConversionProcessor(GeneralProcessor):
         # Start execution
         return await super().execute(data, outputs)
 
-    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
+    def manage_dask_tasks(self, client: Client, data: dict):
         """
         Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
         """
         # Log start
         self.log_job_execution(JobStatus.running, 5, "Preparing conversion")
         try:
-            # extract payload parameters
-            safe_uri = dpr_payload.get("input_safe_path")
-            out_dir = dpr_payload.get("output_zarr_dir_path", "").rstrip("/")
+            # extract input parameter values
+            safe_uri = data.get("input_safe_path")
+            out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
             basename = str(safe_uri).rsplit("/", 1)[-1].split(".", 1)[0]
             zarr_uri = f"{out_dir}/{basename}.zarr"
 
@@ -154,8 +154,8 @@ class ConversionProcessor(GeneralProcessor):
             cfg = {
                 "safe_uri": safe_uri,
                 "zarr_uri": zarr_uri,
-                "safe_s3_config": dpr_payload.get("safe_s3_config", {}),
-                "zarr_s3_config": dpr_payload.get("zarr_s3_config", {}),
+                "safe_s3_config": data.get("safe_s3_config", {}),
+                "zarr_s3_config": data.get("zarr_s3_config", {}),
             }
             future = client.submit(convert_safe_to_zarr, cfg)
             self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")

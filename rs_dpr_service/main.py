@@ -14,7 +14,6 @@
 
 """rs dpr service main module."""
 import copy
-import logging
 import os
 import pathlib
 from contextlib import asynccontextmanager
@@ -38,14 +37,16 @@ from starlette.status import (  # pylint: disable=C0411
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from rs_dpr_service import opentelemetry
 from rs_dpr_service.conversion_processor import ConversionProcessor
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import S1L0Processor, S3L0Processor, env_bool
+from rs_dpr_service.processors import S1L0Processor, S3L0Processor
+from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.utils import env_bool
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -65,8 +66,7 @@ router = APIRouter(tags=["DPR service"])
 JOB_ATTRS_MAPPING = {"identifier": "jobID"}
 OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 
-logger = logging.getLogger("my_logger")
-logger.setLevel(logging.DEBUG)
+logger = Logging.default(__name__)
 
 
 def ogc_error_response(status_code: int, detail: str):
@@ -173,18 +173,8 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
     fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
-    # There are 2 containers / pods that may be used:
-    # - one with the image that has the real eopf processor
-    # - one with the image that has the mockup eopf processor
-    # Set by default the env variables for the dask cluster name that will select one of
-    # these 2 containers / pods to the one with the real processor
-    # Later on, the user that requests one of the endpoints
-    # - /dpr/processes/{resource}/execution
-    # - /dpr/processes/{resource}
-    # may add in the content the following param:
-    # "use_mockup": True
-    # and the env variables will be changed
-    os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]
+
+    # This url is needed by the eopf dask scheduler to connect later to this cluster
     os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
@@ -210,29 +200,31 @@ async def ping():
 @router.get("/dpr/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
-    if resource_info := next(  # pylint: disable=W0612 # noqa: F841
-        (
-            api.config["resources"][defined_resource]
-            for defined_resource in api.config["resources"]
-            if defined_resource == resource
-        ),
-        None,
-    ):
-        try:
-            data = await request.json()
-        except Exception:  # pylint: disable=broad-exception-caught
-            data = None
-        processor_name = api.config["resources"][resource]["processor"]["name"]
-        if processor_name in processors:
-            processor = processors[processor_name]
-            task_table = await processor(  # type: ignore
-                request,
-                app.extra["process_manager"],
-                # app.extra["dask_cluster"],
-            ).get_tasktable(data)
+    with init_opentelemetry.start_span(__name__, "tasktable"):
 
-            return JSONResponse(status_code=HTTP_200_OK, content=task_table)
-    return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+        if resource_info := next(  # pylint: disable=W0612 # noqa: F841
+            (
+                api.config["resources"][defined_resource]
+                for defined_resource in api.config["resources"]
+                if defined_resource == resource
+            ),
+            None,
+        ):
+            try:
+                data = await request.json()
+            except Exception:  # pylint: disable=broad-exception-caught
+                data = None
+            processor_name = api.config["resources"][resource]["processor"]["name"]
+            if processor_name in processors:
+                processor = processors[processor_name]
+                task_table = await processor(  # type: ignore
+                    request,
+                    app.extra["process_manager"],
+                    # app.extra["dask_cluster"],
+                ).get_tasktable(data)
+
+                return JSONResponse(status_code=HTTP_200_OK, content=task_table)
+        return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
 
 
 def format_job_data(job: dict):
@@ -272,39 +264,41 @@ def format_job_data(job: dict):
 async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
 
-    # check if the input resource exists
-    if resource not in api.config["resources"]:
-        return ogc_error_response(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+    with init_opentelemetry.start_span(__name__, "processor"):
 
-    # Validate request payload
-    try:
-        valid_body = await validate_request(request)
-    except Exception as e:  # pylint: disable=W0718
-        # Handle exceptions and return an appropriate error message
-        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+        # check if the input resource exists
+        if resource not in api.config["resources"]:
+            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
 
-    processor_name = api.config["resources"][resource]["processor"]["name"]
-    if processor_name in processors:
-        processor = processors[processor_name]
-        _, dpr_status = await processor(  # type: ignore
-            request,
-            app.extra["process_manager"],
-            # app.extra["dask_cluster"],
-        ).execute(valid_body)
+        # Validate request payload
+        try:
+            valid_body = await validate_request(request)
+        except Exception as e:  # pylint: disable=W0718
+            # Handle exceptions and return an appropriate error message
+            return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
-        # Get identifier of the current job
-        status_dict = {
-            "accepted": HTTP_201_CREATED,
-            "running": HTTP_201_CREATED,
-            "successful": HTTP_201_CREATED,
-            "failed": HTTP_500_INTERNAL_SERVER_ERROR,
-            "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
-        }
-        id_key = [status for status in status_dict if status in dpr_status][0]
-        formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
-        validate_response(request, formatted_job_data, HTTP_201_CREATED)
-        return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
-    return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+        processor_name = api.config["resources"][resource]["processor"]["name"]
+        if processor_name in processors:
+            processor = processors[processor_name]
+            _, dpr_status = await processor(  # type: ignore
+                request,
+                app.extra["process_manager"],
+                # app.extra["dask_cluster"],
+            ).execute(valid_body)
+
+            # Get identifier of the current job
+            status_dict = {
+                "accepted": HTTP_201_CREATED,
+                "running": HTTP_201_CREATED,
+                "successful": HTTP_201_CREATED,
+                "failed": HTTP_500_INTERNAL_SERVER_ERROR,
+                "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
+            }
+            id_key = [status for status in status_dict if status in dpr_status][0]
+            formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
+            validate_response(request, formatted_job_data, HTTP_201_CREATED)
+            return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
+        return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
 
 
 # Endpoint to get the status of a job by job_id
@@ -330,6 +324,6 @@ async def get_job_status_endpoint(request: Request, job_id: str = Path(..., titl
 
 app.include_router(router)
 app.router.lifespan_context = app_lifespan  # type: ignore
-opentelemetry.init_traces(app, "rs.dpr.service")
+init_opentelemetry.init_traces(app, "rs.dpr.service")
 # Mount pygeoapi endpoints
 app.mount(path="/oapi", app=api)

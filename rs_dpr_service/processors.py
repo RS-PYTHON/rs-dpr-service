@@ -15,11 +15,10 @@
 """S1L0 and S3L0 Processors"""
 import asyncio  # for handling asynchronous tasks
 import json
-import logging
 import os
 import re
-import subprocess
 import time
+import traceback
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -29,6 +28,7 @@ from dask.distributed import (  # LocalCluster,
 )
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
+from opentelemetry import trace
 from pygeoapi.process.base import BaseProcessor
 from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
@@ -37,27 +37,11 @@ from pygeoapi.util import JobStatus
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from rs_dpr_service.call_dask import (
-    dpr_processor_task,
-    upload_this_module,
-)
+from rs_dpr_service import call_dask
+from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.utils import env_bool
 
-logger = logging.getLogger("processors")
-logger.setLevel(logging.DEBUG)
-
-
-def env_bool(var: str, default: bool) -> bool:
-    """
-    Return True if an environemnt variable is set to 1, true or yes (case insensitive).
-    Return False if set to 0, false or no (case insensitive).
-    Return the default value if not set or set to a different value.
-    """
-    val = os.getenv(var, str(default)).lower()
-    if val in ("y", "yes", "t", "true", "on", "1"):
-        return True
-    if val in ("n", "no", "f", "false", "off", "0"):
-        return False
-    return default
+default_logger = Logging.default(__name__)
 
 
 # True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
@@ -66,34 +50,6 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 # Cluster mode is the opposite of local mode
 CLUSTER_MODE: bool = not LOCAL_MODE
-
-
-def dpr_tasktable_task(use_mockup=False):
-    """
-    Dpr tasktable inside the dask cluster
-    """
-
-    logger_dask = logging.getLogger(__name__)
-    logger_dask.info("The dpr triggering tasktable task started")
-
-    command = ["eopf", "trigger", "tasktable"]
-    if use_mockup:
-        command = ["sleep", "1"]
-    # Trigger EOPF tasktable command
-    tasktable_result: dict = {}
-    with subprocess.Popen(
-        command,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    ) as p:
-        # This will be activated when trigger tasktable cmd will work
-        # assert p.stdout is not None  # For mypy
-        # when the eopf command will work, delete the following print and handle the p.stdout
-        print(p.stdout)
-        # tasktable_result = p.stdout
-
-    return tasktable_result
 
 
 class GeneralProcessor(BaseProcessor):
@@ -111,7 +67,7 @@ class GeneralProcessor(BaseProcessor):
         #################
         # Locals
         self.name = name
-        self.logger = logger
+        self.logger = default_logger
         self.request = credentials
         self.headers: Headers = credentials.headers
 
@@ -129,47 +85,36 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    async def get_tasktable(self, data, client=None, name=None):  # pylint: disable=W0613
-        """Will execute eopf tasktable command when available"""
-        # Disabled;
-        # if name:
-        #     with subprocess.Popen(
-        #         ["eopf", "trigger", "tasktable", name],
-        #         stdout=subprocess.PIPE,
-        #         stderr=subprocess.STDOUT,
-        #         text=True,
-        #     ) as p:
-        #         return p.stdout()
+    async def _get_tasktable(self, data, module_name: str, class_name: str):
+        """Return the EOPF tasktable for a given module and class names"""
         use_mockup = False
         if data and isinstance(data, dict):
             use_mockup = data.get("use_mockup", False)
-            if use_mockup:
-                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
-                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-        with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
-            tasktable_data = json.loads(tf.read())
 
-        # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
-        # the payload.cfg from the user is comming with a `dask_context:` section that contains
-        # values to be replaced such as:
-        # cluster_config:
-        #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
-        # .....
-        # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
-        dask_client = self.dask_cluster_connect(
-            os.environ["DASK_CLUSTER_EOPF_NAME"],
-            os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
-        )
+        dask_client = self.dask_cluster_connect(use_mockup)
+
+        # Extract span infos to send to Dask
+        flow_span_context = trace.get_current_span().get_span_context()
 
         # Manage dask tasks in a separate thread
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(dpr_tasktable_task, use_mockup)
+            task_table_task = dask_client.submit(
+                call_dask.dpr_tasktable_task,
+                caller_env=os.environ,
+                flow_span_context=flow_span_context,
+                use_mockup=use_mockup,
+                module_name=module_name,
+                class_name=class_name,
+                pure=False,  # disable cache
+            )
             res = task_table_task.result()
-            # the eopf tasktable is supposed to fail at the current time, so return something hardcoded
-            if not res:
-                res = tasktable_data
+
+            # Return a default hardcoded value for the mockup
+            if (not res) and use_mockup:
+                with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
+                    return json.loads(tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
@@ -201,14 +146,14 @@ class GeneralProcessor(BaseProcessor):
                 key = match.group(1)
                 value = os.environ.get(key)
                 if value is None:
-                    logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
+                    self.logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
                     return match.group(0)
                 return value
 
             return pattern.sub(replacer, obj)
         return obj
 
-    def manage_dask_tasks(self, client: Client, dpr_payload: dict):
+    def manage_dask_tasks(self, client: Client, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
 
@@ -230,19 +175,32 @@ class GeneralProcessor(BaseProcessor):
             "In progress",
         )
         try:
-            dpr_task = client.submit(dpr_processor_task, self.replace_placeholders(dpr_payload))
+            # For the mockup, replace placeholders by env vars.
+            # For the real processor, it is done automatically by eopf.
+            use_mockup = data.get("use_mockup", False)
+            if use_mockup:
+                data = self.replace_placeholders(data)
+
+            # Run processor in the dask client
+            dpr_task = client.submit(
+                call_dask.dpr_processor_task,
+                caller_env=os.environ,
+                data=data,
+                use_mockup=use_mockup,
+                pure=False,  # disable cache
+            )
+
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
             self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
             return
-        # counter to be used for percentage
 
         try:
             res = dpr_task.result()  # This will raise the exception from the task if it failed
             self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Task failed with exception: %s", task_e)
+            self.logger.error("Task failed with exception: %s", traceback.format_exc())
             # Update status for the job
             self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
             return
@@ -256,8 +214,7 @@ class GeneralProcessor(BaseProcessor):
 
     def dask_cluster_connect(
         self,
-        cluster_name,
-        cluster_address,
+        use_mockup: bool,
     ):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
@@ -314,6 +271,15 @@ class GeneralProcessor(BaseProcessor):
 
         # If self.cluster is already initialized, it means the application is running in local mode, and
         # the cluster was created when the application started.
+
+        # Return the dask cluster address and name to give to cluster.options
+        # This is either the real or mockup processor.
+        if use_mockup:
+            cluster_address = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
+            cluster_name = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]  # "dask-eopf-mockup"
+        else:
+            cluster_address = os.environ["DASK_GATEWAY__ADDRESS"]
+            cluster_name = os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]  # "dask-eopf"
 
         # Connect to the gateway and get the list of the clusters
         try:
@@ -380,6 +346,10 @@ class GeneralProcessor(BaseProcessor):
                 raise RuntimeError("Failed to create the cluster")
             self.logger.info(f"Successfully connected to the {cluster_name} dask cluster")
 
+            # This cluster id is needed by the eopf dask scheduler to connect later to this cluster.
+            # This is something like "dask-gateway.17e196069443463495547eb97f532834"
+            os.environ["DASK_CLUSTER_EOPF_NAME"] = cluster_id
+
         except KeyError as e:
             self.logger.exception(
                 "Failed to retrieve the required connection details for "
@@ -403,7 +373,7 @@ class GeneralProcessor(BaseProcessor):
         client.forward_logging()
 
         # Upload local module to the dask client.
-        upload_this_module(client)
+        call_dask.upload_this_module(client)
 
         def set_dask_env(host_env: dict):
             """Pass environment variables to the dask workers."""
@@ -464,7 +434,7 @@ class GeneralProcessor(BaseProcessor):
 
     async def start_processor(  # pylint: disable=too-many-return-statements
         self,
-        dpr_payload: dict,
+        data: dict,
     ) -> tuple[str, dict]:
         """
         Method used to trigger dask distributed streaming process.
@@ -483,22 +453,8 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         try:
-            if dpr_payload.get("use_mockup", False):
-                os.environ["DASK_CLUSTER_EOPF_NAME"] = os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]
-                os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-            # the need for the usage of env vars instead of simply set input params for dask_cluster_connect is because
-            # the payload.cfg from the user is comming with a `dask_context:` section that contains
-            # values to be replaced such as:
-            # cluster_config:
-            #   address: ${DASK_GATEWAY_EOPF_ADDRESS}
-            # .....
-            # reuse_cluster: ${DASK_CLUSTER_EOPF_NAME}
-
-            dask_client = self.dask_cluster_connect(
-                os.environ["DASK_CLUSTER_EOPF_NAME"],
-                os.environ["DASK_GATEWAY_EOPF_ADDRESS"],
-            )
-
+            use_mockup = data.get("use_mockup", False)
+            dask_client = self.dask_cluster_connect(use_mockup)
         except KeyError as ke:
             self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
             return self.log_job_execution(JobStatus.failed, 0, str(ke))
@@ -515,7 +471,7 @@ class GeneralProcessor(BaseProcessor):
             await asyncio.to_thread(
                 self.manage_dask_tasks,
                 dask_client,
-                dpr_payload,
+                data,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
@@ -620,9 +576,9 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S1L0Processor")
 
-    # Will be activated later
-    # def get_tasktable(self, name="l0.s1.s1_l0_processor S1L0Processor"):
-    #     return super().get_tasktable(name)
+    async def get_tasktable(self, data):
+        """Return the EOPF tasktable for S1L0"""
+        return await self._get_tasktable(data, module_name="l0.s1.s1_l0_processor", class_name="S1L0Processor")
 
 
 class S3L0Processor(GeneralProcessor):
@@ -635,10 +591,10 @@ class S3L0Processor(GeneralProcessor):
         # cluster: LocalCluster,
     ):  # pylint: disable=super-init-not-called
         """
-        Initialize S1L0Processor
+        Initialize S3L0Processor
         """
         super().__init__(credentials, db_process_manager, "S3L0Processor")
 
-    # Will be activated later
-    # def get_tasktable(self, name="l0.s3.s3_l0_processor S3L0Processor"):
-    #     return super().get_tasktable(name)
+    async def get_tasktable(self, data):
+        """Return the EOPF tasktable for S1L0"""
+        return await self._get_tasktable(data, module_name="l0.s3.s3_l0_processor", class_name="S3L0Processor")
