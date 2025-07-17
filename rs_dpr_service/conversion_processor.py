@@ -13,6 +13,7 @@
 # limitations under the License.
 
 """Conversion Processor for converting a legacy product (safe format) into new Zarr format"""
+import os
 import uuid
 
 import fsspec
@@ -40,49 +41,26 @@ class ConversionProcessor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "ConversionProcessor")
 
-    def _check_safe_s3_config(self, data: dict):
-        """Validate the S3 bucket credentials for the legacy product."""
+    def _check_s3_config(self):
+        """Validate the S3 bucket credentials."""
         try:
-            safe_s3_cfg = data.get("safe_s3_config", {})
-            safe_s3_config = {
-                "key": safe_s3_cfg["key"],
-                "secret": safe_s3_cfg["secret"],
+            s3_config = {
+                "key": os.environ["S3_ACCESSKEY"],
+                "secret": os.environ["S3_SECRETKEY"],
                 "client_kwargs": {
-                    "endpoint_url": safe_s3_cfg["client_kwargs"]["endpoint_url"],
-                    "region_name": safe_s3_cfg["client_kwargs"]["region_name"],
+                    "endpoint_url": os.environ["S3_ENDPOINT"],
+                    "region_name": os.environ["S3_REGION"],
                 },
             }
         except (KeyError, TypeError) as e:
             raise ValueError(f"Missing safe S3 config parameter: {e}") from e
 
         try:
-            fs = fsspec.filesystem("s3", **safe_s3_config)
+            fs = fsspec.filesystem("s3", **s3_config)
             fs.ls("/")  # Minimal check to force auth
             return fs
         except Exception as e:
             raise ConnectionError(f"Failed to connect to safe S3: {e}") from e
-
-    def _check_zarr_s3_config(self, data: dict):
-        """Validate the S3 bucket credentials for the output path."""
-        try:
-            zarr_s3_cfg = data.get("zarr_s3_config", {})
-            zarr_s3_config = {
-                "key": zarr_s3_cfg["key"],
-                "secret": zarr_s3_cfg["secret"],
-                "client_kwargs": {
-                    "endpoint_url": zarr_s3_cfg["client_kwargs"]["endpoint_url"],
-                    "region_name": zarr_s3_cfg["client_kwargs"]["region_name"],
-                },
-            }
-        except (KeyError, TypeError) as e:
-            raise ValueError(f"Missing zarr S3 config parameter: {e}") from e
-
-        try:
-            fs = fsspec.filesystem("s3", **zarr_s3_config)
-            fs.ls("/")  # Minimal check to force auth
-            return fs
-        except Exception as e:
-            raise ConnectionError(f"Failed to connect to zarr S3: {e}") from e
 
     def _check_input_output_uris(self, safe_fs, zarr_fs, data: dict):
         """Check that input legacy product exists and output bucket path exists."""
@@ -124,10 +102,9 @@ class ConversionProcessor(GeneralProcessor):
         Asynchronously execute the conversion process.
         """
         try:
-            safe_fs = self._check_safe_s3_config(data)
-            zarr_fs = self._check_zarr_s3_config(data)
-            self._check_input_output_uris(safe_fs, zarr_fs, data)
-            self._check_write_permission(zarr_fs, data["output_zarr_dir_path"])
+            s3_fs = self._check_s3_config()
+            self._check_input_output_uris(s3_fs, data)
+            self._check_write_permission(s3_fs, data["output_zarr_dir_path"])
         except Exception as e:  # pylint: disable=broad-exception-caught
             msg = str(e)
             self.logger.error(f"Conversion failed: {msg}")
