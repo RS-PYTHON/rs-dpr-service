@@ -62,7 +62,7 @@ class ConversionProcessor(GeneralProcessor):
         except Exception as e:
             raise ConnectionError(f"Failed to connect to safe S3: {e}") from e
 
-    def _check_input_output_uris(self, safe_fs, zarr_fs, data: dict):
+    def _check_input_output_uris(self, s3_fs, data: dict):
         """Check that input legacy product exists and output bucket path exists."""
 
         safe_uri = data.get("input_safe_path", "")
@@ -73,11 +73,11 @@ class ConversionProcessor(GeneralProcessor):
             raise ValueError(f"Invalid output_zarr_dir_path format (must start with 's3://'): {out_dir}")
 
         path = safe_uri.replace("s3://", "")
-        if not safe_fs.exists(path):
+        if not s3_fs.exists(path):
             raise FileNotFoundError(f"Input SAFE path does not exist: {safe_uri}")
 
         bucket = out_dir.replace("s3://", "").split("/", 1)[0]
-        if not zarr_fs.exists(bucket):
+        if not s3_fs.exists(bucket):
             raise FileNotFoundError(f"Output S3 bucket does not exist: {out_dir}")
 
     def _check_write_permission(self, fs, out_dir: str):
