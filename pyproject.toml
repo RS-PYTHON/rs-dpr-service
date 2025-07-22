@@ -59,6 +59,7 @@ opentelemetry-test-utils = "^0.55b1"
 opentelemetry-exporter-otlp = "^1.34.1"
 tornado = "^6.5" # fix trivy vulnerability
 python-logging-loki = "^0.3.1" # to avoid otl error: No module named 'logging_loki'
+s3fs = "^2025.7.0"
 
 [tool.poetry.group.dev]
 optional = true
