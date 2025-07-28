@@ -23,9 +23,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from dask.distributed import (  # LocalCluster,
-    Client,
-)
+from dask.distributed import Client
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
 from opentelemetry import trace
@@ -38,18 +36,10 @@ from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from rs_dpr_service import call_dask
+from rs_dpr_service.utils import settings
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
 
 default_logger = Logging.default(__name__)
-
-
-# True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
-# By default: if not set or set to a different value, return False.
-LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
-
-# Cluster mode is the opposite of local mode
-CLUSTER_MODE: bool = not LOCAL_MODE
 
 
 class GeneralProcessor(BaseProcessor):
@@ -100,16 +90,28 @@ class GeneralProcessor(BaseProcessor):
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(
-                call_dask.dpr_tasktable_task,
-                caller_env=os.environ,
-                flow_span_context=flow_span_context,
-                use_mockup=use_mockup,
-                module_name=module_name,
-                class_name=class_name,
-                pure=False,  # disable cache
-            )
-            res = task_table_task.result()
+            # Specific case for local debugging
+            if settings.LOCAL_CLUSTER:
+                res = call_dask.dpr_tasktable_task(
+                    caller_env={},
+                    flow_span_context=flow_span_context,
+                    use_mockup=use_mockup,
+                    module_name=module_name,
+                    class_name=class_name,
+                )
+
+            # Nominal usecase
+            else:
+                task_table_task = dask_client.submit(
+                    call_dask.dpr_tasktable_task,
+                    caller_env=os.environ,
+                    flow_span_context=flow_span_context,
+                    use_mockup=use_mockup,
+                    module_name=module_name,
+                    class_name=class_name,
+                    pure=False,  # disable cache
+                )
+                res = task_table_task.result()
 
             # Return a default hardcoded value for the mockup
             if (not res) and use_mockup:
@@ -117,9 +119,12 @@ class GeneralProcessor(BaseProcessor):
                     return json.loads(tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
-            return {}
+            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
+            raise e
+        finally:
+            # cleanup by disconnecting the dask client
+            if dask_client:
+                dask_client.close()
 
     def replace_placeholders(self, obj):
         """
@@ -215,7 +220,7 @@ class GeneralProcessor(BaseProcessor):
     def dask_cluster_connect(
         self,
         use_mockup: bool,
-    ):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    ) -> Client | None:  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
@@ -268,9 +273,11 @@ class GeneralProcessor(BaseProcessor):
         Returns:
             Dask client
         """
-
-        # If self.cluster is already initialized, it means the application is running in local mode, and
-        # the cluster was created when the application started.
+        # With a dask local cluster (only for local testing), we run the eopf scheduler on local.
+        # It will then init a dask LocalCluster itself.
+        if settings.LOCAL_CLUSTER:
+            return None
+        # With dask gateway cluster, we want to run the eopf scheduler on a dedicated cluster pod, not locally.
 
         # Return the dask cluster address and name to give to cluster.options
         # This is either the real or mockup processor.
@@ -284,7 +291,7 @@ class GeneralProcessor(BaseProcessor):
         # Connect to the gateway and get the list of the clusters
         try:
             # In local mode, authenticate to the dask cluster with username/password
-            if LOCAL_MODE:
+            if settings.LOCAL_MODE:
                 gateway_auth = BasicAuth(
                     os.environ["LOCAL_DASK_USERNAME"],
                     os.environ["LOCAL_DASK_PASSWORD"],
@@ -312,7 +319,7 @@ class GeneralProcessor(BaseProcessor):
 
             # In local mode, get the first cluster from the gateway.
             cluster_id = None
-            if LOCAL_MODE:
+            if settings.LOCAL_MODE:
                 if clusters:
                     cluster_id = clusters[0].name
 
@@ -478,7 +485,8 @@ class GeneralProcessor(BaseProcessor):
 
         # cleanup by disconnecting the dask client
         self.assets_info = []
-        dask_client.close()
+        if dask_client:
+            dask_client.close()
 
         return self._get_execute_result()
 

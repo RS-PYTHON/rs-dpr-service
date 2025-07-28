@@ -44,9 +44,8 @@ from rs_dpr_service.openapi_validation import (
     validate_response,
 )
 from rs_dpr_service.processors import S1L0Processor, S3L0Processor
-from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils import init_opentelemetry, settings
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -172,15 +171,14 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Starting up the application...")
     # Create jobs table
     process_manager = init_db()
-    fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
-    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
+    if not settings.LOCAL_CLUSTER:
+        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
-    # token refereshment logic
 
     # Yield control back to the application (this is where the app will run)
     yield
