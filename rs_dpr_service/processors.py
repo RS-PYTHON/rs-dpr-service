@@ -165,14 +165,6 @@ class GeneralProcessor(BaseProcessor):
 
         """
         self.logger.info("Tasks monitoring started")
-        if not client:
-            self.logger.error("The dask cluster client object is not created. Exiting")
-            self.log_job_execution(
-                JobStatus.failed,
-                None,
-                "Submitting task to dask cluster failed. Dask cluster client object is not created",
-            )
-            return
 
         self.log_job_execution(
             JobStatus.running,
@@ -186,14 +178,24 @@ class GeneralProcessor(BaseProcessor):
             if use_mockup:
                 data = self.replace_placeholders(data)
 
-            # Run processor in the dask client
-            dpr_task = client.submit(
-                call_dask.dpr_processor_task,
-                caller_env=os.environ,
-                data=data,
-                use_mockup=use_mockup,
-                pure=False,  # disable cache
-            )
+            # Specific case for local debugging
+            if settings.LOCAL_CLUSTER:
+                dpr_task = None
+                res = call_dask.dpr_processor_task(
+                    caller_env={},
+                    data=data,
+                    use_mockup=use_mockup,
+                )
+
+            # Nominal usecase: run processor in the dask client
+            else:
+                dpr_task = client.submit(
+                    call_dask.dpr_processor_task,
+                    caller_env=os.environ,
+                    data=data,
+                    use_mockup=use_mockup,
+                    pure=False,  # disable cache
+                )
 
         except Exception as e:  # pylint: disable=broad-exception-caught
             self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
@@ -201,7 +203,8 @@ class GeneralProcessor(BaseProcessor):
             return
 
         try:
-            res = dpr_task.result()  # This will raise the exception from the task if it failed
+            if dpr_task:
+                res = dpr_task.result()  # This will raise the exception from the task if it failed
             self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught

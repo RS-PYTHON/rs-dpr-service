@@ -33,9 +33,10 @@ from pathlib import Path
 
 import yaml
 from distributed.client import Client as DaskClient
+from eopf.triggering.runner import EORunner
 from opentelemetry.trace.span import SpanContext
 
-from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils import init_opentelemetry, settings
 
 SERVICE_NAME = "rs.dpr.dask"
 
@@ -230,12 +231,6 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
         payload_dir = osp.dirname(payload_file)
 
-        with open(payload_file, encoding="utf-8") as opened:
-            payload_contents = yaml.safe_load(opened)
-            logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(payload_contents, indent=2)}")
-
-        command = ["eopf", "trigger", "local", payload_file]
-
         # Change working directory
         working_dir = osp.join(local_config_dir, payload_dir)
         os.chdir(working_dir)
@@ -247,6 +242,40 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         log_path = osp.join(local_report_dir, Path(payload_file).with_suffix(".processor.log").name)
         shutil.rmtree(local_report_dir, ignore_errors=True)
         os.makedirs(local_report_dir, exist_ok=True)
+
+        # Specific case for the LocalCluster configuration (only for local testing)
+        if settings.LOCAL_CLUSTER:
+
+            # Read the payload file contents
+            with open(payload_file, encoding="utf-8") as opened:
+                payload_contents = yaml.safe_load(opened)
+
+            # Hard replace the dask gateway configuration with a local one
+            if dask_context := payload_contents.get("dask_context"):
+                dask_context["cluster_type"] = "local"
+                if cluster_config := dask_context["cluster_config"]:
+                    cluster_config.pop("address", None)
+                    cluster_config.pop("reuse_cluster", None)
+                    cluster_config.pop("auth", None)
+                    # Rename fields
+                    if n_workers := cluster_config.pop("workers", None):
+                        cluster_config["n_workers"] = n_workers
+
+            # Call eopf from python code
+            EORunner().run(payload_contents)
+
+            # Upload the reports dir to the s3 bucket.
+            s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+            return {}
+
+        # NOTE: in the nominal use-case, we run eopf in a subprocess.
+        # This allows us to capture stdout and stderr more easily.
+
+        with open(payload_file, encoding="utf-8") as opened:
+            payload_contents = yaml.safe_load(opened)
+            logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(payload_contents, indent=2)}")
+
+        command = ["eopf", "trigger", "local", payload_file]
 
     # Trigger EOPF processing, catch output
     with subprocess.Popen(
