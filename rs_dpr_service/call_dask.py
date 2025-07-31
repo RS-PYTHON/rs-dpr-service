@@ -33,7 +33,6 @@ from pathlib import Path
 
 import yaml
 from distributed.client import Client as DaskClient
-from eopf.triggering.runner import EORunner
 from opentelemetry.trace.span import SpanContext
 
 from rs_dpr_service.utils import init_opentelemetry, settings
@@ -66,7 +65,7 @@ def upload_this_module(dask_client: DaskClient):
         root / "utils/__init__.py": "rs_dpr_service/utils/__init__.py",
         root / "utils/init_opentelemetry.py": "rs_dpr_service/utils/init_opentelemetry.py",
         root / "utils/logging.py": "rs_dpr_service/utils/logging.py",
-        root / "utils/utils.py": "rs_dpr_service/utils/utils.py",
+        root / "utils/settings.py": "rs_dpr_service/utils/settings.py",
     }
 
     # From a temp dir
@@ -257,11 +256,17 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
                     cluster_config.pop("address", None)
                     cluster_config.pop("reuse_cluster", None)
                     cluster_config.pop("auth", None)
+
                     # Rename fields
                     if n_workers := cluster_config.pop("workers", None):
                         cluster_config["n_workers"] = n_workers
 
+                    # Add hardcoded memory limit (maybe we should configure it with an env var)
+                    cluster_config.setdefault("memory_limit", 12 * 1e9)  # 12GB
+
             # Call eopf from python code
+            from eopf.triggering.runner import EORunner
+
             EORunner().run(payload_contents)
 
             # Upload the reports dir to the s3 bucket.
