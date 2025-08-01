@@ -41,6 +41,19 @@ from rs_dpr_service.utils.logging import Logging
 
 default_logger = Logging.default(__name__)
 
+# We use the dask LocalCluster configuration if none of these env vars are defined.
+# This is only for local testing.
+# NOTE: don't implement this var in settings.py because it won't work in the dask environment.
+LOCAL_CLUSTER = not any(
+    v in os.environ
+    for v in [
+        "RSPY_DASK_DPR_SERVICE_CLUSTER_NAME",
+        "DASK_GATEWAY__ADDRESS",
+        "RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME",
+        "DASK_GATEWAY__MOCKUP_ADDRESS",
+    ]
+)
+
 
 class GeneralProcessor(BaseProcessor):
     """Common signature of a processor in DPR-service"""
@@ -91,7 +104,7 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting tasks monitoring thread")
         try:
             # Specific case for local debugging
-            if settings.LOCAL_CLUSTER:
+            if LOCAL_CLUSTER:
                 res = call_dask.dpr_tasktable_task(
                     caller_env={},
                     flow_span_context=flow_span_context,
@@ -179,11 +192,11 @@ class GeneralProcessor(BaseProcessor):
                 data = self.replace_placeholders(data)
 
             # Specific case for local debugging
-            if settings.LOCAL_CLUSTER:
+            if LOCAL_CLUSTER:
                 dpr_task = None
                 res = call_dask.dpr_processor_task(
                     caller_env={},
-                    data=data,
+                    data=data | {"LOCAL_CLUSTER": True},
                     use_mockup=use_mockup,
                 )
 
@@ -278,7 +291,7 @@ class GeneralProcessor(BaseProcessor):
         """
         # With a dask local cluster (only for local testing), we run the eopf scheduler on local.
         # It will then init a dask LocalCluster itself.
-        if settings.LOCAL_CLUSTER:
+        if LOCAL_CLUSTER:
             return None
         # With dask gateway cluster, we want to run the eopf scheduler on a dedicated cluster pod, not locally.
 

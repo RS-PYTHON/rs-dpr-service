@@ -41,15 +41,3 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 # Cluster mode is the opposite of local mode
 CLUSTER_MODE: bool = not LOCAL_MODE
-
-# We use the dask LocalCluster configuration if none of these env vars are defined.
-# This is only for local testing.
-LOCAL_CLUSTER = not any(
-    v in os.environ
-    for v in [
-        "RSPY_DASK_DPR_SERVICE_CLUSTER_NAME",
-        "DASK_GATEWAY__ADDRESS",
-        "RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME",
-        "DASK_GATEWAY__MOCKUP_ADDRESS",
-    ]
-)

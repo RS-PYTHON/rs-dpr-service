@@ -243,7 +243,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         os.makedirs(local_report_dir, exist_ok=True)
 
         # Specific case for the LocalCluster configuration (only for local testing)
-        if settings.LOCAL_CLUSTER:
+        if data.get("LOCAL_CLUSTER"):
 
             # Read the payload file contents
             with open(payload_file, encoding="utf-8") as opened:

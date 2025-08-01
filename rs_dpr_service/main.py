@@ -43,7 +43,7 @@ from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import S1L0Processor, S3L0Processor
+from rs_dpr_service.processors import LOCAL_CLUSTER, S1L0Processor, S3L0Processor
 from rs_dpr_service.utils import init_opentelemetry, settings
 from rs_dpr_service.utils.logging import Logging
 
@@ -173,7 +173,7 @@ async def app_lifespan(fastapi_app: FastAPI):
     process_manager = init_db()
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
-    if not settings.LOCAL_CLUSTER:
+    if not LOCAL_CLUSTER:
         os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
