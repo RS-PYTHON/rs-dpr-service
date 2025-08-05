@@ -175,8 +175,6 @@ class GeneralProcessor(BaseProcessor):
     def manage_dask_tasks(self, client: Client, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
-
-
         """
         self.logger.info("Tasks monitoring started")
 

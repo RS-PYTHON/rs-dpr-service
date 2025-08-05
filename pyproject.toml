@@ -1,3 +1,17 @@
+# Copyright 2025 CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 [project]
 name = "rs-dpr-service"
 dynamic = ["version"] # see: https://github.com/mtkennerly/poetry-dynamic-versioning
@@ -53,10 +67,10 @@ pylint = "^3.3.6"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.10"
-opentelemetry-distro = "^0.56b0" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-instrumentation-aws-lambda = "^0.56b0"
-opentelemetry-test-utils = "^0.56b0"
-opentelemetry-exporter-otlp = "^1.35.0"
+opentelemetry-distro = "^0.57b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-instrumentation-aws-lambda = "^0.57b0"
+opentelemetry-test-utils = "^0.57b0"
+opentelemetry-exporter-otlp = "^1.36.0"
 tornado = "^6.5" # fix trivy vulnerability
 python-logging-loki = "^0.3.1" # to avoid otl error: No module named 'logging_loki'
 s3fs = "^2025.7.0"
@@ -66,6 +80,7 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 python = "^3.11"
+#pygeoapi = { git = "https://github.com/geopython/pygeoapi.git", branch = "master" }
 pre-commit = ">=3.7.1,<5.0.0"
 pylint = "^3.3.2"
 pytest = "^8.3.3"
