@@ -26,7 +26,7 @@ from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
-from pygeoapi.provider.postgresql import get_engine  # pylint: disable=no-name-in-module
+from pygeoapi.provider.sql import get_engine  # pylint: disable=no-name-in-module
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -136,12 +136,12 @@ def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     manager_def = api.config["manager"]
     if not manager_def or not isinstance(manager_def, dict) or not isinstance(manager_def["connection"], dict):
         message = "Error reading the manager definition for pygeoapi PostgreSQL Manager"
-        # logger.error(message)
+        logger.error(message)
         raise RuntimeError(message)
     connection = manager_def["connection"]
 
     # Create SQL Alchemy engine
-    engine = get_engine(**connection)
+    engine = get_engine(driver_name="postgresql+psycopg2", **connection)
 
     while True:
         try:
