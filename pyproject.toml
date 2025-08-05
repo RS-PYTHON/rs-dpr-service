@@ -36,7 +36,7 @@ include = [
 
 [tool.poetry.dependencies]
 python = "^3.11"
-pygeoapi = ">=0.21.dev0"
+pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.34.1,<0.35.0"
 fastapi = ">=0.116.1,<0.118.0"
@@ -66,7 +66,6 @@ optional = true
 
 [tool.poetry.group.dev.dependencies]
 python = "^3.11"
-pygeoapi = { git = "https://github.com/geopython/pygeoapi.git", branch = "master" }
 pre-commit = ">=3.7.1,<5.0.0"
 pylint = "^3.3.2"
 pytest = "^8.3.3"
