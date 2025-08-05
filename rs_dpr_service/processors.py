@@ -41,6 +41,7 @@ from rs_dpr_service.utils.logging import Logging
 
 default_logger = Logging.default(__name__)
 
+
 # We use the dask LocalCluster configuration if none of these env vars are defined.
 # This is only for local testing.
 # NOTE: don't implement this var in settings.py because it won't work in the dask environment.
@@ -210,20 +211,30 @@ class GeneralProcessor(BaseProcessor):
                     pure=False,  # disable cache
                 )
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            if LOCAL_CLUSTER:
+                raise
+            self.log_job_execution(
+                JobStatus.failed,
+                None,
+                f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}",
+                log_exception=True,
+            )
             return
 
         try:
             if dpr_task:
                 res = dpr_task.result()  # This will raise the exception from the task if it failed
-            self.logger.info("%s Task streaming completed", dpr_task.key)
+                self.logger.info("%s Task streaming completed", dpr_task.key)
 
         except Exception as task_e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Task failed with exception: %s", traceback.format_exc())
             # Update status for the job
-            self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
+            self.log_job_execution(
+                JobStatus.failed,
+                None,
+                f"The dpr processing task failed: {traceback.format_exc()}",
+                log_exception=True,
+            )
             return
 
         # Update status and insert the result of the dask task in the jobs table
@@ -479,11 +490,19 @@ class GeneralProcessor(BaseProcessor):
             use_mockup = data.get("use_mockup", False)
             dask_client = self.dask_cluster_connect(use_mockup)
         except KeyError as ke:
-            self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
-            return self.log_job_execution(JobStatus.failed, 0, str(ke))
+            return self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: No env var {ke} found",
+                log_exception=True,
+            )
         except RuntimeError as runtime_error:
-            self.logger.error("Failed to start the dpr-service process")
-            return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
+            return self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         self.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
 
@@ -497,7 +516,12 @@ class GeneralProcessor(BaseProcessor):
                 data,
             )
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
+            self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Error from tasks monitoring thread: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         # cleanup by disconnecting the dask client
         self.assets_info = []
@@ -542,6 +566,7 @@ class GeneralProcessor(BaseProcessor):
         status: JobStatus | None = None,
         progress: int | None = None,
         message: str | None = None,
+        log_exception: bool = False,
     ) -> tuple[str, dict]:
         """
         Method used to log progress into db.
@@ -550,6 +575,7 @@ class GeneralProcessor(BaseProcessor):
             status (JobStatus): new job status
             progress (int): new job progress (percentage)
             message (str): new job current information message
+            log_exception (bool): log.exception the message
 
         Returns:
             tuple: tuple of MIME type and process response (dictionary containing the job ID and a
@@ -561,6 +587,9 @@ class GeneralProcessor(BaseProcessor):
         self.status = status if status else self.status
         self.progress = progress if progress else self.progress
         self.message = message if message else self.message
+
+        if log_exception:
+            self.logger.exception(self.message)
 
         update_data = {
             "status": self.status.value,
