@@ -267,11 +267,13 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
             # Call eopf from python code
             from eopf.triggering.runner import EORunner
 
-            EORunner().run(payload_contents)
+            try:
+                EORunner().run(payload_contents)
 
             # Upload the reports dir to the s3 bucket.
-            s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
-            return {}
+            finally:
+                s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+                return {}
 
         # NOTE: in the nominal use-case, we run eopf in a subprocess.
         # This allows us to capture stdout and stderr more easily.

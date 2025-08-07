@@ -43,8 +43,9 @@ default_logger = Logging.default(__name__)
 
 
 # We use the dask LocalCluster configuration if none of these env vars are defined.
-# This is only for local testing.
-# NOTE: don't implement this var in settings.py because it won't work in the dask environment.
+# This is only for local testing and debugging.
+# NOTE 1: eopf-cpm will init the dask LocalCluster instance itself.
+# NOTE 2: don't implement this var in settings.py because it won't work in the dask environment.
 LOCAL_CLUSTER = not any(
     v in os.environ
     for v in [
@@ -298,8 +299,8 @@ class GeneralProcessor(BaseProcessor):
         Returns:
             Dask client
         """
-        # With a dask local cluster (only for local testing), we run the eopf scheduler on local.
-        # It will then init a dask LocalCluster itself.
+        # With a dask local cluster (only for local testing), we run the eopf-cpm scheduler on local.
+        # It will then init a dask LocalCluster instance itself.
         if LOCAL_CLUSTER:
             return None
         # With dask gateway cluster, we want to run the eopf scheduler on a dedicated cluster pod, not locally.
