@@ -596,3 +596,26 @@ class S3L0Processor(GeneralProcessor):
     async def get_tasktable(self, data):
         """Return the EOPF tasktable for S1L0"""
         return await self._get_tasktable(data, module_name="l0.s3.s3_l0_processor", class_name="S3L0Processor")
+
+
+class S1ARDProcessor(GeneralProcessor):
+    """S1ARD Processor implementation"""
+
+    def __init__(
+        self,
+        credentials: Request,
+        db_process_manager: PostgreSQLManager,
+        # cluster: LocalCluster,
+    ):  # pylint: disable=super-init-not-called
+        """
+        Initialize S1ARDProcessor
+        """
+        super().__init__(credentials, db_process_manager, "S1ARDProcessor")
+
+    async def get_tasktable(self, data):
+        """Return the EOPF tasktable for S1L0"""
+        return await self._get_tasktable(
+            data,
+            module_name="s1_l12_rp.computing.ard_processing_units",
+            class_name="S1ARDProcessor",
+        )

@@ -56,6 +56,10 @@ resources:
     type: process
     processor:
       name: S3L0_processor
+  s1_ard:
+    type: process
+    processor:
+      name: S1ARD_processor
 
 openapi:
   path: # not used

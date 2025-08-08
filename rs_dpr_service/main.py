@@ -43,7 +43,12 @@ from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import GeneralProcessor, S1L0Processor, S3L0Processor
+from rs_dpr_service.processors import (
+    GeneralProcessor,
+    S1ARDProcessor,
+    S1L0Processor,
+    S3L0Processor,
+)
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.utils import env_bool
@@ -56,6 +61,7 @@ from . import jobs_table  # pylint: disable=unused-import
 processors: dict[str, type[GeneralProcessor]] = {
     "S1L0_processor": S1L0Processor,
     "S3L0_processor": S3L0Processor,
+    "S1ARD_processor": S1ARDProcessor,
     "Conversion_Processor": ConversionProcessor,
 }
 
