@@ -44,7 +44,7 @@ from rs_dpr_service.openapi_validation import (
     validate_response,
 )
 from rs_dpr_service.processors import (
-    GeneralProcessor,
+    GenericProcessor,
     S1ARDProcessor,
     S1L0Processor,
     S3L0Processor,
@@ -58,7 +58,7 @@ from rs_dpr_service.utils.utils import env_bool
 from . import jobs_table  # pylint: disable=unused-import
 
 # Register all the processors
-processors: dict[str, type[GeneralProcessor]] = {
+processors: dict[str, type[GenericProcessor]] = {
     "S1L0_processor": S1L0Processor,
     "S3L0_processor": S3L0Processor,
     "S1ARD_processor": S1ARDProcessor,
@@ -218,16 +218,13 @@ async def get_resource(request: Request, resource: str):
         ):
             try:
                 data = await request.json()
+                use_mockup = data.get("use_mockup", False)
             except Exception:  # pylint: disable=broad-exception-caught
-                data = None
+                use_mockup = False
             processor_name = api.config["resources"][resource]["processor"]["name"]
             if processor_name in processors:
                 processor = processors[processor_name]
-                task_table = await processor(  # type: ignore
-                    request,
-                    app.extra["process_manager"],
-                    # app.extra["dask_cluster"],
-                ).get_tasktable(data)
+                task_table = await processor(app.extra["process_manager"], use_mockup).get_tasktable()  # type: ignore
 
                 return JSONResponse(status_code=HTTP_200_OK, content=task_table)
         return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
@@ -279,6 +276,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         # Validate request payload
         try:
             valid_body = await validate_request(request)
+            use_mockup = valid_body.get("use_mockup", False)
         except Exception as e:  # pylint: disable=W0718
             # Handle exceptions and return an appropriate error message
             return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
@@ -286,11 +284,9 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
             processor = processors[processor_name]
-            _, dpr_status = await processor(  # type: ignore
-                request,
-                app.extra["process_manager"],
-                # app.extra["dask_cluster"],
-            ).execute(valid_body)
+            _, dpr_status = await processor(app.extra["process_manager"], use_mockup).execute(  # type: ignore
+                valid_body,
+            )
 
             # Get identifier of the current job
             status_dict = {
