@@ -24,7 +24,7 @@ from dask_gateway.auth import BasicAuth, JupyterHubAuth
 
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
+from rs_dpr_service.utils.utils import env_bool, set_dask_env
 
 logger = Logging.default(__name__)
 
@@ -41,63 +41,11 @@ class DaskClusterHandler:
         self.cluster_address = cluster_address
         self.cluster = None
 
-    def dask_cluster_connect(self):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
-        """Connects a dask cluster scheduler
-        Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
-        a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
-        to a Dask Gateway to find or create a cluster scheduler (for Kubernetes mode, see RSPY_LOCAL_MODE env var).
-
-        1. **Local Mode**:
-        - If `self.cluster` already exists, it assumes the Dask cluster was created when the application started,
-            and proceeds without creating a new cluster.
-
-        2. **Kubernetes Mode**:
-        - If `self.cluster` is not already defined, the method attempts to connect to a Dask Gateway
-            (using environment variables `DASK_GATEWAY__ADDRESS` and `DASK_GATEWAY__AUTH__TYPE`) to
-            retrieve a list of existing clusters.
-        - If no clusters are available, it attempts to create a new cluster scheduler.
-
-        Raises:
-            RuntimeError: Raised if the cluster name is None, required environment variables are missing,
-                        cluster creation fails or authentication errors occur.
-            KeyError: Raised if the necessary Dask Gateway environment variables (`DASK_GATEWAY__ADDRESS`,
-                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
-            IndexError: Raised if no clusters are found in the Dask Gateway and new cluster creation is attempted.
-            dask_gateway.exceptions.GatewayServerError: Raised when there is a server-side error in Dask Gateway.
-            dask_gateway.exceptions.AuthenticationError: Raised if authentication to the Dask Gateway fails.
-            dask_gateway.exceptions.ClusterLimitExceeded: Raised if the limit on the number of clusters is exceeded.
-
-        Behavior:
-        1. **Cluster Creation and Connection**:
-            - In Kubernetes mode, the method tries to connect to an existing cluster or creates
-            a new one if none exists.
-            - Error handling includes catching issues like missing environment variables, authentication failures,
-            cluster creation timeouts, or exceeding cluster limits.
-
-        2. **Logging**:
-            - Logs the list of available clusters if connected via the Dask Gateway.
-            - Logs the success of the connection or any errors encountered during the process.
-            - Logs the Dask dashboard URL and the number of active workers.
-
-        3. **Client Initialization**:
-            - Once connected to the Dask cluster, the method creates a Dask `Client` object for managing tasks
-            and logs the number of running workers.
-            - If no workers are found, it scales the cluster to 1 worker.
-
-        4. **Error Handling**:
-            - Handles various exceptions during the connection and creation process, including:
-            - Missing environment variables.
-            - Failures during cluster creation.
-            - Issues related to cluster scaling, worker retrieval, or client creation.
-            - If an error occurs, the method logs the error and attempts to gracefully handle failure.
-
-        Returns:
-            Dask client
+    def _connect_to_cluster(self):
         """
-
-        # If self.cluster is already initialized, it means the application is running in local mode, and
-        # the cluster was created when the application started.
-
+        Handles the first part of setup_dask_connection.
+        See there for details.
+        """
         # Connect to the gateway and get the list of the clusters
         try:
             # In local mode, authenticate to the dask cluster with username/password
@@ -183,6 +131,65 @@ class DaskClusterHandler:
             logger.exception(f"Failed to find the specified dask cluster: {e}")
             raise RuntimeError(f"No dask cluster named '{self.cluster_name}' was found.") from e
 
+    def setup_dask_connection(self):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+        """Connects a dask cluster scheduler
+        Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
+        a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
+        to a Dask Gateway to find or create a cluster scheduler (for Kubernetes mode, see RSPY_LOCAL_MODE env var).
+
+        1. **Local Mode**:
+        - If `self.cluster` already exists, it assumes the Dask cluster was created when the application started,
+            and proceeds without creating a new cluster.
+
+        2. **Kubernetes Mode**:
+        - If `self.cluster` is not already defined, the method attempts to connect to a Dask Gateway
+            (using environment variables `DASK_GATEWAY__ADDRESS` and `DASK_GATEWAY__AUTH__TYPE`) to
+            retrieve a list of existing clusters.
+        - If no clusters are available, it attempts to create a new cluster scheduler.
+
+        Raises:
+            RuntimeError: Raised if the cluster name is None, required environment variables are missing,
+                        cluster creation fails or authentication errors occur.
+            KeyError: Raised if the necessary Dask Gateway environment variables (`DASK_GATEWAY__ADDRESS`,
+                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
+            IndexError: Raised if no clusters are found in the Dask Gateway and new cluster creation is attempted.
+            dask_gateway.exceptions.GatewayServerError: Raised when there is a server-side error in Dask Gateway.
+            dask_gateway.exceptions.AuthenticationError: Raised if authentication to the Dask Gateway fails.
+            dask_gateway.exceptions.ClusterLimitExceeded: Raised if the limit on the number of clusters is exceeded.
+
+        Behavior:
+        1. **Cluster Creation and Connection**:
+            - In Kubernetes mode, the method tries to connect to an existing cluster or creates
+            a new one if none exists.
+            - Error handling includes catching issues like missing environment variables, authentication failures,
+            cluster creation timeouts, or exceeding cluster limits.
+
+        2. **Logging**:
+            - Logs the list of available clusters if connected via the Dask Gateway.
+            - Logs the success of the connection or any errors encountered during the process.
+            - Logs the Dask dashboard URL and the number of active workers.
+
+        3. **Client Initialization**:
+            - Once connected to the Dask cluster, the method creates a Dask `Client` object for managing tasks
+            and logs the number of running workers.
+            - If no workers are found, it scales the cluster to 1 worker.
+
+        4. **Error Handling**:
+            - Handles various exceptions during the connection and creation process, including:
+            - Missing environment variables.
+            - Failures during cluster creation.
+            - Issues related to cluster scaling, worker retrieval, or client creation.
+            - If an error occurs, the method logs the error and attempts to gracefully handle failure.
+
+        Returns:
+            Dask client
+        """
+
+        # If self.cluster is already initialized, it means the application is running in local mode, and
+        # the cluster was created when the application started.
+
+        self._connect_to_cluster()
+
         logger.debug("Cluster dashboard: %s", self.cluster.dashboard_link)
         # create the client as well
         client = Client(self.cluster)
@@ -193,17 +200,7 @@ class DaskClusterHandler:
         # Upload local module to the dask client.
         call_dask.upload_this_module(client)
 
-        def set_dask_env(host_env: dict):
-            """Pass environment variables to the dask workers."""
-            for name in ["S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION"]:
-                os.environ[name] = host_env[name]
-
-            # Some kind of workaround for boto3 to avoid checksum being added inside
-            # the file contents uploaded to the s3 bucket e.g. x-amz-checksum-crc32:xxx
-            # See: https://github.com/boto/boto3/issues/4435
-            os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
-            os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"
-
+        # set_dask_env function is in utils, uploaded to the dask cluster in call_dask
         client.run(set_dask_env, os.environ)
 
         # This is a temporary fix for the dask cluster settings which does not create a scheduler by default

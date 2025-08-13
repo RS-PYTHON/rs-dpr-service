@@ -29,3 +29,15 @@ def env_bool(var: str, default: bool) -> bool:
     if val in ("n", "no", "f", "false", "off", "0"):
         return False
     return default
+
+
+def set_dask_env(host_env: dict):
+    """Pass environment variables to the dask workers."""
+    for name in ["S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION"]:
+        os.environ[name] = host_env[name]
+
+    # Some kind of workaround for boto3 to avoid checksum being added inside
+    # the file contents uploaded to the s3 bucket e.g. x-amz-checksum-crc32:xxx
+    # See: https://github.com/boto/boto3/issues/4435
+    os.environ["AWS_REQUEST_CHECKSUM_CALCULATION"] = "when_required"
+    os.environ["AWS_RESPONSE_CHECKSUM_VALIDATION"] = "when_required"

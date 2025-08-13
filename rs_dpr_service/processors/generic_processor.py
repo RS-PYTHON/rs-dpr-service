@@ -124,7 +124,7 @@ class GenericProcessor(BaseProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable for a given module and class names"""
-        dask_client = self.cluster_handler.dask_cluster_connect()
+        dask_client = self.cluster_handler.setup_dask_connection()
 
         # Extract span infos to send to Dask
         flow_span_context = trace.get_current_span().get_span_context()
@@ -203,7 +203,7 @@ class GenericProcessor(BaseProcessor):
         logger.debug("Starting main loop")
 
         try:
-            dask_client = self.cluster_handler.dask_cluster_connect()
+            dask_client = self.cluster_handler.setup_dask_connection()
         except KeyError as ke:
             logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
             return self.job_logger.log_job_execution(JobStatus.failed, 0, str(ke))
