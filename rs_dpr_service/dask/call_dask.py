@@ -55,13 +55,14 @@ def upload_this_module(dask_client: DaskClient):
         clients: list of dask clients to which upload the modules.
     """
     # Root of the current project
-    root = Path(__file__).parent
+    root = Path(__file__).parent.parent
 
     # Files and dirs to upload and associated name in the zip archive
     files = {
         root / "__init__.py": "rs_dpr_service/__init__.py",
-        root / "call_dask.py": "rs_dpr_service/call_dask.py",
         root / "safe_to_zarr.py": "rs_dpr_service/safe_to_zarr.py",
+        root / "dask/__init__.py": "rs_dpr_service/dask/__init__.py",
+        root / "dask/call_dask.py": "rs_dpr_service/dask/call_dask.py",
         root / "utils/__init__.py": "rs_dpr_service/utils/__init__.py",
         root / "utils/init_opentelemetry.py": "rs_dpr_service/utils/init_opentelemetry.py",
         root / "utils/logging.py": "rs_dpr_service/utils/logging.py",

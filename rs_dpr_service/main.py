@@ -37,18 +37,18 @@ from starlette.status import (  # pylint: disable=C0411
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from rs_dpr_service.conversion_processor import ConversionProcessor
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import (
-    GenericProcessor,
+from rs_dpr_service.processors.conversion_processor import ConversionProcessor
+from rs_dpr_service.processors.eopf_processors import (
     S1ARDProcessor,
     S1L0Processor,
     S3L0Processor,
 )
+from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.utils import env_bool

@@ -23,8 +23,8 @@ from pygeoapi.process.manager.postgresql import (
 )
 from pygeoapi.util import JobStatus
 
-from rs_dpr_service.call_dask import convert_safe_to_zarr
-from rs_dpr_service.processors import GenericProcessor
+from rs_dpr_service.dask.call_dask import convert_safe_to_zarr
+from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.logging import Logging
 
 logger = Logging.default(__name__)
