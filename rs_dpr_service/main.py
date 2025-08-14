@@ -16,6 +16,7 @@
 import copy
 import os
 import pathlib
+import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template
@@ -178,10 +179,13 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Starting up the application...")
     # Create jobs table
     process_manager = init_db()
-    fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
+    local_mode = env_bool("RSPY_LOCAL_MODE", default=False)
+    fastapi_app.extra["local_mode"] = local_mode
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
-    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
+    if not local_mode:
+        # If we are in cluster mode, there is only on env var for the cluster address
+        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")

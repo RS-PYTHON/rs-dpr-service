@@ -109,7 +109,6 @@ def copy_caller_env(caller_env: dict[str, str]):
         "S3_REGION",
         "PREFECT_BUCKET_NAME",
         "PREFECT_BUCKET_FOLDER",
-        "DASK_GATEWAY_EOPF_ADDRESS",
         "DASK_CLUSTER_EOPF_NAME",
         "AWS_REQUEST_CHECKSUM_CALCULATION",
         "AWS_RESPONSE_CHECKSUM_VALIDATION",
@@ -117,6 +116,7 @@ def copy_caller_env(caller_env: dict[str, str]):
         "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
         "OTEL_PYTHON_REQUESTS_TRACE_BODY",
     ]
+
     if local_mode:
         keys.extend(
             [
@@ -129,8 +129,15 @@ def copy_caller_env(caller_env: dict[str, str]):
                 "secret_key",
             ],
         )
+
+        # List the environment variables available containing adresses to processor clusters
+        processor_address_pattern = re.compile(r"^SERVER_COMPONENT_([A-Za-z0-9]+)_ADDRESS$")
+        processor_env_vars = [var for var in os.environ if processor_address_pattern.match(var)]
+        keys.extend(processor_env_vars)
+
     else:
-        keys.extend(["JUPYTERHUB_API_TOKEN"])
+        keys.extend(["DASK_GATEWAY_EOPF_ADDRESS", "JUPYTERHUB_API_TOKEN"])
+
     for key in keys:
         if value := caller_env.get(key):
             os.environ[key] = value

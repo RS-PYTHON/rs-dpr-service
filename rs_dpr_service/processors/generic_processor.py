@@ -72,9 +72,8 @@ class GenericProcessor(BaseProcessor):
         """
         if self.use_mockup:
             return os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-        # TODO commenté pour tests
-        # elif LOCAL_MODE:
-        #     return os.environ[f"DASK_GATEWAY_{self.env_var_id}_ADDRESS"]
+        elif LOCAL_MODE:
+            return os.environ[f"DASK_GATEWAY_{self.env_var_id}_ADDRESS"]
         else:
             return os.environ["DASK_GATEWAY__ADDRESS"]
 
@@ -87,8 +86,7 @@ class GenericProcessor(BaseProcessor):
         if self.use_mockup:
             return os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]  # "dask-eopf-mockup"
         else:
-            return os.environ["RSPY_DASK_DPR_SERVICE_CLUSTER_NAME"]  # TODO A virer après tests
-            return os.environ[f"RSPY_DASK_{self.env_var_id}_CLUSTER_NAME"]  # e.g. "dask-eopf"
+            return os.environ[f"RSPY_DASK_{self.env_var_id}_CLUSTER_NAME"]  # e.g. "dask-l0"
 
     def replace_placeholders(self, obj):
         """
