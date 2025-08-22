@@ -1,30 +1,20 @@
 """Test endpoints"""
 
-import pytest
-from fastapi import FastAPI
-from datetime import datetime
 import copy
+from datetime import datetime
 
-from rs_dpr_service.main import app
-from rs_dpr_service.main import (
-    app_lifespan,
-    format_job_data,
-    format_jobs_data,
-    init_pygeoapi,
-)
+import pytest
 from starlette.status import (
     HTTP_200_OK,
     HTTP_404_NOT_FOUND,
-    HTTP_500_INTERNAL_SERVER_ERROR
+    HTTP_500_INTERNAL_SERVER_ERROR,
 )
+
+from rs_dpr_service.main import format_job_data, format_jobs_data
 
 
 @pytest.mark.asyncio
-async def test_processes(
-    client,
-    predefined_config,
-    mocker
-):
+async def test_processes(client, predefined_config, mocker):
     """
     Test the /processes endpoint for retrieving a list of available processors.
 
@@ -70,10 +60,7 @@ async def test_processes(
 
 
 @pytest.mark.asyncio
-async def test_get_jobs_endpoint(
-    mocker,
-    client
-):
+async def test_get_jobs_endpoint(mocker, client):
     """
     Test the GET /jobs endpoint for retrieving job listings.
 
@@ -91,28 +78,28 @@ async def test_get_jobs_endpoint(
     """
 
     mock_jobs = [
-		{
-			"type": "process",
-			"status": "failed",
-			"message": "No dask cluster named 'dask-eopf-mockup' was found.",
-			"progress": 0,
-			"processID": "dpr-service",
-			"created": datetime(2025,8,19, 12,51,14),
-			"started": datetime(2025,8,19, 12,51,14),
-			"updated": datetime(2025,8,19, 12,51,14),
-			"jobID": "0509e017-ca9b-409d-ab0b-55dab51689f6"
-		},
-		{
-			"type": "process",
-			"status": "failed",
-			"message": "No dask cluster named 'dask-eopf-mockup' was found.",
-			"progress": 0,
-			"processID": "dpr-service",
-			"created": datetime(2025,8,19, 9,18,9),
-			"started": datetime(2025,8,19, 9,18,9),
-			"updated": datetime(2025,8,19, 9,18,9),
-			"jobID": "a02205b9-8b38-44e1-b655-8b1d5447d371"
-		}
+        {
+            "type": "process",
+            "status": "failed",
+            "message": "No dask cluster named 'dask-eopf-mockup' was found.",
+            "progress": 0,
+            "processID": "dpr-service",
+            "created": datetime(2025, 8, 19, 12, 51, 14),
+            "started": datetime(2025, 8, 19, 12, 51, 14),
+            "updated": datetime(2025, 8, 19, 12, 51, 14),
+            "jobID": "0509e017-ca9b-409d-ab0b-55dab51689f6",
+        },
+        {
+            "type": "process",
+            "status": "failed",
+            "message": "No dask cluster named 'dask-eopf-mockup' was found.",
+            "progress": 0,
+            "processID": "dpr-service",
+            "created": datetime(2025, 8, 19, 9, 18, 9),
+            "started": datetime(2025, 8, 19, 9, 18, 9),
+            "updated": datetime(2025, 8, 19, 9, 18, 9),
+            "jobID": "a02205b9-8b38-44e1-b655-8b1d5447d371",
+        },
     ]
 
     mock_jobs_result = [format_job_data(x) for x in mock_jobs]
@@ -120,7 +107,7 @@ async def test_get_jobs_endpoint(
         {"href": "string", "rel": "service", "type": "application/json", "hreflang": "en", "title": "List of jobs"},
     ]
 
-     # ----- Mock app.extra with some jobs from the database mock to ensure 'db_table' exists
+    # ----- Mock app.extra with some jobs from the database mock to ensure 'db_table' exists
     mock_db_table = mocker.MagicMock()
 
     # Simulate postgres returning jobs
@@ -137,7 +124,7 @@ async def test_get_jobs_endpoint(
     # Check if the returned data matches the mocked jobs
     assert response.json() == {"jobs": list(mock_jobs_result), "numberMatched": 2, "links": links}
 
-     # ----- Mock with an empty db
+    # ----- Mock with an empty db
     mock_db_table.get_jobs.return_value = {"jobs": [], "numberMatched": 0}
     # Patch app.extra with the mock db_table
     client.app.extra["process_manager"] = mock_db_table

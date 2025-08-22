@@ -82,9 +82,11 @@ def ogc_error_response(status_code: int, detail: str):
 class DatabaseJobFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
 
+
 class JobsFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
-    
+
+
 def get_config_path() -> pathlib.Path:
     """Return the pygeoapi configuration path and set the PYGEOAPI_CONFIG env var accordingly."""
     path = pathlib.Path(__file__).parent.parent / "config" / "geoapi.yaml"
@@ -198,6 +200,7 @@ async def ping():
     """Liveliness probe."""
     return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
+
 # Endpoint to return the names of the available processors
 @router.get("/dpr/processes")
 async def get_processes(request: Request):
@@ -219,7 +222,7 @@ async def get_processes(request: Request):
             )
         validate_response(request, processes)
         return JSONResponse(status_code=HTTP_200_OK, content=processes)
-    
+
     except Exception as e:  # pylint: disable=W0718
         return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
@@ -284,6 +287,7 @@ def format_job_data(job: dict):
     if "finished" in job_data and job_data.get("finished") is None:
         job_data.pop("finished")
     return job_data
+
 
 def format_jobs_data(jobs: dict):
     """
@@ -360,6 +364,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
             return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
         return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
 
+
 # Endpoint to return the list of jobs
 @router.get("/dpr/jobs")
 async def get_jobs_list(request: Request):
@@ -370,7 +375,7 @@ async def get_jobs_list(request: Request):
         return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
     except Exception as e:  # pylint: disable=W0718
         return ogc_error_response(HTTP_404_NOT_FOUND, str(e))
-    
+
 
 # Endpoint to get the status of a job by job_id
 @router.get("/dpr/jobs/{job_id}")
