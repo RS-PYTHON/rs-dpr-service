@@ -131,8 +131,8 @@ def copy_caller_env(caller_env: dict[str, str]):
         )
 
         # List the environment variables available containing adresses to processor clusters
-        processor_address_pattern = re.compile(r"^SERVER_COMPONENT_([A-Za-z0-9]+)_ADDRESS$")
-        processor_env_vars = [var for var in os.environ if processor_address_pattern.match(var)]
+        processor_address_pattern = re.compile(r"^DASK_GATEWAY_([A-Za-z0-9]+)_ADDRESS$")
+        processor_env_vars = [var for var in caller_env if processor_address_pattern.match(var)]
         keys.extend(processor_env_vars)
 
     else:
