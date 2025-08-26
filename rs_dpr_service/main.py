@@ -267,14 +267,14 @@ def format_job_data(job: dict):
         reformatted and validated job_data variable to put in the response
     """
     # Check that the input job have the same struture as the jobs contained in the PostgreSQL database
-    if "jobID" not in job:
+    if "identifier" not in job:
         raise DatabaseJobFormatError(
             """Input job must have the same structure than the jobs stored in the """
-            """PostgreSql database: attribute 'jobID' is missing""",
+            """PostgreSql database: attribute 'identifier' is missing""",
         )
     job_data = copy.deepcopy(job)
     # Rename attribute "identifier" to be compliant with OGC standards
-    # job_data[JOB_ATTRS_MAPPING["identifier"]] = job_data.pop("identifier")
+    job_data[JOB_ATTRS_MAPPING["identifier"]] = job_data.pop("identifier")
     # Remove attributes which should not be part of the response
     for attr in OGC_UNCOMPLIANT_JOB_ATTRS:
         if attr in job_data:
