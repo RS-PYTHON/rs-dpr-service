@@ -90,6 +90,10 @@ class DatabaseJobFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
 
 
+class JobsFormatError(Exception):
+    """Exception raised when an error occurred during the init of a provider."""
+
+
 def get_config_path() -> pathlib.Path:
     """Return the pygeoapi configuration path and set the PYGEOAPI_CONFIG env var accordingly."""
     path = pathlib.Path(__file__).parent.parent / "config" / "geoapi.yaml"
@@ -207,6 +211,32 @@ async def ping():
     return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
+# Endpoint to return the names of the available processors
+@router.get("/dpr/processes")
+async def get_processes(request: Request):
+    """Returns list of all available processes from config."""
+
+    try:
+        processes = {
+            "processes": [],
+            "links": [
+                {"href": str(request.url), "rel": "self", "type": "application/json", "title": "List of processes"},
+            ],
+        }
+        for resource in api.config["resources"]:
+            processes["processes"].append(
+                {
+                    "id": api.config["resources"][resource]["processor"]["name"],
+                    "version": "1.0.0",
+                },
+            )
+        validate_response(request, processes)
+        return JSONResponse(status_code=HTTP_200_OK, content=processes)
+
+    except Exception as e:  # pylint: disable=W0718
+        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+
+
 @router.get("/dpr/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
@@ -266,6 +296,40 @@ def format_job_data(job: dict):
     return job_data
 
 
+def format_jobs_data(jobs: dict):
+    """
+    Method validate information on all existing jobs
+
+    Args:
+        jobs: information on all existing jobs
+    Result:
+        reformatted and validated jobs_data variable to provide to the response
+    """
+    if not isinstance(jobs, dict):
+        raise JobsFormatError("Expected a dictionary as input")
+    if "jobs" not in jobs:
+        raise JobsFormatError("Invalid format for input jobs: missing 'jobs' key")
+    jobs_data = copy.deepcopy(jobs)
+    # Add "links" mandatory field to the response
+    jobs_data.update(
+        {
+            "links": [
+                {
+                    "href": "string",
+                    "rel": "service",
+                    "type": "application/json",
+                    "hreflang": "en",
+                    "title": "List of jobs",
+                },
+            ],
+        },
+    )
+    # Remove SQLAlchemy _sa_instance_state objects and convert datetime
+    for i, job_data in enumerate(jobs_data["jobs"]):
+        jobs_data["jobs"][i] = format_job_data(job_data)
+    return jobs_data
+
+
 # Endpoint to execute the rs-dpr-service process and generate a job ID
 @router.post("/dpr/processes/{resource}/execution")
 async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
@@ -305,6 +369,18 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
             validate_response(request, formatted_job_data, HTTP_201_CREATED)
             return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
         return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+
+
+# Endpoint to return the list of jobs
+@router.get("/dpr/jobs")
+async def get_jobs_list(request: Request):
+    """Returns all jobs from database."""
+    try:
+        formatted_jobs_data = format_jobs_data(app.extra["process_manager"].get_jobs())
+        validate_response(request, formatted_jobs_data)
+        return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
+    except Exception as e:  # pylint: disable=W0718
+        return ogc_error_response(HTTP_404_NOT_FOUND, str(e))
 
 
 # Endpoint to get the status of a job by job_id
