@@ -38,23 +38,9 @@ from starlette.requests import Request
 from rs_dpr_service import call_dask
 from rs_dpr_service.utils import settings
 from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.settings import ExperimentalConfig
 
 default_logger = Logging.default(__name__)
-
-
-# We use the dask LocalCluster configuration if none of these env vars are defined.
-# This is only for local testing and debugging.
-# NOTE 1: eopf-cpm will init the dask LocalCluster instance itself.
-# NOTE 2: don't implement this var in settings.py because it won't work in the dask environment.
-LOCAL_CLUSTER = not any(
-    v in os.environ
-    for v in [
-        "RSPY_DASK_DPR_SERVICE_CLUSTER_NAME",
-        "DASK_GATEWAY__ADDRESS",
-        "RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME",
-        "DASK_GATEWAY__MOCKUP_ADDRESS",
-    ]
-)
 
 
 class GeneralProcessor(BaseProcessor):
@@ -90,12 +76,9 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    async def _get_tasktable(self, data, module_name: str, class_name: str):
+    async def _get_tasktable(self, data: dict, module_name: str, class_name: str):
         """Return the EOPF tasktable for a given module and class names"""
-        use_mockup = False
-        if data and isinstance(data, dict):
-            use_mockup = data.get("use_mockup", False)
-
+        use_mockup = data.get("use_mockup", False)
         dask_client = self.dask_cluster_connect(use_mockup)
 
         # Extract span infos to send to Dask
@@ -105,28 +88,16 @@ class GeneralProcessor(BaseProcessor):
         # starting a thread for managing the dask callbacks
         self.logger.debug("Starting tasks monitoring thread")
         try:
-            # Specific case for local debugging
-            if LOCAL_CLUSTER:
-                res = call_dask.dpr_tasktable_task(
-                    caller_env={},
-                    flow_span_context=flow_span_context,
-                    use_mockup=use_mockup,
-                    module_name=module_name,
-                    class_name=class_name,
-                )
-
-            # Nominal usecase
-            else:
-                task_table_task = dask_client.submit(
-                    call_dask.dpr_tasktable_task,
-                    caller_env=os.environ,
-                    flow_span_context=flow_span_context,
-                    use_mockup=use_mockup,
-                    module_name=module_name,
-                    class_name=class_name,
-                    pure=False,  # disable cache
-                )
-                res = task_table_task.result()
+            task_table_task = dask_client.submit(
+                call_dask.dpr_tasktable_task,
+                caller_env=os.environ,
+                flow_span_context=flow_span_context,
+                use_mockup=use_mockup,
+                module_name=module_name,
+                class_name=class_name,
+                pure=False,  # disable cache
+            )
+            res = task_table_task.result()
 
             # Return a default hardcoded value for the mockup
             if (not res) and use_mockup:
@@ -138,8 +109,7 @@ class GeneralProcessor(BaseProcessor):
             raise e
         finally:
             # cleanup by disconnecting the dask client
-            if dask_client:
-                dask_client.close()
+            dask_client.close()
 
     def replace_placeholders(self, obj):
         """
@@ -173,7 +143,7 @@ class GeneralProcessor(BaseProcessor):
             return pattern.sub(replacer, obj)
         return obj
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    def manage_dask_tasks(self, dask_client: Client, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
         """
@@ -191,18 +161,9 @@ class GeneralProcessor(BaseProcessor):
             if use_mockup:
                 data = self.replace_placeholders(data)
 
-            # Specific case for local debugging
-            if LOCAL_CLUSTER:
-                dpr_task = None
-                res = call_dask.dpr_processor_task(
-                    caller_env={},
-                    data=data | {"LOCAL_CLUSTER": True},
-                    use_mockup=use_mockup,
-                )
-
             # Nominal usecase: run processor in the dask client
-            else:
-                dpr_task = client.submit(
+            if dask_client:
+                dpr_task = dask_client.submit(
                     call_dask.dpr_processor_task,
                     caller_env=os.environ,
                     data=data,
@@ -210,8 +171,17 @@ class GeneralProcessor(BaseProcessor):
                     pure=False,  # disable cache
                 )
 
+            # Specific case for local debugging
+            else:
+                dpr_task = None
+                res = call_dask.dpr_processor_task(
+                    caller_env={},
+                    data=data,
+                    use_mockup=use_mockup,
+                )
+
         except Exception:  # pylint: disable=broad-exception-caught
-            if LOCAL_CLUSTER:
+            if not dask_client:
                 raise
             self.log_job_execution(
                 JobStatus.failed,
@@ -299,12 +269,6 @@ class GeneralProcessor(BaseProcessor):
         Returns:
             Dask client
         """
-        # With a dask local cluster (only for local testing), we run the eopf-cpm scheduler on local.
-        # It will then init a dask LocalCluster instance itself.
-        if LOCAL_CLUSTER:
-            return None
-        # With dask gateway cluster, we want to run the eopf scheduler on a dedicated cluster pod, not locally.
-
         # Return the dask cluster address and name to give to cluster.options
         # This is either the real or mockup processor.
         if use_mockup:
@@ -486,8 +450,18 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         try:
+            experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
             use_mockup = data.get("use_mockup", False)
-            dask_client = self.dask_cluster_connect(use_mockup)
+
+            # For testing: run the eopf-cpm scheduler on local.
+            # It will then init a dask LocalCluster instance itself.
+            if experimental_config.local_cluster.service:
+                dask_client = None
+
+            # Nominal case: run the eopf-cpm scheduler on a dedicated cluster pod, not locally.
+            else:
+                dask_client = self.dask_cluster_connect(use_mockup)
+
         except KeyError as ke:
             return self.log_job_execution(
                 JobStatus.failed,
@@ -628,7 +602,7 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S1L0Processor")
 
-    async def get_tasktable(self, data):
+    async def get_tasktable(self, data: dict):
         """Return the EOPF tasktable for S1L0"""
         return await self._get_tasktable(data, module_name="l0.s1.s1_l0_processor", class_name="S1L0Processor")
 
@@ -647,6 +621,6 @@ class S3L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S3L0Processor")
 
-    async def get_tasktable(self, data):
+    async def get_tasktable(self, data: dict):
         """Return the EOPF tasktable for S1L0"""
         return await self._get_tasktable(data, module_name="l0.s3.s3_l0_processor", class_name="S3L0Processor")

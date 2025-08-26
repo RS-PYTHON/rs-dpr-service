@@ -44,7 +44,6 @@ from rs_dpr_service.openapi_validation import (
     validate_response,
 )
 from rs_dpr_service.processors import (
-    LOCAL_CLUSTER,
     GeneralProcessor,
     S1L0Processor,
     S3L0Processor,
@@ -178,8 +177,7 @@ async def app_lifespan(fastapi_app: FastAPI):
     process_manager = init_db()
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
-    if not LOCAL_CLUSTER:
-        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
+    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
@@ -214,9 +212,9 @@ async def get_resource(request: Request, resource: str):
             None,
         ):
             try:
-                data = await request.json()
+                data = (await request.json()) or {}
             except Exception:  # pylint: disable=broad-exception-caught
-                data = None
+                data = {}
             processor_name = api.config["resources"][resource]["processor"]["name"]
             if processor_name in processors:
                 processor = processors[processor_name]

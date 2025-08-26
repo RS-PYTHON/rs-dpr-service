@@ -16,6 +16,47 @@
 
 import os
 
+from pydantic import BaseModel
+
+
+class ExperimentalConfig(BaseModel):
+    """Experimental configuration, used only for testing."""
+
+    class LocalCluster(BaseModel):
+        """Overwrite the payload file to use a Dask LocalCluster configuration instead of a Gateway."""
+
+        # Everything is run on the rs-dpr-service host machine.
+        # This is used to debug in local mode / docker compose on your local machine.
+        # NOTE: the service should run from the docker image ghcr.io/rs-python/dask-gateway-server/eopf/localcluster
+        # and not ghcr.io/rs-python/rs-dpr-service
+        service: bool = False
+
+        # Everything is run on the dask scheduler, called by rs-dpr-service.
+        # This is used in cluster mode.
+        scheduler: bool = False
+
+        # Dask memory limit
+        memory_limit: str = "12 GiB"
+
+    class LocalFiles(BaseModel):
+        """
+        Overwrite the payload file to read/write on the local disk rather than on the S3 bucket.
+        Only works with a LocalCluster.
+        """
+
+        # Local directory
+        local_dir: str | None = None
+
+        # Download input files again from the S3 bucket if they are already present on the local directory ?
+        overwrite_input: bool = False
+
+        # Upload output files to the S3 bucket ?
+        upload_output: bool = False
+
+    local_cluster: LocalCluster = LocalCluster()
+    local_files: LocalFiles = LocalFiles()
+
+
 #########################
 # Environment variables #
 #########################

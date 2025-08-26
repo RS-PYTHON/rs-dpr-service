@@ -35,7 +35,8 @@ import yaml
 from distributed.client import Client as DaskClient
 from opentelemetry.trace.span import SpanContext
 
-from rs_dpr_service.utils import init_opentelemetry, settings
+from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils.settings import ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
 
@@ -242,38 +243,76 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         shutil.rmtree(local_report_dir, ignore_errors=True)
         os.makedirs(local_report_dir, exist_ok=True)
 
-        # Specific case for the LocalCluster configuration (only for local testing)
-        if data.get("LOCAL_CLUSTER"):
+        def finalize() -> dict:
+            """Code to run before exiting this function."""
+
+            # Upload the reports dir to the s3 bucket
+            logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
+            s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+
+            # NOTE: with the real processor, what should we return ?
+            return {}
+
+        # If an experimental configuraition is set (only for testing)
+        experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
+        if experimental_config != ExperimentalConfig():
 
             # Read the payload file contents
             with open(payload_file, encoding="utf-8") as opened:
                 payload_contents = yaml.safe_load(opened)
 
             # Hard replace the dask gateway configuration with a local one
-            if dask_context := payload_contents.get("dask_context"):
+            if (experimental_config.local_cluster.service or experimental_config.local_cluster.scheduler) and (
+                dask_context := payload_contents.get("dask_context")
+            ):
                 dask_context["cluster_type"] = "local"
                 if cluster_config := dask_context["cluster_config"]:
                     cluster_config.pop("address", None)
                     cluster_config.pop("reuse_cluster", None)
                     cluster_config.pop("auth", None)
+                    cluster_config.setdefault("memory_limit", experimental_config.local_cluster.memory_limit)
 
                     # Rename fields
                     if n_workers := cluster_config.pop("workers", None):
                         cluster_config["n_workers"] = n_workers
 
-                    # Add hardcoded memory limit (maybe we should configure it with an env var)
-                    cluster_config.setdefault("memory_limit", 12 * 1e9)  # 12GB
+            # Read/write on the local disk rather than on the S3 bucket. Only works with a LocalCluster.
+            if experimental_config.local_files.local_dir:
 
-            # Call eopf from python code
-            from eopf.triggering.runner import EORunner
+                # For each input or output product
+                for io_key, io_value in payload_contents.get("I/O", {}).items():
+                    for item in io_value:
+                        if not (s3_path := item.get("path")):
+                            continue
 
-            try:
-                EORunner().run(payload_contents)
+                        # If the path is not on a s3 bucket, this means the path is already local, so we do nothing
+                        if not s3_path.lower().startswith("s3:/"):
+                            continue
 
-            # Upload the reports dir to the s3 bucket.
-            finally:
-                s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
-                return {}
+                        local_path = f"{experimental_config.local_files.local_dir}/{s3_path[4:].lstrip('/')}"
+
+                        if io_key == "output_products":
+                            continue
+
+                        Path(local_path).parent.mkdir(parents=True, exist_ok=True)
+                        s3._fs.get(s3_path, local_path, recursive=True)
+                        bp = 0
+
+            # Everything is run on the rs-dpr-service host machine.
+            # This is used to debug in local mode / docker compose on your local machine.
+            # We call eopf from python code.
+            if experimental_config.local_cluster.service:
+                from eopf.triggering.runner import EORunner
+
+                try:
+                    EORunner().run(payload_contents)
+
+                finally:
+                    return finalize()
+
+            # Else write the payload contents back to the file
+            with open(payload_file, "w+", encoding="utf-8") as opened:
+                opened.write(yaml.safe_dump(payload_contents))
 
         # NOTE: in the nominal use-case, we run eopf in a subprocess.
         # This allows us to capture stdout and stderr more easily.
@@ -345,15 +384,11 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
                 except Exception as e:
                     raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
-            # NOTE: with the real processor, what should we return ?
-            return {}
-
         # In all cases, upload the reports dir to the s3 bucket.
         finally:
             try:
                 if not use_mockup:
-                    logger.info(f"Upload reports {local_report_dir!r} to {s3_report_dir!r}")
-                    s3._fs.put(local_report_dir, s3_report_dir, recursive=True)  # pylint: disable=protected-access
+                    return finalize()
             except Exception as exception:  # pylint: disable=broad-exception-caught
                 logger.error(exception)
 
