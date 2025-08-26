@@ -35,8 +35,18 @@ class ExperimentalConfig(BaseModel):
         # This is used in cluster mode.
         scheduler: bool = False
 
-        # Dask memory limit
-        memory_limit: str = "12 GiB"
+        #
+        # Dask LocalCluster configuration, see: https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster
+
+        # Number of workers to start. Default is CPU_COUNT.
+        n_workers: int | None = None
+
+        # Sets the memory limit *per worker*
+        memory_limit: str | float | int | None = "auto"
+
+        # Number of threads per each worker.
+        # Should always be 1 because the processors are not thread-safe.
+        threads_per_worker: int = 1
 
     class LocalFiles(BaseModel):
         """

@@ -161,24 +161,23 @@ class GeneralProcessor(BaseProcessor):
             if use_mockup:
                 data = self.replace_placeholders(data)
 
+            dpr_processor = call_dask.DprProcessor(
+                caller_env=os.environ if dask_client else {},
+                data=data,
+                use_mockup=use_mockup,
+            )
+
             # Nominal usecase: run processor in the dask client
             if dask_client:
                 dpr_task = dask_client.submit(
-                    call_dask.dpr_processor_task,
-                    caller_env=os.environ,
-                    data=data,
-                    use_mockup=use_mockup,
+                    dpr_processor.run,
                     pure=False,  # disable cache
                 )
 
             # Specific case for local debugging
             else:
                 dpr_task = None
-                res = call_dask.dpr_processor_task(
-                    caller_env={},
-                    data=data,
-                    use_mockup=use_mockup,
-                )
+                res = dpr_processor.run()
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not dask_client:
