@@ -30,6 +30,7 @@ import tempfile
 import time
 import traceback
 import zipfile
+from datetime import timedelta
 from pathlib import Path
 
 import yaml
@@ -229,7 +230,10 @@ class DprProcessor:
             log_path: Path of the logging file on local disk
             working_dir: Working directory on local disk
             to_be_uploaded: Output products to be uploaded to the s3 bucket at the end of the processor
+            exec_times: Execution times with their description
         """
+        # NOTE: some imports exists in the dask worker environment, not in the rs-dpr-service env,
+        # so we cannot import them from the top of this module.
         import s3fs  # pylint: disable=import-outside-toplevel
 
         self.caller_env: dict = caller_env
@@ -244,6 +248,7 @@ class DprProcessor:
         self.log_path: str = ""
         self.working_dir: str = ""
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
+        self.exec_times: list[tuple[str, float]] = []
 
     def run(self) -> dict:
         """
@@ -251,7 +256,11 @@ class DprProcessor:
         """
         try:
             self.init()
+
+            start_time = time.time()
             self.trigger()
+            self.exec_times.append(("Run processor", time.time() - start_time))
+
             return self.finalize()
 
         # In all cases, run the finalize function
@@ -264,7 +273,7 @@ class DprProcessor:
 
     def init(self):
         """
-        Run from the dask scheduler.
+        Init from the dask scheduler.
         """
         # Copy env vars from the caller
         copy_caller_env(self.caller_env)
@@ -293,8 +302,6 @@ class DprProcessor:
         self.s3_report_dir = self.data["s3_report_dir"]
 
         # Get S3 file handler.
-        # NOTE: eopf exists in the dask worker environment, not in the rs-dpr-service env,
-        # so we cannot import it from the top of this module.
         from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
             AnyPath,
         )
@@ -363,22 +370,19 @@ class DprProcessor:
                 cluster_config.pop("auth", None)
                 cluster_config.pop("workers", None)
 
-                if value := self.experimental_config.local_cluster.n_workers:
-                    cluster_config["n_workers"] = value
-
-                if value := self.experimental_config.local_cluster.memory_limit:
-                    cluster_config["memory_limit"] = value
-
-                if value := self.experimental_config.local_cluster.threads_per_worker:
-                    cluster_config["threads_per_worker"] = value
+                cluster_config["n_workers"] = self.experimental_config.local_cluster.n_workers
+                cluster_config["memory_limit"] = self.experimental_config.local_cluster.memory_limit
+                cluster_config["threads_per_worker"] = self.experimental_config.local_cluster.threads_per_worker
 
         # Read/write on the local disk rather than on the S3 bucket. Only works with a LocalCluster.
         if self.experimental_config.local_files.local_dir:
 
             # For each input or output product
+            start_time = time.time()
             for io_key, io_value in payload_contents.get("I/O", {}).items():
                 for product in io_value:
                     self.handle_local_product(io_key, product)
+            self.exec_times.append(("Download input files", time.time() - start_time))
 
         # Write the payload contents back to the file
         with open(payload_file, "w+", encoding="utf-8") as opened:
@@ -439,7 +443,8 @@ class DprProcessor:
             remove_local_path()
 
             # The output product will be uploaded at the end of the processor
-            self.to_be_uploaded.append((credentials, str(local_path), s3_path))
+            if self.experimental_config.local_files.upload_output:
+                self.to_be_uploaded.append((credentials, str(local_path), s3_path))
 
         # Use the local path in the payload file
         original_product["path"] = str(local_path)
@@ -533,6 +538,7 @@ class DprProcessor:
             )  # pylint: disable=protected-access
 
             # Upload local output products to the s3 bucket
+            start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
                 logger.debug(f"Upload {local_path!r} to {s3_path!r}")
                 try:
@@ -541,8 +547,14 @@ class DprProcessor:
                     pass
                 credentials.put(str(local_path), s3_path, recursive=True)
 
+            if self.to_be_uploaded:
+                self.exec_times.append(("Upload output files", time.time() - start_time))
+
         except Exception as exception:  # pylint: disable=broad-exception-caught
             logger.error(exception)
+
+        for description, exec_time in self.exec_times:
+            logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
 
         # NOTE: with the real processor, what should we return ?
         return {}

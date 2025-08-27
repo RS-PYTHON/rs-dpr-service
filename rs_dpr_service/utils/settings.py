@@ -32,7 +32,7 @@ class ExperimentalConfig(BaseModel):
         service: bool = False
 
         # Everything is run on the dask scheduler, called by rs-dpr-service.
-        # This is used in cluster mode.
+        # This only works in cluster mode.
         scheduler: bool = False
 
         #
