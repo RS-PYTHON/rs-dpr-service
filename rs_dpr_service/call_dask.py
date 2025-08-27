@@ -434,7 +434,7 @@ class DprProcessor:
 
             # Download the product locally if not already there
             if not local_path.exists():
-                logger.debug(f"Download {s3_path!r} to {str(local_path)!r}")
+                logger.warning(f"Download {s3_path!r} to {str(local_path)!r}")
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 credentials.get(s3_path, local_path, recursive=True)
 
@@ -540,7 +540,7 @@ class DprProcessor:
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
-                logger.debug(f"Upload {local_path!r} to {s3_path!r}")
+                logger.warning(f"Upload {local_path!r} to {s3_path!r}")
                 try:
                     credentials.rm(s3_path, recursive=True)  # remove existing from s3 bucket
                 except FileNotFoundError:
