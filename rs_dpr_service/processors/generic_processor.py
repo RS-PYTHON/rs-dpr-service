@@ -67,8 +67,10 @@ class GenericProcessor(BaseProcessor):
         """Returns the address of the cluster containing the processor.
         Three cases here:
             - if we use a mockup, there is a single address stored in DASK_GATEWAY__MOCKUP_ADDRESS
-            - if we are in local mode with real processors, each processor has its own cluster, and the address is stored in a specific environment variable with the processor name
-            - if we are in cluster mode, all the processors use the same cluster address, stored in DASK_GATEWAY__ADDRESS. The processor to use will be discrimined using its name.
+            - if we are in local mode with real processors, each processor has its own cluster,
+            and the address is stored in a specific environment variable with the processor name
+            - if we are in cluster mode, all the processors use the same cluster address,
+            stored in DASK_GATEWAY__ADDRESS. The processor to use will be discrimined using its name.
         """
         if self.use_mockup:
             return os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
@@ -81,7 +83,8 @@ class GenericProcessor(BaseProcessor):
         """Returns the name of the cluster containing the processor.
         Two cases here:
             - if we use a mockup, there is a single name stored in RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME
-            - if we use real processors, each processor has its own cluster name, and it's stored in a specific environment variable with the processor name
+            - if we use real processors, each processor has its own cluster name, and it's stored in a specific
+            environment variable with the processor name
         """
         if self.use_mockup:
             return os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]  # "dask-eopf-mockup"

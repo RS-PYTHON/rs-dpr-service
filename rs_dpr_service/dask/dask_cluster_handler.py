@@ -19,7 +19,7 @@ import os
 from dask.distributed import (  # LocalCluster,
     Client,
 )
-from dask_gateway import Gateway
+from dask_gateway import Gateway, GatewayCluster
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
 
 from rs_dpr_service.dask import call_dask
@@ -39,7 +39,7 @@ class DaskClusterHandler:
     def __init__(self, cluster_address: str, cluster_name: str):
         self.cluster_name = cluster_name
         self.cluster_address = cluster_address
-        self.cluster = None
+        self.cluster: GatewayCluster
 
     def _connect_to_cluster(self):
         """
