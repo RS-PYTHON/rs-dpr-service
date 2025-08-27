@@ -16,7 +16,6 @@
 import copy
 import os
 import pathlib
-import re
 from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template

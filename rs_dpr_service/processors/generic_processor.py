@@ -74,10 +74,9 @@ class GenericProcessor(BaseProcessor):
         """
         if self.use_mockup:
             return os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-        elif LOCAL_MODE:
+        if LOCAL_MODE:
             return os.environ[f"DASK_GATEWAY_{self.env_var_id}_ADDRESS"]
-        else:
-            return os.environ["DASK_GATEWAY__ADDRESS"]
+        return os.environ["DASK_GATEWAY__ADDRESS"]
 
     def _get_cluster_name(self) -> str:
         """Returns the name of the cluster containing the processor.
@@ -88,8 +87,7 @@ class GenericProcessor(BaseProcessor):
         """
         if self.use_mockup:
             return os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]  # "dask-eopf-mockup"
-        else:
-            return os.environ[f"RSPY_DASK_{self.env_var_id}_CLUSTER_NAME"]  # e.g. "dask-l0"
+        return os.environ[f"RSPY_DASK_{self.env_var_id}_CLUSTER_NAME"]  # e.g. "dask-l0"
 
     def replace_placeholders(self, obj):
         """
@@ -160,7 +158,7 @@ class GenericProcessor(BaseProcessor):
             return {}
 
     # Override from BaseProcessor, execute is async in RSPYProcessor
-    async def execute(  # pylint: disable=too-many-return-statements, invalid-overridden-method
+    async def execute(  # pylint: disable=invalid-overridden-method
         self,
         data: dict,
         outputs=None,
@@ -183,7 +181,7 @@ class GenericProcessor(BaseProcessor):
 
         return self.job_logger.get_execute_result()
 
-    async def start_processor(  # pylint: disable=too-many-return-statements
+    async def start_processor(
         self,
         data: dict,
     ) -> tuple[str, dict]:

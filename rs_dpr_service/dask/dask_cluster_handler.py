@@ -33,7 +33,7 @@ logger = Logging.default(__name__)
 LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 
-class DaskClusterHandler:
+class DaskClusterHandler:  # pylint: disable=too-few-public-methods
     """Class to handle connection to Dask cluster"""
 
     def __init__(self, cluster_address: str, cluster_name: str):
@@ -131,7 +131,7 @@ class DaskClusterHandler:
             logger.exception(f"Failed to find the specified dask cluster: {e}")
             raise RuntimeError(f"No dask cluster named '{self.cluster_name}' was found.") from e
 
-    def setup_dask_connection(self):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    def setup_dask_connection(self):
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
