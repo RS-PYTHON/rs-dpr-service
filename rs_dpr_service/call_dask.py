@@ -24,6 +24,7 @@ import os
 import os.path as osp
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import tempfile
@@ -45,6 +46,11 @@ SERVICE_NAME = "rs.dpr.dask"
 # Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
+
+
+def get_ip_address() -> str:
+    """Return IP address, see: https://stackoverflow.com/a/166520"""
+    return socket.gethostbyname(socket.gethostname())
 
 
 def upload_this_module(dask_client: DaskClient):
@@ -210,7 +216,7 @@ class DprProcessor:
     """
     Run the DPR processor.
 
-    NOTE: All methods except __init__ are run from the dask scheduler.
+    NOTE: All methods except __init__ are run from the dask pod.
     """
 
     def __init__(self, caller_env: dict[str, str], data: dict, use_mockup: bool):
@@ -236,6 +242,9 @@ class DprProcessor:
         # so we cannot import them from the top of this module.
         import s3fs  # pylint: disable=import-outside-toplevel
 
+        # This should run on the rs-dpr-service container
+        logger.debug(f"Call 'DprProcessor.__init__' from {get_ip_address()!r}")
+
         self.caller_env: dict = caller_env
         self.data: dict = data
         self.use_mockup: bool = use_mockup
@@ -252,9 +261,13 @@ class DprProcessor:
 
     def run(self) -> dict:
         """
-        Run from the dask scheduler.
+        Run from the dask pod.
         """
         try:
+
+            # This should run on the dask worker
+            logger.debug(f"Call 'DprProcessor.run' from {get_ip_address()!r}")
+
             self.init()
 
             start_time = time.time()
@@ -273,7 +286,7 @@ class DprProcessor:
 
     def init(self):
         """
-        Init from the dask scheduler.
+        Init from the dask pod.
         """
         # Copy env vars from the caller
         copy_caller_env(self.caller_env)
@@ -434,7 +447,7 @@ class DprProcessor:
 
             # Download the product locally if not already there
             if not local_path.exists():
-                logger.warning(f"Download {s3_path!r} to {str(local_path)!r}")
+                logger.info(f"Download {s3_path!r} to {str(local_path)!r}")
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 credentials.get(s3_path, local_path, recursive=True)
 
@@ -540,7 +553,7 @@ class DprProcessor:
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
-                logger.warning(f"Upload {local_path!r} to {s3_path!r}")
+                logger.info(f"Upload {local_path!r} to {s3_path!r}")
                 try:
                     credentials.rm(s3_path, recursive=True)  # remove existing from s3 bucket
                 except FileNotFoundError:
