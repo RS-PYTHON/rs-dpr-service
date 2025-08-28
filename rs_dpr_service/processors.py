@@ -454,7 +454,7 @@ class GeneralProcessor(BaseProcessor):
 
             # For testing: run the eopf-cpm scheduler on local.
             # It will then init a dask LocalCluster instance itself.
-            if experimental_config.local_cluster.service:
+            if settings.LOCAL_MODE and experimental_config.local_cluster.enabled:
                 dask_client = None
 
             # Nominal case: run the eopf-cpm scheduler on a dedicated cluster pod, not locally.

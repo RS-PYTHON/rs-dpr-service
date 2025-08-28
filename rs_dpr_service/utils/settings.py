@@ -23,17 +23,23 @@ class ExperimentalConfig(BaseModel):
     """Experimental configuration, used only for testing."""
 
     class LocalCluster(BaseModel):
-        """Overwrite the payload file to use a Dask LocalCluster configuration instead of a Gateway."""
+        """
+        Overwrite the payload file to use a Dask LocalCluster configuration instead of a Dask Gateway.
 
-        # Everything is run on the rs-dpr-service host machine.
-        # This is used to debug in local mode / docker compose on your local machine.
-        # NOTE: the service should run from the docker image ghcr.io/rs-python/dask-gateway-server/eopf/localcluster
-        # and not ghcr.io/rs-python/rs-dpr-service
-        service: bool = False
+        If disabled (by default), we use the Dask Gateway cluster and workers that have been initialized by RSPY.
 
-        # Everything is run on the dask scheduler, called by rs-dpr-service.
-        # This only works in cluster mode.
-        scheduler: bool = False
+        If enabled in cluster mode, a nested Dask LocalCluster is initialized by EOPF inside the RSPY Dask Gateway.
+        The Dask Gateway should be set with a single worker, else we face unexpected behaviour. The EOPF LocalCluster
+        will run inside this single worker.
+
+        If enabled in local mode, the RSPY Dask Gateway is not used. We use only the EOPF LocalCluster. Your local mode
+        should use the docker image ghcr.io/rs-python/dask-gateway-server/eopf/localcluster and not
+        ghcr.io/rs-python/rs-dpr-service because it contains both the rs-dpr-service and the processor source code
+        and dependencies. We use this mode to be able to debug and put breakpoints in the EOPF and processor source
+        code.
+        """
+
+        enabled: bool = False
 
         #
         # Dask LocalCluster configuration, see: https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster

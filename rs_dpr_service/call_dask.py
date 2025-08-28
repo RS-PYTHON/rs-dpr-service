@@ -32,13 +32,14 @@ import time
 import traceback
 import zipfile
 from datetime import timedelta
+from importlib import reload
 from pathlib import Path
 
 import yaml
 from distributed.client import Client as DaskClient
 from opentelemetry.trace.span import SpanContext
 
-from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils import init_opentelemetry, settings
 from rs_dpr_service.utils.settings import ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
@@ -142,6 +143,9 @@ def copy_caller_env(caller_env: dict[str, str]):
     for key in keys:
         if value := caller_env.get(key):
             os.environ[key] = value
+
+    # Reload this module to read updated env vars
+    reload(settings)
 
 
 def dpr_tasktable_task(
@@ -372,10 +376,8 @@ class DprProcessor:
         with open(payload_file, encoding="utf-8") as opened:
             payload_contents = yaml.safe_load(opened)
 
-        # Hard replace the dask gateway configuration with a local one
-        if (self.experimental_config.local_cluster.service or self.experimental_config.local_cluster.scheduler) and (
-            dask_context := payload_contents.get("dask_context")
-        ):
+        # Hard replace the dask gateway configuration with a LocalCluster
+        if self.experimental_config.local_cluster.enabled and (dask_context := payload_contents.get("dask_context")):
             dask_context["cluster_type"] = "local"
             if cluster_config := dask_context["cluster_config"]:
                 cluster_config.pop("address", None)
@@ -468,7 +470,7 @@ class DprProcessor:
         # Everything is run on the rs-dpr-service host machine.
         # This is used to debug in local mode / docker compose on your local machine.
         # We call eopf from python code.
-        if (not self.use_mockup) and self.experimental_config.local_cluster.service:
+        if settings.LOCAL_MODE and (not self.use_mockup) and self.experimental_config.local_cluster.enabled:
             from eopf.triggering.runner import EORunner
 
             EORunner().run(self.payload_contents)
