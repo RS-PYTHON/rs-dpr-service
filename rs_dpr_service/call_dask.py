@@ -482,8 +482,8 @@ class DprProcessor:
             and self.experimental_config
             and self.experimental_config.local_cluster.enabled
         ):
-            from eopf.triggering.runner import (
-                EORunner,  # pylint: disable=import-outside-toplevel
+            from eopf.triggering.runner import (  # pylint: disable=import-outside-toplevel
+                EORunner,
             )
 
             EORunner().run(self.payload_contents)
