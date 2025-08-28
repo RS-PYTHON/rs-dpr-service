@@ -139,6 +139,7 @@ class GenericProcessor(BaseProcessor):
                 use_mockup=self.use_mockup,
                 module_name=self.module_name,
                 class_name=self.class_name,
+                cluster_address=self._get_cluster_address(),
                 pure=False,  # disable cache
             )
             res = task_table_task.result()
@@ -260,6 +261,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=os.environ,
                 data=data,
                 use_mockup=self.use_mockup,
+                cluster_address=self._get_cluster_address(),
                 pure=False,  # disable cache
             )
 

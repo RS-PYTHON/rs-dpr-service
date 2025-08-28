@@ -91,7 +91,7 @@ def upload_this_module(dask_client: DaskClient):
             logger.debug(f"Ignoring error {e}")
 
 
-def copy_caller_env(caller_env: dict[str, str]):
+def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
     """
     Copy environment variables from the calling service environment to the dask client.
 
@@ -107,6 +107,7 @@ def copy_caller_env(caller_env: dict[str, str]):
         "S3_SECRETKEY",
         "S3_ENDPOINT",
         "S3_REGION",
+        "DASK_GATEWAY_EOPF_ADDRESS",
         "PREFECT_BUCKET_NAME",
         "PREFECT_BUCKET_FOLDER",
         "DASK_CLUSTER_EOPF_NAME",
@@ -130,13 +131,11 @@ def copy_caller_env(caller_env: dict[str, str]):
             ],
         )
 
-        # List the environment variables available containing adresses to processor clusters
-        processor_address_pattern = re.compile(r"^DASK_GATEWAY_([A-Za-z0-9]+)_ADDRESS$")
-        processor_env_vars = [var for var in caller_env if processor_address_pattern.match(var)]
-        keys.extend(processor_env_vars)
+        # Set the variable DASK_GATEWAY_EOPF_ADDRESS with the correct cluster address
+        caller_env["DASK_GATEWAY_EOPF_ADDRESS"] = cluster_address
 
     else:
-        keys.extend(["DASK_GATEWAY_EOPF_ADDRESS", "JUPYTERHUB_API_TOKEN"])
+        keys.extend(["JUPYTERHUB_API_TOKEN"])
 
     for key in keys:
         if value := caller_env.get(key):
@@ -149,12 +148,13 @@ def dpr_tasktable_task(
     use_mockup: bool,
     module_name: str,
     class_name: str,
+    cluster_address: str,
 ):
     """
     Return the DPR tasktable. This function is run from inside the dask pod.
     """
     # Copy env vars from the caller
-    copy_caller_env(caller_env)
+    copy_caller_env(caller_env, cluster_address)
 
     # Init opentelemetry and record all task in an Opentelemetry span
     init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
@@ -179,6 +179,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
     caller_env: dict[str, str],
     data: dict,
     use_mockup: bool,
+    cluster_address: str,
 ):
     """
     Run the DPR processor. This function is run from inside the dask pod.
@@ -189,7 +190,7 @@ def dpr_processor_task(  # pylint: disable=R0914, R0917
         use_mockup: use the mockup or real processor
     """
     # Copy env vars from the caller
-    copy_caller_env(caller_env)
+    copy_caller_env(caller_env, cluster_address)
 
     # Mockup processor
     if use_mockup:
