@@ -48,7 +48,7 @@ from rs_dpr_service.processors import (
     S1L0Processor,
     S3L0Processor,
 )
-from rs_dpr_service.utils import init_opentelemetry, settings
+from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
 
 # flake8: noqa: F401

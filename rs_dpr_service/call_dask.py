@@ -34,6 +34,7 @@ import zipfile
 from datetime import timedelta
 from importlib import reload
 from pathlib import Path
+from typing import Any
 
 import yaml
 from distributed.client import Client as DaskClient
@@ -241,6 +242,7 @@ class DprProcessor:
             working_dir: Working directory on local disk
             to_be_uploaded: Output products to be uploaded to the s3 bucket at the end of the processor
             exec_times: Execution times with their description
+            mockup_return_value: Mockup return value
         """
         # NOTE: some imports exists in the dask worker environment, not in the rs-dpr-service env,
         # so we cannot import them from the top of this module.
@@ -252,16 +254,17 @@ class DprProcessor:
         self.caller_env: dict = caller_env
         self.data: dict = data
         self.use_mockup: bool = use_mockup
-        self.s3 = None  # AnyPath
+        self.s3: Any | None = None  # AnyPath
         self.local_report_dir: str = ""
         self.s3_report_dir: str = ""
-        self.experimental_config: ExperimentalConfig = None
+        self.experimental_config: ExperimentalConfig | None = None
         self.payload_contents: dict = {}
         self.command: list = []
         self.log_path: str = ""
         self.working_dir: str = ""
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
+        self.mockup_return_value: dict = {}
 
     def run(self) -> dict:
         """
@@ -281,10 +284,10 @@ class DprProcessor:
             return self.finalize()
 
         # In all cases, run the finalize function
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             try:
                 self.finalize()
-            except Exception:
+            except Exception:  # pylint: disable=broad-exception-caught
                 logger.exception(traceback.format_exc())
             raise
 
@@ -370,7 +373,7 @@ class DprProcessor:
         # Check if an experimental configuraition is set (only for testing)
         self.experimental_config = ExperimentalConfig(**self.data.get("experimental_config", {}))
         if self.experimental_config == ExperimentalConfig():
-            return {}
+            return
 
         # Read the payload file contents
         with open(payload_file, encoding="utf-8") as opened:
@@ -407,9 +410,12 @@ class DprProcessor:
         """Handle local products for the experimental configuration"""
 
         import s3fs  # pylint: disable=import-outside-toplevel
-        from eopf.common.env_utils import (
-            resolve_env_vars,  # pylint: disable=import-outside-toplevel
+        from eopf.common.env_utils import (  # pylint: disable=import-outside-toplevel
+            resolve_env_vars,
         )
+
+        if not self.experimental_config:
+            return
 
         # resolve all env_vars in the payload
         product = resolve_env_vars(original_product)
@@ -470,8 +476,15 @@ class DprProcessor:
         # Everything is run on the rs-dpr-service host machine.
         # This is used to debug in local mode / docker compose on your local machine.
         # We call eopf from python code.
-        if settings.LOCAL_MODE and (not self.use_mockup) and self.experimental_config.local_cluster.enabled:
-            from eopf.triggering.runner import EORunner
+        if (
+            settings.LOCAL_MODE
+            and (not self.use_mockup)
+            and self.experimental_config
+            and self.experimental_config.local_cluster.enabled
+        ):
+            from eopf.triggering.runner import (
+                EORunner,  # pylint: disable=import-outside-toplevel
+            )
 
             EORunner().run(self.payload_contents)
             return
@@ -533,7 +546,7 @@ class DprProcessor:
                 try:
                     # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
                     # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                    return ast.literal_eval(payload_str)
+                    self.mockup_return_value = ast.literal_eval(payload_str)
                 except Exception as e:
                     raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
@@ -541,16 +554,17 @@ class DprProcessor:
         """Code to run at the end of the processor."""
 
         if self.use_mockup:
-            return
+            return self.mockup_return_value
 
         try:
             # Upload the reports dir to the s3 bucket
-            logger.info(f"Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
-            self.s3._fs.put(
-                self.local_report_dir,
-                self.s3_report_dir,
-                recursive=True,
-            )  # pylint: disable=protected-access
+            if self.s3:
+                logger.info(f"Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
+                self.s3._fs.put(  # pylint: disable=protected-access
+                    self.local_report_dir,
+                    self.s3_report_dir,
+                    recursive=True,
+                )
 
             # Upload local output products to the s3 bucket
             start_time = time.time()

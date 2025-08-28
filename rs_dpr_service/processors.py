@@ -143,11 +143,12 @@ class GeneralProcessor(BaseProcessor):
             return pattern.sub(replacer, obj)
         return obj
 
-    def manage_dask_tasks(self, dask_client: Client, data: dict):
+    def manage_dask_tasks(self, dask_client: Client | None, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
         """
         self.logger.info("Tasks monitoring started")
+        res = None
 
         self.log_job_execution(
             JobStatus.running,
@@ -162,7 +163,7 @@ class GeneralProcessor(BaseProcessor):
                 data = self.replace_placeholders(data)
 
             dpr_processor = call_dask.DprProcessor(
-                caller_env=os.environ if dask_client else {},
+                caller_env=dict(os.environ) if dask_client else {},
                 data=data,
                 use_mockup=use_mockup,
             )
@@ -195,7 +196,7 @@ class GeneralProcessor(BaseProcessor):
                 res = dpr_task.result()  # This will raise the exception from the task if it failed
                 self.logger.info("%s Task streaming completed", dpr_task.key)
 
-        except Exception as task_e:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught
             # Update status for the job
             self.log_job_execution(
                 JobStatus.failed,
@@ -215,7 +216,7 @@ class GeneralProcessor(BaseProcessor):
     def dask_cluster_connect(
         self,
         use_mockup: bool,
-    ) -> Client | None:  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    ) -> Client:  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
@@ -468,7 +469,7 @@ class GeneralProcessor(BaseProcessor):
                 f"Failed to start the dpr-service process: No env var {ke} found",
                 log_exception=True,
             )
-        except RuntimeError as runtime_error:
+        except RuntimeError:
             return self.log_job_execution(
                 JobStatus.failed,
                 0,
@@ -487,7 +488,7 @@ class GeneralProcessor(BaseProcessor):
                 dask_client,
                 data,
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
+        except Exception:  # pylint: disable=broad-exception-caught
             self.log_job_execution(
                 JobStatus.failed,
                 0,
