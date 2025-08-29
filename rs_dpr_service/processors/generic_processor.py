@@ -264,7 +264,7 @@ class GenericProcessor(BaseProcessor):
             if self.use_mockup:
                 data = self.replace_placeholders(data)
 
-            dpr_processor = call_dask.DprProcessor(
+            dpr_processor = call_dask.ProcessorCaller(
                 caller_env=dict(os.environ) if dask_client else {},
                 data=data,
                 use_mockup=self.use_mockup,

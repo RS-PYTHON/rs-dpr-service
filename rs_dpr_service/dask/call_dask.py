@@ -225,7 +225,7 @@ def convert_safe_to_zarr(cfg):
     return result.stdout.strip()
 
 
-class DprProcessor:
+class ProcessorCaller:
     """
     Run the DPR processor.
 
@@ -257,7 +257,7 @@ class DprProcessor:
         import s3fs  # pylint: disable=import-outside-toplevel
 
         # This should run on the rs-dpr-service container
-        logger.debug(f"Call 'DprProcessor.__init__' from {get_ip_address()!r}")
+        logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
 
         self.caller_env: dict = caller_env
         self.data: dict = data
@@ -282,7 +282,7 @@ class DprProcessor:
         try:
 
             # This should run on the dask worker
-            logger.debug(f"Call 'DprProcessor.run' from {get_ip_address()!r}")
+            logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
 
             self.init()
 
