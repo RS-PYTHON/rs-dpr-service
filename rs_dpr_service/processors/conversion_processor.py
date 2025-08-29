@@ -118,10 +118,13 @@ class ConversionProcessor(GenericProcessor):
         # Start execution
         return await super().execute(data, outputs)
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    def manage_dask_tasks(self, dask_client: Client | None, data: dict):
         """
         Schedule SAFE to Zarr conversion on the Dask cluster using a nested subprocess task.
         """
+        if not dask_client:
+            raise RuntimeError("Dask client is undefined")
+
         # Log start
         self.job_logger.log_job_execution(JobStatus.running, 5, "Preparing conversion")
         try:
@@ -138,7 +141,7 @@ class ConversionProcessor(GenericProcessor):
                 "safe_s3_config": data.get("safe_s3_config", {}),
                 "zarr_s3_config": data.get("zarr_s3_config", {}),
             }
-            future = client.submit(convert_safe_to_zarr, cfg)
+            future = dask_client.submit(convert_safe_to_zarr, cfg)
             self.job_logger.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
             # wait for result
@@ -148,4 +151,4 @@ class ConversionProcessor(GenericProcessor):
             logger.error(f"Conversion failed: {e}")
             self.job_logger.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
         finally:
-            client.close()
+            dask_client.close()

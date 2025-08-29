@@ -183,7 +183,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
     local_mode = env_bool("RSPY_LOCAL_MODE", default=False)
-    fastapi_app.extra["local_mode"] = local_mode
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
     if not local_mode:
@@ -193,7 +192,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
-    # token refereshment logic
 
     # Yield control back to the application (this is where the app will run)
     yield
@@ -250,7 +248,7 @@ async def get_resource(request: Request, resource: str):
             None,
         ):
             try:
-                data = await request.json()
+                data = (await request.json()) or {}
                 use_mockup = data.get("use_mockup", False)
             except Exception:  # pylint: disable=broad-exception-caught
                 use_mockup = False
