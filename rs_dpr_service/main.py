@@ -51,7 +51,7 @@ from rs_dpr_service.processors.eopf_processors import (
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
+from rs_dpr_service.utils.settings import LOCAL_MODE
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -182,10 +182,9 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Starting up the application...")
     # Create jobs table
     process_manager = init_db()
-    local_mode = env_bool("RSPY_LOCAL_MODE", default=False)
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
-    if not local_mode:
+    if not LOCAL_MODE:
         # If we are in cluster mode, there is only on env var for the cluster address
         os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
 

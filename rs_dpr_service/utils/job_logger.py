@@ -84,6 +84,7 @@ class JobLogger:
         status: JobStatus | None = None,
         progress: int | None = None,
         message: str | None = None,
+        log_exception: bool = False,
     ) -> tuple[str, dict]:
         """
         Method used to log progress into db.
@@ -92,6 +93,7 @@ class JobLogger:
             status (JobStatus): new job status
             progress (int): new job progress (percentage)
             message (str): new job current information message
+            log_exception (bool): log.exception the message
 
         Returns:
             tuple: tuple of MIME type and process response (dictionary containing the job ID and a
@@ -103,6 +105,9 @@ class JobLogger:
         self.status = status if status else self.status
         self.progress = progress if progress else self.progress
         self.message = message if message else self.message
+
+        if log_exception:
+            logger.exception(self.message)
 
         update_data = {
             "status": self.status.value,

@@ -24,13 +24,9 @@ from dask_gateway.auth import BasicAuth, JupyterHubAuth
 
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool, set_dask_env
+from rs_dpr_service.utils.settings import LOCAL_MODE, set_dask_env
 
 logger = Logging.default(__name__)
-
-# True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
-# By default: if not set or set to a different value, return False.
-LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 
 class DaskClusterHandler:  # pylint: disable=too-few-public-methods
@@ -131,7 +127,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             logger.exception(f"Failed to find the specified dask cluster: {e}")
             raise RuntimeError(f"No dask cluster named '{self.cluster_name}' was found.") from e
 
-    def setup_dask_connection(self):
+    def setup_dask_connection(self) -> Client:
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
@@ -184,10 +180,6 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         Returns:
             Dask client
         """
-
-        # If self.cluster is already initialized, it means the application is running in local mode, and
-        # the cluster was created when the application started.
-
         self._connect_to_cluster()
 
         logger.debug("Cluster dashboard: %s", self.cluster.dashboard_link)

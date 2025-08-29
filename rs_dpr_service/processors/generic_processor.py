@@ -34,14 +34,9 @@ from rs_dpr_service.dask import call_dask
 from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
+from rs_dpr_service.utils.settings import LOCAL_MODE, ExperimentalConfig
 
 logger = Logging.default(__name__)
-
-
-# True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
-# By default: if not set or set to a different value, return False.
-LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 
 class GenericProcessor(BaseProcessor):
@@ -150,13 +145,11 @@ class GenericProcessor(BaseProcessor):
                     return json.loads(tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
-            self.job_logger.log_job_execution(
-                JobStatus.failed,
-                None,
-                f"Submitting task to dask cluster failed. Reason: {e}",
-            )
-            return {}
+            logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
+            raise e
+        finally:
+            # cleanup by disconnecting the dask client
+            dask_client.close()
 
     # Override from BaseProcessor, execute is async in RSPYProcessor
     async def execute(  # pylint: disable=invalid-overridden-method
@@ -203,13 +196,30 @@ class GenericProcessor(BaseProcessor):
         logger.debug("Starting main loop")
 
         try:
-            dask_client = self.cluster_handler.setup_dask_connection()
+            experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
+
+            # For testing: run the eopf-cpm scheduler on local.
+            # It will then init a dask LocalCluster instance itself.
+            if LOCAL_MODE and experimental_config.local_cluster.enabled:
+                dask_client = None
+
+            # Nominal case: run the eopf-cpm scheduler on a dedicated cluster pod, not locally.
+            else:
+                dask_client = self.cluster_handler.setup_dask_connection()
         except KeyError as ke:
-            logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
-            return self.job_logger.log_job_execution(JobStatus.failed, 0, str(ke))
-        except RuntimeError as runtime_error:
-            logger.error("Failed to start the dpr-service process")
-            return self.job_logger.log_job_execution(JobStatus.failed, 0, str(runtime_error))
+            return self.job_logger.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: No env var {ke} found",
+                log_exception=True,
+            )
+        except RuntimeError:
+            return self.job_logger.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         self.job_logger.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
 
@@ -222,27 +232,26 @@ class GenericProcessor(BaseProcessor):
                 dask_client,
                 data,
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.job_logger.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            self.job_logger.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Error from tasks monitoring thread: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         # cleanup by disconnecting the dask client
-        dask_client.close()
+        if dask_client:
+            dask_client.close()
 
         return self.job_logger.get_execute_result()
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    def manage_dask_tasks(self, dask_client: Client | None, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
         """
         logger.info("Tasks monitoring started")
-        if not client:
-            logger.error("The dask cluster client object is not created. Exiting")
-            self.job_logger.log_job_execution(
-                JobStatus.failed,
-                None,
-                "Submitting task to dask cluster failed. Dask cluster client object is not created",
-            )
-            return
+        res = None
 
         self.job_logger.log_job_execution(
             JobStatus.running,
@@ -255,33 +264,49 @@ class GenericProcessor(BaseProcessor):
             if self.use_mockup:
                 data = self.replace_placeholders(data)
 
-            # Run processor in the dask client
-            dpr_task = client.submit(
-                call_dask.dpr_processor_task,
-                caller_env=os.environ,
+            dpr_processor = call_dask.DprProcessor(
+                caller_env=dict(os.environ) if dask_client else {},
                 data=data,
                 use_mockup=self.use_mockup,
                 cluster_address=self._get_cluster_address(),
-                pure=False,  # disable cache
             )
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
+            # Nominal usecase: run processor in the dask client
+            if dask_client:
+                dpr_task = dask_client.submit(
+                    dpr_processor.run,
+                    pure=False,  # disable cache
+                )
+
+            # Specific case for local debugging
+            else:
+                dpr_task = None
+                res = dpr_processor.run()
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            if not dask_client:
+                raise
             self.job_logger.log_job_execution(
                 JobStatus.failed,
                 None,
-                f"Submitting task to dask cluster failed. Reason: {e}",
+                f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}",
+                log_exception=True,
             )
             return
 
         try:
-            res = dpr_task.result()  # This will raise the exception from the task if it failed
-            logger.info("%s Task streaming completed", dpr_task.key)
+            if dpr_task:
+                res = dpr_task.result()  # This will raise the exception from the task if it failed
+                logger.info("%s Task streaming completed", dpr_task.key)
 
-        except Exception as task_e:  # pylint: disable=broad-exception-caught
-            logger.error("Task failed with exception: %s", traceback.format_exc())
+        except Exception:  # pylint: disable=broad-exception-caught
             # Update status for the job
-            self.job_logger.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
+            self.job_logger.log_job_execution(
+                JobStatus.failed,
+                None,
+                f"The dpr processing task failed: {traceback.format_exc()}",
+                log_exception=True,
+            )
             return
 
         # Update status and insert the result of the dask task in the jobs table

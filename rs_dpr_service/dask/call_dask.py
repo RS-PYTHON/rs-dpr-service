@@ -232,7 +232,7 @@ class DprProcessor:
     NOTE: All methods except __init__ are run from the dask pod.
     """
 
-    def __init__(self, caller_env: dict[str, str], data: dict, use_mockup: bool):
+    def __init__(self, caller_env: dict[str, str], data: dict, use_mockup: bool, cluster_address: str):
         """
         Constructor.
 
@@ -262,6 +262,7 @@ class DprProcessor:
         self.caller_env: dict = caller_env
         self.data: dict = data
         self.use_mockup: bool = use_mockup
+        self.cluster_address: str = cluster_address
         self.s3: Any | None = None  # AnyPath
         self.local_report_dir: str = ""
         self.s3_report_dir: str = ""
@@ -304,7 +305,7 @@ class DprProcessor:
         Init from the dask pod.
         """
         # Copy env vars from the caller
-        copy_caller_env(self.caller_env)
+        copy_caller_env(self.caller_env, self.cluster_address)
 
         # Mockup processor
         if self.use_mockup:
