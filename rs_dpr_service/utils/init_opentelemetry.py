@@ -38,7 +38,7 @@ from opentelemetry.trace.span import NonRecordingSpan, Span, SpanContext, TraceF
 from opentelemetry.util._decorator import _agnosticcontextmanager
 
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
+from rs_dpr_service.utils.settings import env_bool
 
 default_logger = Logging.default(__name__)
 

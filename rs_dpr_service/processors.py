@@ -23,9 +23,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 
-from dask.distributed import (  # LocalCluster,
-    Client,
-)
+from dask.distributed import Client
 from dask_gateway import Gateway
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
 from opentelemetry import trace
@@ -38,18 +36,11 @@ from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from rs_dpr_service import call_dask
+from rs_dpr_service.utils import settings
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
+from rs_dpr_service.utils.settings import ExperimentalConfig
 
 default_logger = Logging.default(__name__)
-
-
-# True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).
-# By default: if not set or set to a different value, return False.
-LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
-
-# Cluster mode is the opposite of local mode
-CLUSTER_MODE: bool = not LOCAL_MODE
 
 
 class GeneralProcessor(BaseProcessor):
@@ -85,12 +76,9 @@ class GeneralProcessor(BaseProcessor):
         self.cluster = None
         # self.catalog_bucket = os.environ.get("RSPY_CATALOG_BUCKET", "rs-cluster-catalog")
 
-    async def _get_tasktable(self, data, module_name: str, class_name: str):
+    async def _get_tasktable(self, data: dict, module_name: str, class_name: str):
         """Return the EOPF tasktable for a given module and class names"""
-        use_mockup = False
-        if data and isinstance(data, dict):
-            use_mockup = data.get("use_mockup", False)
-
+        use_mockup = data.get("use_mockup", False)
         dask_client = self.dask_cluster_connect(use_mockup)
 
         # Extract span infos to send to Dask
@@ -117,9 +105,11 @@ class GeneralProcessor(BaseProcessor):
                     return json.loads(tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
-            return {}
+            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
+            raise e
+        finally:
+            # cleanup by disconnecting the dask client
+            dask_client.close()
 
     def replace_placeholders(self, obj):
         """
@@ -153,19 +143,12 @@ class GeneralProcessor(BaseProcessor):
             return pattern.sub(replacer, obj)
         return obj
 
-    def manage_dask_tasks(self, client: Client, data: dict):
+    def manage_dask_tasks(self, dask_client: Client | None, data: dict):
         """
         Manages Dask tasks where the dpr processor is started.
         """
         self.logger.info("Tasks monitoring started")
-        if not client:
-            self.logger.error("The dask cluster client object is not created. Exiting")
-            self.log_job_execution(
-                JobStatus.failed,
-                None,
-                "Submitting task to dask cluster failed. Dask cluster client object is not created",
-            )
-            return
+        res = None
 
         self.log_job_execution(
             JobStatus.running,
@@ -179,28 +162,48 @@ class GeneralProcessor(BaseProcessor):
             if use_mockup:
                 data = self.replace_placeholders(data)
 
-            # Run processor in the dask client
-            dpr_task = client.submit(
-                call_dask.dpr_processor_task,
-                caller_env=os.environ,
+            dpr_processor = call_dask.DprProcessor(
+                caller_env=dict(os.environ) if dask_client else {},
                 data=data,
                 use_mockup=use_mockup,
-                pure=False,  # disable cache
             )
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.exception(f"Submitting task to dask cluster failed. Reason: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Submitting task to dask cluster failed. Reason: {e}")
+            # Nominal usecase: run processor in the dask client
+            if dask_client:
+                dpr_task = dask_client.submit(
+                    dpr_processor.run,
+                    pure=False,  # disable cache
+                )
+
+            # Specific case for local debugging
+            else:
+                dpr_task = None
+                res = dpr_processor.run()
+
+        except Exception:  # pylint: disable=broad-exception-caught
+            if not dask_client:
+                raise
+            self.log_job_execution(
+                JobStatus.failed,
+                None,
+                f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}",
+                log_exception=True,
+            )
             return
 
         try:
-            res = dpr_task.result()  # This will raise the exception from the task if it failed
-            self.logger.info("%s Task streaming completed", dpr_task.key)
+            if dpr_task:
+                res = dpr_task.result()  # This will raise the exception from the task if it failed
+                self.logger.info("%s Task streaming completed", dpr_task.key)
 
-        except Exception as task_e:  # pylint: disable=broad-exception-caught
-            self.logger.error("Task failed with exception: %s", traceback.format_exc())
+        except Exception:  # pylint: disable=broad-exception-caught
             # Update status for the job
-            self.log_job_execution(JobStatus.failed, None, f"The dpr processing task failed: {task_e}")
+            self.log_job_execution(
+                JobStatus.failed,
+                None,
+                f"The dpr processing task failed: {traceback.format_exc()}",
+                log_exception=True,
+            )
             return
 
         # Update status and insert the result of the dask task in the jobs table
@@ -213,7 +216,7 @@ class GeneralProcessor(BaseProcessor):
     def dask_cluster_connect(
         self,
         use_mockup: bool,
-    ):  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
+    ) -> Client:  # pylint: disable=too-many-branches, too-many-statements, too-many-locals
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
@@ -266,10 +269,6 @@ class GeneralProcessor(BaseProcessor):
         Returns:
             Dask client
         """
-
-        # If self.cluster is already initialized, it means the application is running in local mode, and
-        # the cluster was created when the application started.
-
         # Return the dask cluster address and name to give to cluster.options
         # This is either the real or mockup processor.
         if use_mockup:
@@ -282,7 +281,7 @@ class GeneralProcessor(BaseProcessor):
         # Connect to the gateway and get the list of the clusters
         try:
             # In local mode, authenticate to the dask cluster with username/password
-            if LOCAL_MODE:
+            if settings.LOCAL_MODE:
                 gateway_auth = BasicAuth(
                     os.environ["LOCAL_DASK_USERNAME"],
                     os.environ["LOCAL_DASK_PASSWORD"],
@@ -310,7 +309,7 @@ class GeneralProcessor(BaseProcessor):
 
             # In local mode, get the first cluster from the gateway.
             cluster_id = None
-            if LOCAL_MODE:
+            if settings.LOCAL_MODE:
                 if clusters:
                     cluster_id = clusters[0].name
 
@@ -451,14 +450,32 @@ class GeneralProcessor(BaseProcessor):
         self.logger.debug("Starting main loop")
 
         try:
+            experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
             use_mockup = data.get("use_mockup", False)
-            dask_client = self.dask_cluster_connect(use_mockup)
+
+            # For testing: run the eopf-cpm scheduler on local.
+            # It will then init a dask LocalCluster instance itself.
+            if settings.LOCAL_MODE and experimental_config.local_cluster.enabled:
+                dask_client = None
+
+            # Nominal case: run the eopf-cpm scheduler on a dedicated cluster pod, not locally.
+            else:
+                dask_client = self.dask_cluster_connect(use_mockup)
+
         except KeyError as ke:
-            self.logger.error(f"Failed to start the dpr-service process: No env var {ke} found")
-            return self.log_job_execution(JobStatus.failed, 0, str(ke))
-        except RuntimeError as runtime_error:
-            self.logger.error("Failed to start the dpr-service process")
-            return self.log_job_execution(JobStatus.failed, 0, str(runtime_error))
+            return self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: No env var {ke} found",
+                log_exception=True,
+            )
+        except RuntimeError:
+            return self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Failed to start the dpr-service process: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         self.log_job_execution(JobStatus.running, 0, "Sending task to the dask cluster")
 
@@ -471,12 +488,18 @@ class GeneralProcessor(BaseProcessor):
                 dask_client,
                 data,
             )
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            self.log_job_execution(JobStatus.failed, 0, f"Error from tasks monitoring thread: {e}")
+        except Exception:  # pylint: disable=broad-exception-caught
+            self.log_job_execution(
+                JobStatus.failed,
+                0,
+                f"Error from tasks monitoring thread: {traceback.format_exc()}",
+                log_exception=True,
+            )
 
         # cleanup by disconnecting the dask client
         self.assets_info = []
-        dask_client.close()
+        if dask_client:
+            dask_client.close()
 
         return self._get_execute_result()
 
@@ -516,6 +539,7 @@ class GeneralProcessor(BaseProcessor):
         status: JobStatus | None = None,
         progress: int | None = None,
         message: str | None = None,
+        log_exception: bool = False,
     ) -> tuple[str, dict]:
         """
         Method used to log progress into db.
@@ -524,6 +548,7 @@ class GeneralProcessor(BaseProcessor):
             status (JobStatus): new job status
             progress (int): new job progress (percentage)
             message (str): new job current information message
+            log_exception (bool): log.exception the message
 
         Returns:
             tuple: tuple of MIME type and process response (dictionary containing the job ID and a
@@ -535,6 +560,9 @@ class GeneralProcessor(BaseProcessor):
         self.status = status if status else self.status
         self.progress = progress if progress else self.progress
         self.message = message if message else self.message
+
+        if log_exception:
+            self.logger.exception(self.message)
 
         update_data = {
             "status": self.status.value,
@@ -574,7 +602,7 @@ class S1L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S1L0Processor")
 
-    async def get_tasktable(self, data):
+    async def get_tasktable(self, data: dict):
         """Return the EOPF tasktable for S1L0"""
         return await self._get_tasktable(data, module_name="l0.s1.s1_l0_processor", class_name="S1L0Processor")
 
@@ -593,6 +621,6 @@ class S3L0Processor(GeneralProcessor):
         """
         super().__init__(credentials, db_process_manager, "S3L0Processor")
 
-    async def get_tasktable(self, data):
+    async def get_tasktable(self, data: dict):
         """Return the EOPF tasktable for S1L0"""
         return await self._get_tasktable(data, module_name="l0.s3.s3_l0_processor", class_name="S3L0Processor")

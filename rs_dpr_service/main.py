@@ -43,10 +43,13 @@ from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import GeneralProcessor, S1L0Processor, S3L0Processor
+from rs_dpr_service.processors import (
+    GeneralProcessor,
+    S1L0Processor,
+    S3L0Processor,
+)
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.utils import env_bool
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -176,7 +179,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Starting up the application...")
     # Create jobs table
     process_manager = init_db()
-    fastapi_app.extra["local_mode"] = env_bool("RSPY_LOCAL_MODE", default=False)
 
     # This url is needed by the eopf dask scheduler to connect later to this cluster
     os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
@@ -184,7 +186,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
-    # token refereshment logic
 
     # Yield control back to the application (this is where the app will run)
     yield
@@ -241,9 +242,9 @@ async def get_resource(request: Request, resource: str):
             None,
         ):
             try:
-                data = await request.json()
+                data = (await request.json()) or {}
             except Exception:  # pylint: disable=broad-exception-caught
-                data = None
+                data = {}
             processor_name = api.config["resources"][resource]["processor"]["name"]
             if processor_name in processors:
                 processor = processors[processor_name]
