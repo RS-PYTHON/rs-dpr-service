@@ -39,7 +39,7 @@ class ExperimentalConfig(BaseModel):
         code.
         """
 
-        enabled: bool = False
+        enabled: bool = False  # Use False to disable
 
         #
         # Dask LocalCluster configuration, see: https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster
@@ -61,7 +61,7 @@ class ExperimentalConfig(BaseModel):
         """
 
         # Local directory
-        local_dir: str | None = None
+        local_dir: str | None = None  # Use None to disable
 
         # Download input files again from the S3 bucket if they are already present on the local directory ?
         overwrite_input: bool = False
