@@ -44,45 +44,17 @@ class GenericProcessor(BaseProcessor):
 
     def __init__(
         self,
-        class_name: str,
-        env_var_id: str,
-        module_name: str,
         db_process_manager: PostgreSQLManager,
-        use_mockup: bool = False,
+        cluster_name: str,
+        local_mode_address: str,
+        tasktable_module: str = "",
+        tasktable_class: str = "",
     ):  # pylint: disable=super-init-not-called
-        self.class_name = class_name
-        self.env_var_id = env_var_id
-        self.module_name = module_name
-
-        self.use_mockup = use_mockup
-        self.cluster_handler = DaskClusterHandler(self._get_cluster_address(), self._get_cluster_name())
+        self.use_mockup = False
+        self.tasktable_module = tasktable_module
+        self.tasktable_class = tasktable_class
         self.job_logger = JobLogger(db_process_manager)
-
-    def _get_cluster_address(self) -> str:
-        """Returns the address of the cluster containing the processor.
-        Three cases here:
-            - if we use a mockup, there is a single address stored in DASK_GATEWAY__MOCKUP_ADDRESS
-            - if we are in local mode with real processors, each processor has its own cluster,
-            and the address is stored in a specific environment variable with the processor name
-            - if we are in cluster mode, all the processors use the same cluster address,
-            stored in DASK_GATEWAY__ADDRESS. The processor to use will be discrimined using its name.
-        """
-        if self.use_mockup:
-            return os.environ["DASK_GATEWAY__MOCKUP_ADDRESS"]
-        if LOCAL_MODE:
-            return os.environ[f"DASK_GATEWAY_{self.env_var_id}_ADDRESS"]
-        return os.environ["DASK_GATEWAY__ADDRESS"]
-
-    def _get_cluster_name(self) -> str:
-        """Returns the name of the cluster containing the processor.
-        Two cases here:
-            - if we use a mockup, there is a single name stored in RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME
-            - if we use real processors, each processor has its own cluster name, and it's stored in a specific
-            environment variable with the processor name
-        """
-        if self.use_mockup:
-            return os.environ["RSPY_DASK_DPR_SERVICE_MOCKUP_CLUSTER_NAME"]  # "dask-eopf-mockup"
-        return os.environ[f"RSPY_DASK_{self.env_var_id}_CLUSTER_NAME"]  # e.g. "dask-l0"
+        self.cluster_handler = DaskClusterHandler(cluster_name, local_mode_address)
 
     def replace_placeholders(self, obj):
         """
@@ -132,9 +104,9 @@ class GenericProcessor(BaseProcessor):
                 caller_env=os.environ,
                 flow_span_context=flow_span_context,
                 use_mockup=self.use_mockup,
-                module_name=self.module_name,
-                class_name=self.class_name,
-                cluster_address=self._get_cluster_address(),
+                module_name=self.tasktable_module,
+                class_name=self.tasktable_class,
+                cluster_address=self.cluster_handler.cluster_address,
                 pure=False,  # disable cache
             )
             res = task_table_task.result()
@@ -268,7 +240,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=dict(os.environ) if dask_client else {},
                 data=data,
                 use_mockup=self.use_mockup,
-                cluster_address=self._get_cluster_address(),
+                cluster_address=self.cluster_handler.cluster_address,
             )
 
             # Nominal usecase: run processor in the dask client

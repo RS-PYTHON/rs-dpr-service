@@ -33,16 +33,15 @@ logger = Logging.default(__name__)
 class ConversionProcessor(GenericProcessor):
     """Runs an legacy product (safe format) conversion into new zarr format as a Dask job via subprocess."""
 
-    def __init__(self, db_process_manager: PostgreSQLManager, use_mockup: bool = False):
+    def __init__(self, db_process_manager: PostgreSQLManager):
         """
         Initialize Conversion Processor
         """
         super().__init__(
-            class_name="ConversionProcessor",
-            env_var_id="",
-            module_name="",
             db_process_manager=db_process_manager,
-            use_mockup=use_mockup,
+            # Use any eopf processor
+            cluster_name=os.environ["RSPY_DASK_L0_CLUSTER_NAME"],
+            local_mode_address="DASK_GATEWAY_L0_ADDRESS",
         )
 
     def _check_s3_config(self):

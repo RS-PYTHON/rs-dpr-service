@@ -118,7 +118,6 @@ def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
         "S3_SECRETKEY",
         "S3_ENDPOINT",
         "S3_REGION",
-        "DASK_GATEWAY_EOPF_ADDRESS",
         "PREFECT_BUCKET_NAME",
         "PREFECT_BUCKET_FOLDER",
         "DASK_CLUSTER_EOPF_NAME",
@@ -142,15 +141,14 @@ def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
             ],
         )
 
-        # Set the variable DASK_GATEWAY_EOPF_ADDRESS with the correct cluster address
-        caller_env["DASK_GATEWAY_EOPF_ADDRESS"] = cluster_address
-
     else:
         keys.extend(["JUPYTERHUB_API_TOKEN"])
 
     for key in keys:
         if value := caller_env.get(key):
             os.environ[key] = value
+
+    os.environ["DASK_GATEWAY_ADDRESS"] = cluster_address
 
     # Reload this module to read updated env vars
     reload(settings)

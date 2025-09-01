@@ -44,6 +44,7 @@ from rs_dpr_service.openapi_validation import (
 )
 from rs_dpr_service.processors.conversion_processor import ConversionProcessor
 from rs_dpr_service.processors.eopf_processors import (
+    MockupProcessor,
     S1ARDProcessor,
     S1L0Processor,
     S3L0Processor,
@@ -57,12 +58,15 @@ from rs_dpr_service.utils.settings import LOCAL_MODE
 # DON'T REMOVE (needed for SQLAlchemy)
 from . import jobs_table  # pylint: disable=unused-import
 
-# Register all the processors
+# Register all the processors.
+# Keys are defined in rs-dpr-service/config/geoapi.yaml
+# Values are the Python classes.
 processors: dict[str, type[GenericProcessor]] = {
-    "S1L0_processor": S1L0Processor,
-    "S3L0_processor": S3L0Processor,
-    "S1ARD_processor": S1ARDProcessor,
-    "Conversion_Processor": ConversionProcessor,
+    "conv_safe_zarr": ConversionProcessor,
+    "s1_l0": S1L0Processor,
+    "s3_l0": S3L0Processor,
+    "s1_ard": S1ARDProcessor,
+    "mockup": MockupProcessor,
 }
 
 # Initialize a FastAPI application
@@ -186,7 +190,7 @@ async def app_lifespan(fastapi_app: FastAPI):
     # This url is needed by the eopf dask scheduler to connect later to this cluster
     if not LOCAL_MODE:
         # If we are in cluster mode, there is only on env var for the cluster address
-        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
+        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY_ADDRESS"]
 
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
@@ -348,7 +352,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
             processor = processors[processor_name]
-            _, dpr_status = await processor(app.extra["process_manager"], use_mockup).execute(  # type: ignore
+            _, dpr_status = await processor(app.extra["process_manager"]).execute(  # type: ignore
                 valid_body,
             )
 
