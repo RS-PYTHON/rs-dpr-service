@@ -63,10 +63,10 @@ from . import jobs_table  # pylint: disable=unused-import
 # Values are the Python classes.
 processors: dict[str, type[GenericProcessor]] = {
     "conv_safe_zarr": ConversionProcessor,
+    "mockup": MockupProcessor,
     "s1_l0": S1L0Processor,
     "s3_l0": S3L0Processor,
     "s1_ard": S1ARDProcessor,
-    "mockup": MockupProcessor,
 }
 
 # Initialize a FastAPI application
@@ -187,11 +187,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
 
-    # This url is needed by the eopf dask scheduler to connect later to this cluster
-    if not LOCAL_MODE:
-        # If we are in cluster mode, there is only on env var for the cluster address
-        os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY_ADDRESS"]
-
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
@@ -242,26 +237,15 @@ async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
     with init_opentelemetry.start_span(__name__, "tasktable"):
 
-        if resource_info := next(  # pylint: disable=W0612 # noqa: F841
-            (
-                api.config["resources"][defined_resource]
-                for defined_resource in api.config["resources"]
-                if defined_resource == resource
-            ),
-            None,
-        ):
-            try:
-                data = (await request.json()) or {}
-                use_mockup = data.get("use_mockup", False)
-            except Exception:  # pylint: disable=broad-exception-caught
-                use_mockup = False
-            processor_name = api.config["resources"][resource]["processor"]["name"]
-            if processor_name in processors:
-                processor = processors[processor_name]
-                task_table = await processor(app.extra["process_manager"], use_mockup).get_tasktable()  # type: ignore
+        # Check that the input resource exists
+        if resource not in api.config["resources"]:
+            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
 
-                return JSONResponse(status_code=HTTP_200_OK, content=task_table)
-        return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+        processor_name = api.config["resources"][resource]["processor"]["name"]
+        if processor_name in processors:
+            processor_type = processors[processor_name]
+            task_table = await processor_type(app.extra["process_manager"]).get_tasktable()
+            return JSONResponse(status_code=HTTP_200_OK, content=task_table)
 
 
 def format_job_data(job: dict):
@@ -337,22 +321,21 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 
     with init_opentelemetry.start_span(__name__, "processor"):
 
-        # check if the input resource exists
+        # Check that the input resource exists
         if resource not in api.config["resources"]:
-            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
 
         # Validate request payload
         try:
             valid_body = await validate_request(request)
-            use_mockup = valid_body.get("use_mockup", False)
         except Exception as e:  # pylint: disable=W0718
             # Handle exceptions and return an appropriate error message
             return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
-            processor = processors[processor_name]
-            _, dpr_status = await processor(app.extra["process_manager"]).execute(  # type: ignore
+            processor_type = processors[processor_name]
+            _, dpr_status = await processor_type(app.extra["process_manager"]).execute(  # type: ignore
                 valid_body,
             )
 

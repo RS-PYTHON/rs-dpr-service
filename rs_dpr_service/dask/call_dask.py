@@ -120,12 +120,12 @@ def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
         "S3_REGION",
         "PREFECT_BUCKET_NAME",
         "PREFECT_BUCKET_FOLDER",
-        "DASK_CLUSTER_EOPF_NAME",
         "AWS_REQUEST_CHECKSUM_CALCULATION",
         "AWS_RESPONSE_CHECKSUM_VALIDATION",
         "TEMPO_ENDPOINT",
         "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
         "OTEL_PYTHON_REQUESTS_TRACE_BODY",
+        "DASK_CLUSTER_INSTANCE",
     ]
 
     if local_mode:
@@ -140,7 +140,6 @@ def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
                 "secret_key",
             ],
         )
-
     else:
         keys.extend(["JUPYTERHUB_API_TOKEN"])
 
