@@ -106,7 +106,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             if not self.cluster:
                 logger.exception("Failed to create the cluster")
                 raise RuntimeError("Failed to create the cluster")
-            logger.info(f"Successfully connected to the {self.cluster_name} dask cluster")
+            logger.info(f"Successfully connected to the {self.cluster_name!r} dask cluster")
 
             # This cluster id is needed by the eopf dask scheduler to connect later to this cluster.
             # This is something like "dask-gateway.17e196069443463495547eb97f532834"
@@ -125,7 +125,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             ) from e
         except IndexError as e:
             logger.exception(f"Failed to find the specified dask cluster: {e}")
-            raise RuntimeError(f"No dask cluster named '{self.cluster_name}' was found.") from e
+            raise RuntimeError(f"No dask cluster named {self.cluster_name!r} was found.") from e
 
     def setup_dask_connection(self) -> Client:
         """Connects a dask cluster scheduler
