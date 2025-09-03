@@ -101,7 +101,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                         if isinstance(cluster.options, dict)
                         and cluster.options.get("cluster_name") == self.cluster_name
                     ),
-                    None,
+                    "",
                 )
                 logger.info(f"Cluster id: {self.cluster_instance}")
 

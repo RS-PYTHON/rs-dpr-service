@@ -49,8 +49,8 @@ class GenericProcessor(BaseProcessor):
     def __init__(
         self,
         db_process_manager: PostgreSQLManager,
-        cluster_name: str,
-        local_mode_address: str,
+        cluster_name: str = "",
+        local_mode_address: str = "",
         tasktable_module: str = "",
         tasktable_class: str = "",
     ):  # pylint: disable=super-init-not-called

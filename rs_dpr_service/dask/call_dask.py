@@ -302,12 +302,12 @@ class ProcessorCaller:
                 return self.finalize()
 
             # In all cases, run the finalize function
-            except Exception:  # pylint: disable=broad-exception-caught
+            except Exception as e:  # pylint: disable=broad-exception-caught
                 try:
                     self.finalize()
                 except Exception:  # pylint: disable=broad-exception-caught
                     logger.exception(traceback.format_exc())
-                raise
+                raise e
 
     def init(self):
         """

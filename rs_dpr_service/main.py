@@ -52,7 +52,6 @@ from rs_dpr_service.processors.eopf_processors import (
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.settings import LOCAL_MODE
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -233,7 +232,7 @@ async def get_processes(request: Request):
 
 
 @router.get("/dpr/processes/{resource}")
-async def get_resource(request: Request, resource: str):
+async def get_resource(resource: str):
     """Should return info about a specific resource."""
     with init_opentelemetry.start_span(__name__, "tasktable"):
 
