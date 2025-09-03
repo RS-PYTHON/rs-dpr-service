@@ -40,7 +40,11 @@ logger = Logging.default(__name__)
 
 
 class GenericProcessor(BaseProcessor):
-    """Common signature of a processor in DPR-service"""
+    """
+    Common signature of a processor in DPR-service.
+
+    NOTE: a new instance of this class is called for every endpoint call.
+    """
 
     def __init__(
         self,
@@ -92,21 +96,24 @@ class GenericProcessor(BaseProcessor):
         """Return the EOPF tasktable for a given module and class names"""
         dask_client = self.cluster_handler.setup_dask_connection()
 
-        # Extract span infos to send to Dask
-        flow_span_context = trace.get_current_span().get_span_context()
-
-        # Manage dask tasks in a separate thread
-        # starting a thread for managing the dask callbacks
-        logger.debug("Starting tasks monitoring thread")
         try:
-            task_table_task = dask_client.submit(
-                call_dask.dpr_tasktable_task,
-                caller_env=os.environ,
-                flow_span_context=flow_span_context,
+            # Extract span infos to send to Dask
+            span_context = trace.get_current_span().get_span_context()
+
+            dpr_processor = call_dask.ProcessorCaller(
+                caller_env=dict(os.environ),
+                span_context=span_context,
+                cluster_address=self.cluster_handler.cluster_address,
+                cluster_instance=self.cluster_handler.cluster_instance,
+                data={},  # not used for the tasktables
                 use_mockup=self.use_mockup,
+            )
+
+            # Run processor in the dask client
+            task_table_task = dask_client.submit(
+                dpr_processor.get_tasktable,
                 module_name=self.tasktable_module,
                 class_name=self.tasktable_class,
-                cluster_address=self.cluster_handler.cluster_address,
                 pure=False,  # disable cache
             )
             res = task_table_task.result()
@@ -236,24 +243,29 @@ class GenericProcessor(BaseProcessor):
             if self.use_mockup:
                 data = self.replace_placeholders(data)
 
+            # Extract span infos to send to Dask
+            span_context = trace.get_current_span().get_span_context()
+
             dpr_processor = call_dask.ProcessorCaller(
                 caller_env=dict(os.environ) if dask_client else {},
+                span_context=span_context,
+                cluster_address=self.cluster_handler.cluster_address,
+                cluster_instance=self.cluster_handler.cluster_instance,
                 data=data,
                 use_mockup=self.use_mockup,
-                cluster_address=self.cluster_handler.cluster_address,
             )
 
             # Nominal usecase: run processor in the dask client
             if dask_client:
                 dpr_task = dask_client.submit(
-                    dpr_processor.run,
+                    dpr_processor.run_processor,
                     pure=False,  # disable cache
                 )
 
             # Specific case for local debugging
             else:
                 dpr_task = None
-                res = dpr_processor.run()
+                res = dpr_processor.run_processor()
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not dask_client:

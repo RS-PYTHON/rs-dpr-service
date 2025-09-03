@@ -102,90 +102,6 @@ def upload_this_module(dask_client: DaskClient):
             logger.debug(f"Ignoring error {e}")
 
 
-def copy_caller_env(caller_env: dict[str, str], cluster_address: str):
-    """
-    Copy environment variables from the calling service environment to the dask client.
-
-    Args:
-        caller_env: os.environ coming from caller
-    """
-    local_mode = caller_env.get("RSPY_LOCAL_MODE") == "1"
-
-    # Copy env vars from the caller
-    keys = [
-        "RSPY_LOCAL_MODE",
-        "S3_ACCESSKEY",
-        "S3_SECRETKEY",
-        "S3_ENDPOINT",
-        "S3_REGION",
-        "PREFECT_BUCKET_NAME",
-        "PREFECT_BUCKET_FOLDER",
-        "AWS_REQUEST_CHECKSUM_CALCULATION",
-        "AWS_RESPONSE_CHECKSUM_VALIDATION",
-        "TEMPO_ENDPOINT",
-        "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
-        "OTEL_PYTHON_REQUESTS_TRACE_BODY",
-        "DASK_CLUSTER_INSTANCE",
-    ]
-
-    if local_mode:
-        keys.extend(
-            [
-                "LOCAL_DASK_USERNAME",
-                "LOCAL_DASK_PASSWORD",
-                "access_key",
-                "bucket_location",
-                "host_base",
-                "host_bucket",
-                "secret_key",
-            ],
-        )
-    else:
-        keys.extend(["JUPYTERHUB_API_TOKEN"])
-
-    for key in keys:
-        if value := caller_env.get(key):
-            os.environ[key] = value
-
-    os.environ["DASK_GATEWAY_ADDRESS"] = cluster_address
-
-    # Reload this module to read updated env vars
-    reload(settings)
-
-
-def dpr_tasktable_task(
-    caller_env: dict[str, str],
-    flow_span_context: SpanContext,
-    use_mockup: bool,
-    module_name: str,
-    class_name: str,
-    cluster_address: str,
-):
-    """
-    Return the DPR tasktable. This function is run from inside the dask pod.
-    """
-    # Copy env vars from the caller
-    copy_caller_env(caller_env, cluster_address)
-
-    # Init opentelemetry and record all task in an Opentelemetry span
-    init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
-    with init_opentelemetry.start_span(__name__, "main_dask_flow", flow_span_context):
-
-        if use_mockup:
-            time.sleep(1)
-            return {}
-
-        # Load the python class
-        class_ = getattr(importlib.import_module(module_name), class_name)
-
-        # Get the tasktable for default mode. See:
-        # https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
-        logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
-        default_mode = class_.get_default_mode()
-        tasktable = class_.get_tasktable_description(default_mode)
-        return tasktable
-
-
 def convert_safe_to_zarr(cfg):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
@@ -229,12 +145,23 @@ class ProcessorCaller:
     NOTE: All methods except __init__ are run from the dask pod.
     """
 
-    def __init__(self, caller_env: dict[str, str], data: dict, use_mockup: bool, cluster_address: str):
+    def __init__(
+        self,
+        caller_env: dict[str, str],
+        span_context: SpanContext,
+        cluster_address: str,
+        cluster_instance: str,
+        data: dict,
+        use_mockup: bool,
+    ):
         """
         Constructor.
 
         Attributes:
             caller_env: env variables coming from the caller
+            span_context: OpenTelemetry caller span context
+            cluster_address: Dask Gateway address
+            cluster_instance: Dask cluster instance ID
             data: data to send to the processor
             use_mockup: use the mockup or real processor
             s3: Bucket access to read/write configuration and report files
@@ -257,9 +184,11 @@ class ProcessorCaller:
         logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
 
         self.caller_env: dict = caller_env
+        self.span_context = span_context
+        self.cluster_address: str = cluster_address
+        self.cluster_instance: str = cluster_instance
         self.data: dict = data
         self.use_mockup: bool = use_mockup
-        self.cluster_address: str = cluster_address
         self.s3: Any | None = None  # AnyPath
         self.local_report_dir: str = ""
         self.s3_report_dir: str = ""
@@ -272,38 +201,118 @@ class ProcessorCaller:
         self.exec_times: list[tuple[str, float]] = []
         self.mockup_return_value: dict = {}
 
-    def run(self) -> dict:
+    def copy_caller_env(self):
         """
-        Run from the dask pod.
+        Copy environment variables from the calling service environment to the dask client.
+        This function is run from inside the dask pod.
         """
-        try:
+        local_mode = self.caller_env.get("RSPY_LOCAL_MODE") == "1"
 
-            # This should run on the dask worker
-            logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
+        # Copy env vars from the caller
+        keys = [
+            "RSPY_LOCAL_MODE",
+            "S3_ACCESSKEY",
+            "S3_SECRETKEY",
+            "S3_ENDPOINT",
+            "S3_REGION",
+            "PREFECT_BUCKET_NAME",
+            "PREFECT_BUCKET_FOLDER",
+            "AWS_REQUEST_CHECKSUM_CALCULATION",
+            "AWS_RESPONSE_CHECKSUM_VALIDATION",
+            "TEMPO_ENDPOINT",
+            "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
+            "OTEL_PYTHON_REQUESTS_TRACE_BODY",
+            "DASK_CLUSTER_INSTANCE",
+        ]
 
-            self.init()
+        if local_mode:
+            keys.extend(
+                [
+                    "LOCAL_DASK_USERNAME",
+                    "LOCAL_DASK_PASSWORD",
+                    "access_key",
+                    "bucket_location",
+                    "host_base",
+                    "host_bucket",
+                    "secret_key",
+                ],
+            )
+        else:
+            keys.extend(["JUPYTERHUB_API_TOKEN"])
 
-            start_time = time.time()
-            self.trigger()
-            self.exec_times.append(("Run processor", time.time() - start_time))
+        for key in keys:
+            if value := self.caller_env.get(key):
+                os.environ[key] = value
 
-            return self.finalize()
+        os.environ["DASK_GATEWAY_ADDRESS"] = self.cluster_address
+        os.environ["DASK_CLUSTER_INSTANCE"] = self.cluster_instance
 
-        # In all cases, run the finalize function
-        except Exception:  # pylint: disable=broad-exception-caught
+        # Reload this module to read updated env vars (local/cluster mode)
+        reload(settings)
+
+    def get_tasktable(
+        self,
+        module_name: str,
+        class_name: str,
+    ):
+        """
+        Return the DPR tasktable. This function is run from inside the dask pod.
+        """
+        # Copy env vars from the caller
+        self.copy_caller_env()
+
+        # Init opentelemetry and record all task in an Opentelemetry span
+        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
+        with init_opentelemetry.start_span(__name__, "dpr_tasktable", self.span_context):
+
+            if self.use_mockup:
+                time.sleep(1)
+                return {}
+
+            # Load the python class
+            class_ = getattr(importlib.import_module(module_name), class_name)
+
+            # Get the tasktable for default mode. See:
+            # https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
+            logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
+            default_mode = class_.get_default_mode()
+            tasktable = class_.get_tasktable_description(default_mode)
+            return tasktable
+
+    def run_processor(self) -> dict:
+        """
+        Run processor from the dask pod.
+        """
+        # Copy env vars from the caller
+        self.copy_caller_env()
+
+        # Init opentelemetry and record all task in an Opentelemetry span
+        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
+        with init_opentelemetry.start_span(__name__, "dpr_processor", self.span_context):
             try:
-                self.finalize()
+                # This should run on the dask worker
+                logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
+
+                self.init()
+
+                start_time = time.time()
+                self.trigger()
+                self.exec_times.append(("Run processor", time.time() - start_time))
+
+                return self.finalize()
+
+            # In all cases, run the finalize function
             except Exception:  # pylint: disable=broad-exception-caught
-                logger.exception(traceback.format_exc())
-            raise
+                try:
+                    self.finalize()
+                except Exception:  # pylint: disable=broad-exception-caught
+                    logger.exception(traceback.format_exc())
+                raise
 
     def init(self):
         """
         Init from the dask pod.
         """
-        # Copy env vars from the caller
-        copy_caller_env(self.caller_env, self.cluster_address)
-
         # Mockup processor
         if self.use_mockup:
             try:

@@ -30,11 +30,16 @@ logger = Logging.default(__name__)
 
 
 class DaskClusterHandler:  # pylint: disable=too-few-public-methods
-    """Class to handle connection to Dask cluster"""
+    """
+    Class to handle connection to Dask cluster.
+
+    NOTE: a new instance of this class is called for every endpoint call.
+    """
 
     def __init__(self, cluster_name: str, local_mode_address: str):
         self.cluster_name = cluster_name
         self.cluster_address = os.environ[local_mode_address] if LOCAL_MODE else os.environ["DASK_GATEWAY_ADDRESS"]
+        self.cluster_instance = ""
         self.cluster: GatewayCluster
 
     def _connect_to_cluster(self):
@@ -72,10 +77,11 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             logger.debug(f"Cluster list for gateway {self.cluster_address!r}: {clusters}")
 
             # In local mode, get the first cluster from the gateway.
-            cluster_instance = None
+            # This cluster instance id is needed by the eopf dask scheduler to connect later to this cluster.
+            # This is something like "dask-gateway.17e196069443463495547eb97f532834"
             if LOCAL_MODE:
                 if clusters:
-                    cluster_instance = clusters[0].name
+                    self.cluster_instance = clusters[0].name
 
             # In cluster mode, get the identifier of the cluster whose name is equal to the cluster_name variable.
             # Protection for the case when this cluster does not exit
@@ -88,7 +94,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                     is_equal = cluster.options.get("cluster_name") == self.cluster_name
                     logger.info(f"Is equal: {is_equal}")
 
-                cluster_instance = next(
+                self.cluster_instance = next(
                     (
                         cluster.name
                         for cluster in clusters
@@ -97,20 +103,16 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                     ),
                     None,
                 )
-                logger.info(f"Cluster id: {cluster_instance}")
+                logger.info(f"Cluster id: {self.cluster_instance}")
 
-            if not cluster_instance:
+            if not self.cluster_instance:
                 raise IndexError(f"Dask cluster with 'cluster_name'={self.cluster_name!r} was not found.")
 
-            self.cluster = gateway.connect(cluster_instance)
+            self.cluster = gateway.connect(self.cluster_instance)
             if not self.cluster:
                 logger.exception("Failed to create the cluster")
                 raise RuntimeError("Failed to create the cluster")
             logger.info(f"Successfully connected to the {self.cluster_name!r} dask cluster")
-
-            # This cluster id is needed by the eopf dask scheduler to connect later to this cluster.
-            # This is something like "dask-gateway.17e196069443463495547eb97f532834"
-            os.environ["DASK_CLUSTER_INSTANCE"] = cluster_instance
 
         except KeyError as e:
             logger.exception(
