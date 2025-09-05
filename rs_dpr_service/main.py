@@ -37,17 +37,19 @@ from starlette.status import (  # pylint: disable=C0411
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from rs_dpr_service.conversion_processor import ConversionProcessor
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors import (
-    GeneralProcessor,
+from rs_dpr_service.processors.conversion_processor import ConversionProcessor
+from rs_dpr_service.processors.eopf_processors import (
+    MockupProcessor,
+    S1ARDProcessor,
     S1L0Processor,
     S3L0Processor,
 )
+from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
 
@@ -55,11 +57,15 @@ from rs_dpr_service.utils.logging import Logging
 # DON'T REMOVE (needed for SQLAlchemy)
 from . import jobs_table  # pylint: disable=unused-import
 
-# Register all the processors
-processors: dict[str, type[GeneralProcessor]] = {
-    "S1L0_processor": S1L0Processor,
-    "S3L0_processor": S3L0Processor,
-    "Conversion_Processor": ConversionProcessor,
+# Register all the processors.
+# Keys are defined in rs-dpr-service/config/geoapi.yaml
+# Values are the Python classes.
+processors: dict[str, type[GenericProcessor]] = {
+    "conv_safe_zarr": ConversionProcessor,
+    "mockup": MockupProcessor,
+    "s1_l0": S1L0Processor,
+    "s3_l0": S3L0Processor,
+    "s1_ard": S1ARDProcessor,
 }
 
 # Initialize a FastAPI application
@@ -180,9 +186,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
 
-    # This url is needed by the eopf dask scheduler to connect later to this cluster
-    os.environ["DASK_GATEWAY_EOPF_ADDRESS"] = os.environ["DASK_GATEWAY__ADDRESS"]
-
     fastapi_app.extra["process_manager"] = process_manager
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
@@ -229,33 +232,19 @@ async def get_processes(request: Request):
 
 
 @router.get("/dpr/processes/{resource}")
-async def get_resource(request: Request, resource: str):
+async def get_resource(resource: str):
     """Should return info about a specific resource."""
     with init_opentelemetry.start_span(__name__, "tasktable"):
 
-        if resource_info := next(  # pylint: disable=W0612 # noqa: F841
-            (
-                api.config["resources"][defined_resource]
-                for defined_resource in api.config["resources"]
-                if defined_resource == resource
-            ),
-            None,
-        ):
-            try:
-                data = (await request.json()) or {}
-            except Exception:  # pylint: disable=broad-exception-caught
-                data = {}
-            processor_name = api.config["resources"][resource]["processor"]["name"]
-            if processor_name in processors:
-                processor = processors[processor_name]
-                task_table = await processor(  # type: ignore
-                    request,
-                    app.extra["process_manager"],
-                    # app.extra["dask_cluster"],
-                ).get_tasktable(data)
+        # Check that the input resource exists
+        if resource not in api.config["resources"]:
+            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
 
-                return JSONResponse(status_code=HTTP_200_OK, content=task_table)
-        return ogc_error_response(HTTP_404_NOT_FOUND, f"Resource {resource} not found")
+        processor_name = api.config["resources"][resource]["processor"]["name"]
+        if processor_name in processors:
+            processor_type = processors[processor_name]
+            task_table = await processor_type(app.extra["process_manager"]).get_tasktable()
+            return JSONResponse(status_code=HTTP_200_OK, content=task_table)
 
 
 def format_job_data(job: dict):
@@ -331,9 +320,9 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 
     with init_opentelemetry.start_span(__name__, "processor"):
 
-        # check if the input resource exists
+        # Check that the input resource exists
         if resource not in api.config["resources"]:
-            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process resource '{resource}' not found")
+            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
 
         # Validate request payload
         try:
@@ -344,12 +333,10 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processors:
-            processor = processors[processor_name]
-            _, dpr_status = await processor(  # type: ignore
-                request,
-                app.extra["process_manager"],
-                # app.extra["dask_cluster"],
-            ).execute(valid_body)
+            processor_type = processors[processor_name]
+            _, dpr_status = await processor_type(app.extra["process_manager"]).execute(  # type: ignore
+                valid_body,
+            )
 
             # Get identifier of the current job
             status_dict = {

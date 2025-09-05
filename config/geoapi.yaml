@@ -47,15 +47,23 @@ resources:
   conv_safe_zarr:
     type: process
     processor:
-      name: Conversion_Processor
+      name: conv_safe_zarr
+  mockup:
+    type: process
+    processor:
+      name: mockup
   s1_l0:
     type: process
     processor:
-      name: S1L0_processor
+      name: s1_l0
   s3_l0:
     type: process
     processor:
-      name: S3L0_processor
+      name: s3_l0
+  s1_ard:
+    type: process
+    processor:
+      name: s1_ard
 
 openapi:
   path: # not used

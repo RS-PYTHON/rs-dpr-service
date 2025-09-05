@@ -22,24 +22,27 @@ from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
 )
 from pygeoapi.util import JobStatus
-from starlette.requests import Request
 
-from rs_dpr_service.call_dask import convert_safe_to_zarr
-from rs_dpr_service.processors import GeneralProcessor
+from rs_dpr_service.dask.call_dask import convert_safe_to_zarr
+from rs_dpr_service.processors.generic_processor import GenericProcessor
+from rs_dpr_service.utils.logging import Logging
+
+logger = Logging.default(__name__)
 
 
-class ConversionProcessor(GeneralProcessor):
+class ConversionProcessor(GenericProcessor):
     """Runs an legacy product (safe format) conversion into new zarr format as a Dask job via subprocess."""
 
-    def __init__(
-        self,
-        credentials: Request,
-        db_process_manager: PostgreSQLManager,
-    ):
+    def __init__(self, db_process_manager: PostgreSQLManager):
         """
         Initialize Conversion Processor
         """
-        super().__init__(credentials, db_process_manager, "ConversionProcessor")
+        super().__init__(
+            db_process_manager=db_process_manager,
+            # Use any eopf processor
+            cluster_name=os.environ["RSPY_DASK_L0_CLUSTER_NAME"],
+            local_mode_address="DASK_GATEWAY_L0_ADDRESS",
+        )
 
     def _check_s3_config(self):
         """Validate the S3 bucket credentials."""
@@ -107,9 +110,9 @@ class ConversionProcessor(GeneralProcessor):
             self._check_write_permission(s3_fs, data["output_zarr_dir_path"])
         except Exception as e:  # pylint: disable=broad-exception-caught
             msg = str(e)
-            self.logger.error(f"Conversion failed: {msg}")
-            self.log_job_execution(JobStatus.failed, None, msg)
-            return self._get_execute_result()
+            logger.error(f"Conversion failed: {msg}")
+            self.job_logger.log_job_execution(JobStatus.failed, None, msg)
+            return self.job_logger.get_execute_result()
 
         # Start execution
         return await super().execute(data, outputs)
@@ -122,7 +125,7 @@ class ConversionProcessor(GeneralProcessor):
             raise RuntimeError("Dask client is undefined")
 
         # Log start
-        self.log_job_execution(JobStatus.running, 5, "Preparing conversion")
+        self.job_logger.log_job_execution(JobStatus.running, 5, "Preparing conversion")
         try:
             # extract input parameter values
             safe_uri = data.get("input_safe_path")
@@ -138,13 +141,13 @@ class ConversionProcessor(GeneralProcessor):
                 "zarr_s3_config": data.get("zarr_s3_config", {}),
             }
             future = dask_client.submit(convert_safe_to_zarr, cfg)
-            self.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
+            self.job_logger.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
             # wait for result
             res = future.result()
-            self.log_job_execution(JobStatus.successful, 100, res)
+            self.job_logger.log_job_execution(JobStatus.successful, 100, res)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            self.logger.error(f"Conversion failed: {e}")
-            self.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
+            logger.error(f"Conversion failed: {e}")
+            self.job_logger.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
         finally:
             dask_client.close()
