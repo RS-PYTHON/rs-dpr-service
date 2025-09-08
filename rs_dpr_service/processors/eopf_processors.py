@@ -83,7 +83,9 @@ class S1ARDProcessor(GenericProcessor):
         super().__init__(
             db_process_manager=db_process_manager,
             cluster_name=os.environ["RSPY_DASK_S1ARD_CLUSTER_NAME"],
-            local_mode_address="DASK_GATEWAY_S1ARD_PUBLIC",
+            local_mode_address="DASK_GATEWAY_S1ARD_ADDRESS",
             tasktable_module="s1_l12_rp.computing.ard_processing_units",
-            tasktable_class="S1ARDProcessor",
+            # NOTE: not implemented for now... and maybe we should be able to return the
+            # tasktable for each different processing: Calibration, ReferenceDEM, ReferenceGeometry, ...
+            tasktable_class="Calibration",
         )

@@ -250,6 +250,29 @@ class ProcessorCaller:
         # Reload this module to read updated env vars (local/cluster mode)
         reload(settings)
 
+        # Init AWS env
+        self.set_aws_env()
+
+    def set_aws_env(self):
+        """Init the AWS environment variables from the bucket credentials."""
+
+        # In local mode, the env vars are read from the ~/.s3cfg
+        # config file, that contains access to the "real" s3 bucket
+        if settings.LOCAL_MODE:
+            os.environ["AWS_ACCESS_KEY_ID"] = os.environ["access_key"]
+            os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["secret_key"]
+            os.environ["AWS_ENDPOINT_URL_S3"] = os.environ["host_bucket"]
+            os.environ["AWS_DEFAULT_REGION"] = os.environ["bucket_location"]
+
+        # In cluster mode, just use the "real" s3 bucket
+        else:
+            os.environ["AWS_ACCESS_KEY_ID"] = os.environ["S3_ACCESSKEY"]
+            os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["S3_SECRETKEY"]
+            os.environ["AWS_ENDPOINT_URL_S3"] = os.environ["S3_ENDPOINT"]
+            os.environ["AWS_DEFAULT_REGION"] = os.environ["S3_REGION"]
+
+        os.environ["AWS_DEFAULT_OUTPUT"] = "json"
+
     def get_tasktable(
         self,
         module_name: str,
@@ -379,6 +402,20 @@ class ProcessorCaller:
         with open(payload_file, encoding="utf-8") as opened:
             self.payload_contents = yaml.safe_load(opened)
             logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(self.payload_contents, indent=2)}")
+
+            # logging configuration file
+            log_conf_file = self.payload_contents.get("logging")
+
+        # Patch the log config to set "disable_existing_loggers" to False else the logs are disabled.
+        # This is a workaround for https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/837
+        if log_conf_file:
+            log_conf_file = osp.join(payload_dir, log_conf_file)
+            logger.warning(f"Patching logging configuration to use 'disable_existing_loggers=False': {log_conf_file!r}")
+            with open(log_conf_file, encoding="utf-8") as opened:
+                log_conf_contents = yaml.safe_load(opened)
+                log_conf_contents["disable_existing_loggers"] = False
+            with open(log_conf_file, "w+", encoding="utf-8") as opened:
+                opened.write(yaml.safe_dump(log_conf_contents))
 
         self.command = ["eopf", "trigger", "local", payload_file]
 
