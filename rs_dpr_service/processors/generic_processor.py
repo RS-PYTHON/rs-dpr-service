@@ -247,7 +247,7 @@ class GenericProcessor(BaseProcessor):
             span_context = trace.get_current_span().get_span_context()
 
             dpr_processor = call_dask.ProcessorCaller(
-                caller_env=dict(os.environ) if dask_client else {},
+                caller_env=dict(os.environ),
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
                 cluster_instance=self.cluster_handler.cluster_instance,
@@ -269,6 +269,7 @@ class GenericProcessor(BaseProcessor):
 
         except Exception:  # pylint: disable=broad-exception-caught
             if not dask_client:
+                logger.exception(traceback.format_exc())
                 raise
             self.job_logger.log_job_execution(
                 JobStatus.failed,
