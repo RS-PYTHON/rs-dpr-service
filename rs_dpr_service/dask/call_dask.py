@@ -273,6 +273,19 @@ class ProcessorCaller:
 
         os.environ["AWS_DEFAULT_OUTPUT"] = "json"
 
+    def hide_secrets(self, log: str) -> str:
+        """The logs print secrets in clear e.g 'key': '<my-secret>'... so we hide them with a regex"""
+        for key in (
+            "key",
+            "secret",
+            "endpoint_url",
+            "region_name",
+            "api_token",
+            "password",
+        ):
+            log = re.sub(rf"""(['"]{key}['"])\s*:\s*['"][^'"]*['"]""", r"\1: ***", log)
+        return log
+
     def get_tasktable(
         self,
         module_name: str,
@@ -401,7 +414,8 @@ class ProcessorCaller:
         # Display the payload file contents in the log
         with open(payload_file, encoding="utf-8") as opened:
             self.payload_contents = yaml.safe_load(opened)
-            logger.debug(f"Payload file contents: {payload_file!r}\n{json.dumps(self.payload_contents, indent=2)}")
+            dumped = self.hide_secrets(json.dumps(self.payload_contents, indent=2))
+            logger.debug(f"Payload file contents: {payload_file!r}\n{dumped}")
 
             # logging configuration file
             log_conf_file = self.payload_contents.get("logging")
@@ -558,16 +572,8 @@ class ProcessorCaller:
             with open(self.log_path, "w+", encoding="utf-8") as log_file:
                 while proc.stdout and (line := proc.stdout.readline()) != "":
 
-                    # The log prints password in clear e.g 'key': '<my-secret>'... hide them with a regex
-                    for key in (
-                        "key",
-                        "secret",
-                        "endpoint_url",
-                        "region_name",
-                        "api_token",
-                        "password",
-                    ):
-                        line = re.sub(rf"(\W{key}\W)[^,}}]*", r"\1: ***", line)
+                    # Hide secrets from logs
+                    line = self.hide_secrets(line)
 
                     # Write to log file and string
                     log_file.write(line)
