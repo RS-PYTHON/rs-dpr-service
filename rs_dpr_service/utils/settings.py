@@ -44,13 +44,13 @@ class ExperimentalConfig(BaseModel):
         #
         # Dask LocalCluster configuration, see: https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster
 
-        # Number of workers to start. Default is CPU_COUNT.
+        # Number of workers (=processes) to start. Default is CPU_COUNT.
         n_workers: int | None = None
 
-        # Sets the memory limit *per worker*
+        # Sets the memory limit *per worker (=process)*
         memory_limit: str | float | int | None = "auto"
 
-        # Number of threads per each worker.
+        # Number of threads per each worker (=process).
         # Should always be 1 because the processors are not thread-safe.
         threads_per_worker: int = 1
 
