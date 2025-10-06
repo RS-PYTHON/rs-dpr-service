@@ -15,6 +15,8 @@
 """Module to handle connection to Dask cluster."""
 
 import os
+from dataclasses import dataclass
+from typing import Optional
 
 from dask.distributed import (  # LocalCluster,
     Client,
@@ -29,6 +31,23 @@ from rs_dpr_service.utils.settings import LOCAL_MODE, set_dask_env
 logger = Logging.default(__name__)
 
 
+@dataclass
+class ClusterInfo:
+    """
+    Information to connect to a DPR Dask cluster.
+
+    Attributes:
+        jupyter_token: JupyterHub API token. Only used in cluster mode, not local mode.
+        cluster_label: Dask cluster label e.g. "dask-l0"
+        cluster_instance: Dask cluster instance ID (something like "dask-gateway.17e196069443463495547eb97f532834").
+        If instance is empty, the DPR processor will use the first cluster with the given label.
+    """
+
+    jupyter_token: str
+    cluster_label: str
+    cluster_instance: str | None = ""
+
+
 class DaskClusterHandler:  # pylint: disable=too-few-public-methods
     """
     Class to handle connection to Dask cluster.
@@ -36,10 +55,9 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
     NOTE: a new instance of this class is called for every endpoint call.
     """
 
-    def __init__(self, cluster_name: str, local_mode_address: str):
-        self.cluster_name = cluster_name
+    def __init__(self, cluster_info: ClusterInfo, local_mode_address: str):
+        self.cluster_info = cluster_info
         self.cluster_address = os.environ[local_mode_address] if LOCAL_MODE else os.environ["DASK_GATEWAY_ADDRESS"]
-        self.cluster_instance = ""
         self.cluster: GatewayCluster
 
     def _connect_to_cluster(self):
@@ -47,6 +65,8 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         Handles the first part of setup_dask_connection.
         See there for details.
         """
+        cluster_label = self.cluster_info.cluster_label
+
         # Connect to the gateway and get the list of the clusters
         try:
             # In local mode, authenticate to the dask cluster with username/password
@@ -62,7 +82,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                 auth_type = os.environ["DASK_GATEWAY__AUTH__TYPE"]
                 # Handle JupyterHub authentication
                 if auth_type == "jupyterhub":
-                    gateway_auth = JupyterHubAuth(api_token=os.environ["JUPYTERHUB_API_TOKEN"])
+                    gateway_auth = JupyterHubAuth(api_token=self.cluster_info.jupyter_token)
                 else:
                     logger.error(f"Unsupported authentication type: {auth_type}")
                     raise RuntimeError(f"Unsupported authentication type: {auth_type}")
@@ -76,50 +96,52 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             clusters = sorted(gateway.list_clusters(), key=lambda cluster: cluster.start_time, reverse=True)
             logger.debug(f"Cluster list for gateway {self.cluster_address!r}: {clusters}")
 
-            # In local mode, get the first cluster from the gateway.
-            # This cluster instance id is needed by the eopf dask scheduler to connect later to this cluster.
-            # This is something like "dask-gateway.17e196069443463495547eb97f532834"
-            if LOCAL_MODE:
-                if clusters:
-                    self.cluster_instance = clusters[0].name
+            # We need to find the cluster instance, if it is not set in the input info
+            if not self.cluster_info.cluster_instance:
 
-            # In cluster mode, get the identifier of the cluster whose name is equal to the cluster_name variable.
-            # Protection for the case when this cluster does not exit
-            else:
-                logger.info(f"my cluster name: {self.cluster_name}")
+                # In local mode, get the first cluster from the gateway.
+                # This cluster instance id is needed by the eopf dask scheduler to connect later to this cluster.
+                # This is something like "dask-gateway.17e196069443463495547eb97f532834"
+                if LOCAL_MODE:
+                    if clusters:
+                        self.cluster_info.cluster_instance = clusters[0].name
 
-                for cluster in clusters:
-                    logger.info(f"Existing cluster names: {cluster.options.get('cluster_name')}")
+                # In cluster mode, get the instance of the cluster identified by its label.
+                else:
+                    logger.info(f"Cluster label: {cluster_label}")
 
-                    is_equal = cluster.options.get("cluster_name") == self.cluster_name
-                    logger.info(f"Is equal: {is_equal}")
+                    for cluster in clusters:
+                        logger.info(f"Existing cluster labels: {cluster.options.get('cluster_name')}")
 
-                self.cluster_instance = next(
-                    (
-                        cluster.name
-                        for cluster in clusters
-                        if isinstance(cluster.options, dict)
-                        and cluster.options.get("cluster_name") == self.cluster_name
-                    ),
-                    "",
-                )
-                logger.info(f"Cluster id: {self.cluster_instance}")
+                        is_equal = cluster.options.get("cluster_name") == cluster_label
+                        logger.info(f"Is equal: {is_equal}")
 
-            if not self.cluster_instance:
-                raise IndexError(f"Dask cluster with 'cluster_name'={self.cluster_name!r} was not found.")
+                    self.cluster_info.cluster_instance = next(
+                        (
+                            cluster.name
+                            for cluster in clusters
+                            if isinstance(cluster.options, dict)
+                            and cluster.options.get("cluster_name") == cluster_label
+                        ),
+                        "",
+                    )
+                    logger.info(f"Cluster instance: {self.cluster_info.cluster_instance}")
 
-            self.cluster = gateway.connect(self.cluster_instance)
+                if not self.cluster_info.cluster_instance:
+                    raise IndexError(f"Dask cluster with 'cluster_name'={cluster_label!r} was not found.")
+
+            self.cluster = gateway.connect(self.cluster_info.cluster_instance)
             if not self.cluster:
                 logger.exception("Failed to create the cluster")
                 raise RuntimeError("Failed to create the cluster")
-            logger.info(f"Successfully connected to the {self.cluster_name!r} dask cluster")
+            logger.info(f"Successfully connected to the {cluster_label!r} dask cluster")
 
         except KeyError as e:
             logger.exception(
                 "Failed to retrieve the required connection details for "
                 "the Dask Gateway from one or more of the following environment variables: "
                 "DASK_GATEWAY_ADDRESS, RSPY_DASK_DPR_SERVICE_CLUSTER_NAME, "
-                f"JUPYTERHUB_API_TOKEN, DASK_GATEWAY__AUTH__TYPE. {e}",
+                f"DASK_GATEWAY__AUTH__TYPE. {e}",
             )
 
             raise RuntimeError(
@@ -127,7 +149,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             ) from e
         except IndexError as e:
             logger.exception(f"Failed to find the specified dask cluster: {e}")
-            raise RuntimeError(f"No dask cluster named {self.cluster_name!r} was found.") from e
+            raise RuntimeError(f"No dask cluster named {cluster_label!r} was found.") from e
 
     def setup_dask_connection(self) -> Client:
         """Connects a dask cluster scheduler
@@ -149,7 +171,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             RuntimeError: Raised if the cluster name is None, required environment variables are missing,
                         cluster creation fails or authentication errors occur.
             KeyError: Raised if the necessary Dask Gateway environment variables (`DASK_GATEWAY_ADDRESS`,
-                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME`, `JUPYTERHUB_API_TOKEN` ) are not set.
+                `DASK_GATEWAY__AUTH__TYPE`, `RSPY_DASK_DPR_SERVICE_CLUSTER_NAME` ) are not set.
             IndexError: Raised if no clusters are found in the Dask Gateway and new cluster creation is attempted.
             dask_gateway.exceptions.GatewayServerError: Raised when there is a server-side error in Dask Gateway.
             dask_gateway.exceptions.AuthenticationError: Raised if authentication to the Dask Gateway fails.
