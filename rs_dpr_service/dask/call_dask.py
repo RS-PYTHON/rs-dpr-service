@@ -442,13 +442,20 @@ class ProcessorCaller:
         with open(payload_file, "w+", encoding="utf-8") as opened:
             opened.write(yaml.safe_dump(payload_contents))
 
-        # Display the payload file contents in the log
+        # Display the payload file contents in the log and log file
         with open(payload_file, encoding="utf-8") as opened:
+
             self.payload_contents = yaml.safe_load(opened)
             dumped = self.hide_secrets(json.dumps(self.payload_contents, indent=2))
-            logger.debug(f"Payload file contents: {payload_file!r}\n{dumped}")
+            message = f"Dask cluster label: {self.cluster_info.cluster_label!r}\n"
+            message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
-            # logging configuration file
+            logger.debug(message)
+
+            with open(self.log_path, "w", encoding="utf-8") as log_file:
+                log_file.write(message)
+
+            # Get logging configuration file
             log_conf_file = self.payload_contents.get("logging")
 
         # Patch the log config to set "disable_existing_loggers" to False else the logs are disabled.
@@ -628,7 +635,7 @@ class ProcessorCaller:
             log_str = ""
 
             # Write output to a log file and string + redirect to the prefect logger
-            with open(self.log_path, "w+", encoding="utf-8") as log_file:
+            with open(self.log_path, "a", encoding="utf-8") as log_file:
                 while proc.stdout and (line := proc.stdout.readline()) != "":
 
                     # Hide secrets from logs

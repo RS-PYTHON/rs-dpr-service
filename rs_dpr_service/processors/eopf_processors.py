@@ -17,8 +17,6 @@ Implementation of EOPF processors based on GenericProcessor.
 Processors: S1L0, S3L0, S1ARD.
 """
 
-import os
-
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 
 from rs_dpr_service.dask.call_dask import ClusterInfo
