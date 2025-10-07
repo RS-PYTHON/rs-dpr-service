@@ -17,11 +17,20 @@ Implementation of EOPF processors based on GenericProcessor.
 Processors: S1L0, S3L0, S1ARD.
 """
 
+import json
 import os
+from pathlib import Path
 
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 
 from rs_dpr_service.processors.generic_processor import GenericProcessor
+
+CONFIG_DIR = Path(__file__).parent.parent / "config"
+
+
+def _load_tasktable(filename: str) -> dict:
+    with open(CONFIG_DIR / filename, encoding="utf-8") as f:
+        return json.load(f)
 
 
 class MockupProcessor(GenericProcessor):
@@ -56,6 +65,12 @@ class S1L0Processor(GenericProcessor):
             tasktable_class="S1L0Processor",
         )
 
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        if getattr(self, "use_mockup", False):
+            return _load_tasktable("TaskTable_S1_L0_generated_by_rs_python_v1.json")
+        return await super().get_tasktable()
+
 
 class S3L0Processor(GenericProcessor):
     """S3L0 Processor implementation"""
@@ -71,6 +86,12 @@ class S3L0Processor(GenericProcessor):
             tasktable_module="l0.s3.s3_l0_processor",
             tasktable_class="S3L0Processor",
         )
+
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        if getattr(self, "use_mockup", False):
+            return _load_tasktable("TaskTable_S3_L0_generated_by_rs_python_v1.json")
+        return await super().get_tasktable()
 
 
 class S1ARDProcessor(GenericProcessor):
@@ -89,3 +110,9 @@ class S1ARDProcessor(GenericProcessor):
             # tasktable for each different processing: Calibration, ReferenceDEM, ReferenceGeometry, ...
             tasktable_class="Calibration",
         )
+
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        if getattr(self, "use_mockup", False):
+            return _load_tasktable("TaskTable_S1_ARD_generated_by_rs_python_v1.json")
+        return await super().get_tasktable()
