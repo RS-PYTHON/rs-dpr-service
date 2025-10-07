@@ -37,7 +37,7 @@ from starlette.status import (  # pylint: disable=C0411
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
-from rs_dpr_service.dask.dask_cluster_handler import ClusterInfo
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,

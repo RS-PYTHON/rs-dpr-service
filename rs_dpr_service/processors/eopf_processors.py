@@ -21,7 +21,7 @@ import os
 
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 
-from rs_dpr_service.dask.dask_cluster_handler import ClusterInfo
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 

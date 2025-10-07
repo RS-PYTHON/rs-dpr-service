@@ -31,7 +31,8 @@ from pygeoapi.process.manager.postgresql import (
 from pygeoapi.util import JobStatus
 
 from rs_dpr_service.dask import call_dask
-from rs_dpr_service.dask.dask_cluster_handler import ClusterInfo, DaskClusterHandler
+from rs_dpr_service.dask.call_dask import ClusterInfo
+from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import LOCAL_MODE, ExperimentalConfig
@@ -104,7 +105,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=dict(os.environ),
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
-                cluster_instance=self.cluster_handler.cluster_info.cluster_instance,
+                cluster_info=self.cluster_handler.cluster_info,
                 data={},  # not used for the tasktables
                 use_mockup=self.use_mockup,
             )
@@ -250,7 +251,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=dict(os.environ),
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
-                cluster_instance=self.cluster_handler.cluster_info.cluster_instance,
+                cluster_info=self.cluster_handler.cluster_info,
                 data=data,
                 use_mockup=self.use_mockup,
             )

@@ -15,8 +15,6 @@
 """Module to handle connection to Dask cluster."""
 
 import os
-from dataclasses import dataclass
-from typing import Optional
 
 from dask.distributed import (  # LocalCluster,
     Client,
@@ -25,27 +23,11 @@ from dask_gateway import Gateway, GatewayCluster
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
 
 from rs_dpr_service.dask import call_dask
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import LOCAL_MODE, set_dask_env
 
 logger = Logging.default(__name__)
-
-
-@dataclass
-class ClusterInfo:
-    """
-    Information to connect to a DPR Dask cluster.
-
-    Attributes:
-        jupyter_token: JupyterHub API token. Only used in cluster mode, not local mode.
-        cluster_label: Dask cluster label e.g. "dask-l0"
-        cluster_instance: Dask cluster instance ID (something like "dask-gateway.17e196069443463495547eb97f532834").
-        If instance is empty, the DPR processor will use the first cluster with the given label.
-    """
-
-    jupyter_token: str
-    cluster_label: str
-    cluster_instance: str | None = ""
 
 
 class DaskClusterHandler:  # pylint: disable=too-few-public-methods
