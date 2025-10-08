@@ -23,7 +23,7 @@ from pygeoapi.process.manager.postgresql import (
 )
 from pygeoapi.util import JobStatus
 
-from rs_dpr_service.dask.call_dask import convert_safe_to_zarr
+from rs_dpr_service.dask.call_dask import ClusterInfo, convert_safe_to_zarr
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.logging import Logging
 
@@ -33,14 +33,13 @@ logger = Logging.default(__name__)
 class ConversionProcessor(GenericProcessor):
     """Runs an legacy product (safe format) conversion into new zarr format as a Dask job via subprocess."""
 
-    def __init__(self, db_process_manager: PostgreSQLManager):
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize Conversion Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
-            # Use any eopf processor
-            cluster_name=os.environ["RSPY_DASK_L0_CLUSTER_NAME"],
+            cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_L0_ADDRESS",
         )
 

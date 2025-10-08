@@ -31,6 +31,7 @@ import tempfile
 import time
 import traceback
 import zipfile
+from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
 from pathlib import Path
@@ -102,6 +103,23 @@ def upload_this_module(dask_client: DaskClient):
             logger.debug(f"Ignoring error {e}")
 
 
+@dataclass
+class ClusterInfo:
+    """
+    Information to connect to a DPR Dask cluster.
+
+    Attributes:
+        jupyter_token: JupyterHub API token. Only used in cluster mode, not local mode.
+        cluster_label: Dask cluster label e.g. "dask-l0"
+        cluster_instance: Dask cluster instance ID (something like "dask-gateway.17e196069443463495547eb97f532834").
+        If instance is empty, the DPR processor will use the first cluster with the given label.
+    """
+
+    jupyter_token: str
+    cluster_label: str
+    cluster_instance: str | None = ""
+
+
 def convert_safe_to_zarr(cfg):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
@@ -150,7 +168,7 @@ class ProcessorCaller:
         caller_env: dict[str, str],
         span_context: SpanContext,
         cluster_address: str,
-        cluster_instance: str,
+        cluster_info: ClusterInfo,
         data: dict,
         use_mockup: bool,
     ):
@@ -161,7 +179,7 @@ class ProcessorCaller:
             caller_env: env variables coming from the caller
             span_context: OpenTelemetry caller span context
             cluster_address: Dask Gateway address
-            cluster_instance: Dask cluster instance ID
+            cluster_info: Information to connect to a DPR Dask cluster.
             data: data to send to the processor
             use_mockup: use the mockup or real processor
             s3: Bucket access to read/write configuration and report files
@@ -186,7 +204,7 @@ class ProcessorCaller:
         self.caller_env: dict = caller_env
         self.span_context = span_context
         self.cluster_address: str = cluster_address
-        self.cluster_instance: str = cluster_instance
+        self.cluster_info: ClusterInfo = cluster_info
         self.data: dict = data
         self.use_mockup: bool = use_mockup
         self.s3: Any | None = None  # AnyPath
@@ -222,7 +240,6 @@ class ProcessorCaller:
             "TEMPO_ENDPOINT",
             "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
             "OTEL_PYTHON_REQUESTS_TRACE_BODY",
-            "DASK_CLUSTER_INSTANCE",
         ]
 
         if local_mode:
@@ -237,15 +254,10 @@ class ProcessorCaller:
                     "secret_key",
                 ],
             )
-        else:
-            keys.extend(["JUPYTERHUB_API_TOKEN"])
 
         for key in keys:
             if value := self.caller_env.get(key):
                 os.environ[key] = value
-
-        os.environ["DASK_GATEWAY_ADDRESS"] = self.cluster_address
-        os.environ["DASK_CLUSTER_INSTANCE"] = self.cluster_instance
 
         # Reload this module to read updated env vars (local/cluster mode)
         reload(settings)
@@ -408,16 +420,42 @@ class ProcessorCaller:
         shutil.rmtree(self.local_report_dir, ignore_errors=True)
         os.makedirs(self.local_report_dir, exist_ok=True)
 
-        # Handle the experimental configuration
-        self.handle_experimental_config(payload_file)
+        # Customize the payload file values
+        self.customize_payload_file(payload_dir, payload_file)
 
-        # Display the payload file contents in the log
+        self.command = ["eopf", "trigger", "local", payload_file]
+
+    def customize_payload_file(self, payload_dir: str, payload_file: str):
+        """Customize the payload file values"""
+
+        # Read the payload file contents
         with open(payload_file, encoding="utf-8") as opened:
+            payload_contents = yaml.safe_load(opened)
+
+        # Write the Dask context configuration in the payload file.
+        self.write_dask_context(payload_contents)
+
+        # Handle the experimental configuration
+        self.handle_experimental_config(payload_contents)
+
+        # Write the payload contents back to the file
+        with open(payload_file, "w+", encoding="utf-8") as opened:
+            opened.write(yaml.safe_dump(payload_contents))
+
+        # Display the payload file contents in the log and log file
+        with open(payload_file, encoding="utf-8") as opened:
+
             self.payload_contents = yaml.safe_load(opened)
             dumped = self.hide_secrets(json.dumps(self.payload_contents, indent=2))
-            logger.debug(f"Payload file contents: {payload_file!r}\n{dumped}")
+            message = f"Dask cluster label: {self.cluster_info.cluster_label!r}\n"
+            message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
-            # logging configuration file
+            logger.debug(message)
+
+            with open(self.log_path, "w", encoding="utf-8") as log_file:
+                log_file.write(message)
+
+            # Get logging configuration file
             log_conf_file = self.payload_contents.get("logging")
 
         # Patch the log config to set "disable_existing_loggers" to False else the logs are disabled.
@@ -431,19 +469,51 @@ class ProcessorCaller:
             with open(log_conf_file, "w+", encoding="utf-8") as opened:
                 opened.write(yaml.safe_dump(log_conf_contents))
 
-        self.command = ["eopf", "trigger", "local", payload_file]
+    def write_dask_context(self, payload_contents: dict):
+        """
+        Write the Dask context configuration in the payload file.
+        This Dask context is used by EOPF to connect to the Dask cluster.
 
-    def handle_experimental_config(self, payload_file: str):
+        NOTE: rs-dpr-service connects to the Dask cluster, then submits an EOPF triggering to this cluster.
+        Then EOPF reads the Dask context from the payload file to submit the DPR processor run to this cluster.
+
+        We need to make sure that rs-dpr-service and EOPF use the same cluster.
+
+        So it's safer that rs-dpr-service writes the Dask context in the payload file with the same configuration
+        that is used to submit the EOPF triggering.
+        """
+        if settings.LOCAL_MODE:
+            auth = {
+                "type": "basic",
+                "username": os.environ["LOCAL_DASK_USERNAME"],
+                "password": os.environ["LOCAL_DASK_PASSWORD"],
+            }
+        else:  # cluster mode
+            auth = {
+                "type": "jupyterhub",
+                "api_token": self.cluster_info.jupyter_token,
+            }
+
+        payload_contents.update(
+            {
+                "dask_context": {
+                    "cluster_type": "gateway",
+                    "cluster_config": {
+                        "address": self.cluster_address,
+                        "reuse_cluster": self.cluster_info.cluster_instance,
+                        "auth": auth,
+                    },
+                },
+            },
+        )
+
+    def handle_experimental_config(self, payload_contents: dict):
         """Handle the experimental configuration"""
 
         # Check if an experimental configuraition is set (only for testing)
         self.experimental_config = ExperimentalConfig(**self.data.get("experimental_config", {}))
         if self.experimental_config == ExperimentalConfig():
             return
-
-        # Read the payload file contents
-        with open(payload_file, encoding="utf-8") as opened:
-            payload_contents = yaml.safe_load(opened)
 
         # Hard replace the dask gateway configuration with a LocalCluster
         if self.experimental_config.local_cluster.enabled and (dask_context := payload_contents.get("dask_context")):
@@ -467,10 +537,6 @@ class ProcessorCaller:
                 for product in io_value:
                     self.handle_local_product(io_key, product)
             self.exec_times.append(("Download input files", time.time() - start_time))
-
-        # Write the payload contents back to the file
-        with open(payload_file, "w+", encoding="utf-8") as opened:
-            opened.write(yaml.safe_dump(payload_contents))
 
     def handle_local_product(self, io_key: str, original_product: dict):
         """Handle local products for the experimental configuration"""
@@ -569,7 +635,7 @@ class ProcessorCaller:
             log_str = ""
 
             # Write output to a log file and string + redirect to the prefect logger
-            with open(self.log_path, "w+", encoding="utf-8") as log_file:
+            with open(self.log_path, "a", encoding="utf-8") as log_file:
                 while proc.stdout and (line := proc.stdout.readline()) != "":
 
                     # Hide secrets from logs

@@ -31,6 +31,7 @@ from pygeoapi.process.manager.postgresql import (
 from pygeoapi.util import JobStatus
 
 from rs_dpr_service.dask import call_dask
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
@@ -49,7 +50,7 @@ class GenericProcessor(BaseProcessor):
     def __init__(
         self,
         db_process_manager: PostgreSQLManager,
-        cluster_name: str = "",
+        cluster_info: ClusterInfo,
         local_mode_address: str = "",
         tasktable_module: str = "",
         tasktable_class: str = "",
@@ -58,7 +59,7 @@ class GenericProcessor(BaseProcessor):
         self.tasktable_module = tasktable_module
         self.tasktable_class = tasktable_class
         self.job_logger = JobLogger(db_process_manager)
-        self.cluster_handler = DaskClusterHandler(cluster_name, local_mode_address)
+        self.cluster_handler = DaskClusterHandler(cluster_info, local_mode_address)
 
     def replace_placeholders(self, obj):
         """
@@ -104,7 +105,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=dict(os.environ),
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
-                cluster_instance=self.cluster_handler.cluster_instance,
+                cluster_info=self.cluster_handler.cluster_info,
                 data={},  # not used for the tasktables
                 use_mockup=self.use_mockup,
             )
@@ -250,7 +251,7 @@ class GenericProcessor(BaseProcessor):
                 caller_env=dict(os.environ),
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
-                cluster_instance=self.cluster_handler.cluster_instance,
+                cluster_info=self.cluster_handler.cluster_info,
                 data=data,
                 use_mockup=self.use_mockup,
             )

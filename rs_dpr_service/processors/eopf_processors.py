@@ -18,11 +18,11 @@ Processors: S1L0, S3L0, S1ARD.
 """
 
 import json
-import os
 from pathlib import Path
 
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
@@ -36,13 +36,13 @@ def _load_tasktable(filename: str) -> dict:
 class MockupProcessor(GenericProcessor):
     """Mockup Processor implementation"""
 
-    def __init__(self, db_process_manager: PostgreSQLManager):
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize S1L0Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
-            cluster_name=os.environ["RSPY_DASK_MOCKUP_CLUSTER_NAME"],
+            cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_EOPF_MOCKUP_ADDRESS",
             tasktable_module="",
             tasktable_class="",
@@ -53,13 +53,13 @@ class MockupProcessor(GenericProcessor):
 class S1L0Processor(GenericProcessor):
     """S1L0 Processor implementation"""
 
-    def __init__(self, db_process_manager: PostgreSQLManager):
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize S1L0Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
-            cluster_name=os.environ["RSPY_DASK_L0_CLUSTER_NAME"],
+            cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_L0_ADDRESS",
             tasktable_module="l0.s1.s1_l0_processor",
             tasktable_class="S1L0Processor",
@@ -75,13 +75,13 @@ class S1L0Processor(GenericProcessor):
 class S3L0Processor(GenericProcessor):
     """S3L0 Processor implementation"""
 
-    def __init__(self, db_process_manager: PostgreSQLManager):
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize S3L0Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
-            cluster_name=os.environ["RSPY_DASK_L0_CLUSTER_NAME"],
+            cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_L0_ADDRESS",
             tasktable_module="l0.s3.s3_l0_processor",
             tasktable_class="S3L0Processor",
@@ -97,13 +97,13 @@ class S3L0Processor(GenericProcessor):
 class S1ARDProcessor(GenericProcessor):
     """S1ARD Processor implementation"""
 
-    def __init__(self, db_process_manager: PostgreSQLManager):
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize S1ARDProcessor
         """
         super().__init__(
             db_process_manager=db_process_manager,
-            cluster_name=os.environ["RSPY_DASK_S1ARD_CLUSTER_NAME"],
+            cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_S1ARD_ADDRESS",
             tasktable_module="s1_l12_rp.computing.ard_processing_units",
             # NOTE: not implemented for now... and maybe we should be able to return the
