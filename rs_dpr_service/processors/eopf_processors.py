@@ -25,7 +25,7 @@ from pygeoapi.process.manager.postgresql import PostgreSQLManager
 
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
-CONFIG_DIR = Path(__file__).parent.parent / "config"
+CONFIG_DIR = Path(__file__).parent.parent.parent / "config"
 
 
 def _load_tasktable(filename: str) -> dict:
