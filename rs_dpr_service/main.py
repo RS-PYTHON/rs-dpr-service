@@ -37,6 +37,7 @@ from starlette.status import (  # pylint: disable=C0411
     HTTP_500_INTERNAL_SERVER_ERROR,
 )
 
+from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
@@ -60,7 +61,7 @@ from . import jobs_table  # pylint: disable=unused-import
 # Register all the processors.
 # Keys are defined in rs-dpr-service/config/geoapi.yaml
 # Values are the Python classes.
-processors: dict[str, type[GenericProcessor]] = {
+processor_types: dict[str, type[GenericProcessor]] = {
     "conv_safe_zarr": ConversionProcessor,
     "mockup": MockupProcessor,
     "s1_l0": S1L0Processor,
@@ -232,7 +233,7 @@ async def get_processes(request: Request):
 
 
 @router.get("/dpr/processes/{resource}")
-async def get_resource(resource: str):
+async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
     with init_opentelemetry.start_span(__name__, "tasktable"):
 
@@ -240,10 +241,17 @@ async def get_resource(resource: str):
         if resource not in api.config["resources"]:
             return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
 
+        # Read cluster information
+        cluster_info = ClusterInfo(
+            jupyter_token=request.query_params["jupyter_token"],
+            cluster_label=request.query_params["cluster_label"],
+            cluster_instance=request.query_params["cluster_instance"],
+        )
+
         processor_name = api.config["resources"][resource]["processor"]["name"]
-        if processor_name in processors:
-            processor_type = processors[processor_name]
-            task_table = await processor_type(app.extra["process_manager"]).get_tasktable()
+        if processor_name in processor_types:
+            processor_type = processor_types[processor_name]
+            task_table = await processor_type(app.extra["process_manager"], cluster_info).get_tasktable()
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
 
 
@@ -331,10 +339,17 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
             # Handle exceptions and return an appropriate error message
             return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
 
+        # Read cluster information
+        cluster_info = ClusterInfo(
+            jupyter_token=valid_body.pop("jupyter_token"),
+            cluster_label=valid_body.pop("cluster_label"),
+            cluster_instance=valid_body.pop("cluster_instance"),
+        )
+
         processor_name = api.config["resources"][resource]["processor"]["name"]
-        if processor_name in processors:
-            processor_type = processors[processor_name]
-            _, dpr_status = await processor_type(app.extra["process_manager"]).execute(  # type: ignore
+        if processor_name in processor_types:
+            processor_type = processor_types[processor_name]
+            _, dpr_status = await processor_type(app.extra["process_manager"], cluster_info).execute(  # type: ignore
                 valid_body,
             )
 
