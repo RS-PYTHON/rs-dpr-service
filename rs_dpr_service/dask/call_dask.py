@@ -448,7 +448,7 @@ class ProcessorCaller:
             self.payload_contents = yaml.safe_load(opened)
             dumped = self.hide_secrets(json.dumps(self.payload_contents, indent=2))
             message = f"Dask cluster label: {self.cluster_info.cluster_label!r}\n"
-            message = f"Dask cluster instance: {self.cluster_info.cluster_instance!r}\n"
+            message += f"Dask cluster instance: {self.cluster_info.cluster_instance!r}\n"
             message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
             logger.debug(message)
