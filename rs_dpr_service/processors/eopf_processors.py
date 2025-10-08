@@ -67,9 +67,7 @@ class S1L0Processor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        if getattr(self, "use_mockup", False):
-            return _load_tasktable("TaskTable_S1_L0_generated_by_rs_python_v1.json")
-        return await super().get_tasktable()
+        return _load_tasktable("TaskTable_S1_L0_generated_by_rs_python_v1.json")
 
 
 class S3L0Processor(GenericProcessor):
@@ -89,9 +87,7 @@ class S3L0Processor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        if getattr(self, "use_mockup", False):
-            return _load_tasktable("TaskTable_S3_L0_generated_by_rs_python_v1.json")
-        return await super().get_tasktable()
+        return _load_tasktable("TaskTable_S3_L0_generated_by_rs_python_v1.json")
 
 
 class S1ARDProcessor(GenericProcessor):
@@ -113,6 +109,4 @@ class S1ARDProcessor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        if getattr(self, "use_mockup", False):
-            return _load_tasktable("TaskTable_S1_ARD_generated_by_rs_python_v1.json")
-        return await super().get_tasktable()
+        return _load_tasktable("TaskTable_S1_ARD_generated_by_rs_python_v1.json")

@@ -22,7 +22,7 @@ from string import Template
 from time import sleep
 
 import yaml
-from fastapi import APIRouter, FastAPI, Path, Query
+from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
@@ -233,7 +233,7 @@ async def get_processes(request: Request):
 
 
 @router.get("/dpr/processes/{resource}")
-async def get_resource(request: Request, resource: str, use_mockup: bool | None = Query(None)):
+async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
     with init_opentelemetry.start_span(__name__, "tasktable"):
 
@@ -251,10 +251,7 @@ async def get_resource(request: Request, resource: str, use_mockup: bool | None 
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processor_types:
             processor_type = processor_types[processor_name]
-            proc = processor_type(app.extra["process_manager"], cluster_info)
-            if use_mockup is not None:
-                setattr(proc, "use_mockup", use_mockup)
-            task_table = await proc.get_tasktable()
+            task_table = await processor_type(app.extra["process_manager"], cluster_info).get_tasktable()
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
 
 
