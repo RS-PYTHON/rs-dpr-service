@@ -49,6 +49,10 @@ class MockupProcessor(GenericProcessor):
         )
         self.use_mockup = True
 
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        return _load_tasktable("tasktable.json")
+
 
 class S1L0Processor(GenericProcessor):
     """S1L0 Processor implementation"""
