@@ -1,0 +1,193 @@
+{
+    "$schema": "./../schemas/TaskTable.schema.json",
+    "tasktable": {
+        "name": "s1-l0",
+        "version": 1.0,
+        "specification_version": "1.0_draftE",
+        "update_datetime": "2025-10-03T11:00:00Z",
+        "configuration_path": {}
+    },
+    "external_variables": [
+        "start_datetime",
+        "end_datetime"
+    ],
+    "units": [
+        {
+            "name": "single_unit",
+            "module": "l0.s1.s1_l0_processor",
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "S1CADUS",
+                    "mode": "always",
+                    "mandatory": true
+                }
+            ],
+            "input_adfs": [
+                {
+                    "name": "OSF",
+                    "mode": "always",
+                    "mandatory": false
+                },
+                {
+                    "name": "FRO",
+                    "mode": "always",
+                    "mandatory": false
+                }
+            ],
+            "output_products": [
+                {
+                    "name": "output_folder",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": ".*"
+                }
+            ]
+        }
+    ],
+    "io": [
+        {
+            "name": "S1CADUS",
+            "type": "folder",
+            "store_type": "cadu"
+        },
+        {
+            "name": "OSF",
+            "type": "filename",
+            "store_type": "safe",
+            "alternatives": [
+                {
+                    "order": 1,
+                    "timeout_seconds": 0,
+                    "query": {
+                        "name": "LatestValCover",
+                        "parameters": {
+                            "product_type": "OPER_AUX_OBMEMC_PDMC",
+                            "start_datetime": "{external_variable.start_datetime}",
+                            "end_datetime": "{external_variable.end_datetime}",
+                            "dTa": 0,
+                            "dTb": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "FRO",
+            "type": "filename",
+            "store_type": "safe",
+            "alternatives": [
+                {
+                    "order": 1,
+                    "timeout_seconds": 0,
+                    "query": {
+                        "name": "LatestValCover",
+                        "parameters": {
+                            "product_type": "AUX_PP2",
+                            "start_datetime": "{external_variable.start_datetime}",
+                            "end_datetime": "{external_variable.end_datetime}",
+                            "dTa": 7200,
+                            "dTb": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "S03ISPS",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
+        },
+        {
+            "name": "output_folder",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
+        }
+    ],
+    "queries": [
+        {
+            "name": "LatestValCover",
+            "parameters": [
+                "product_type",
+                "start_datetime",
+                "end_datetime",
+                "dTa",
+                "dTb"
+            ],
+            "stac": {
+                "filter": {
+                    "op": "and",
+                    "args": [
+                        {
+                            "op": "=",
+                            "args": [
+                                {
+                                    "property": "product:type"
+                                },
+                                "{product_type}"
+                            ]
+                        },
+                        {
+                            "op": "t_intersects",
+                            "args": [
+                                {
+                                    "interval": [
+                                        {
+                                            "property": "start_datetime"
+                                        },
+                                        {
+                                            "property": "end_datetime"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "interval": [
+                                        "{start_datetime}",
+                                        "{end_datetime}"
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                },
+                "sortby": [
+                    {
+                        "field": "created",
+                        "direction": "desc"
+                    }
+                ],
+                "limit": 1
+            }
+        }
+    ],
+    "pipelines": [
+        {
+            "name": "s1_l0_full",
+            "description": "Full pipeline for S1 L0",
+            "steps": [
+                {
+                    "unit_name": "single_unit",
+                    "order": 1,
+                    "input_products": {
+                        "S1CADUS": "pipeline_input"
+                    },
+                    "output_products": {
+                        "output_folder": "pipeline_output"
+                    }
+                }
+            ]
+        }
+    ]
+}
