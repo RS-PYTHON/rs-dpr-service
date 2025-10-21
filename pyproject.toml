@@ -53,7 +53,7 @@ python = "^3.11"
 pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.35.0"
-fastapi = ">=0.116.2,<0.119.0"
+fastapi = ">=0.116.2,<0.120.0"
 geoalchemy2 = ">=0.17.1,<0.18.0"
 SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
@@ -66,11 +66,11 @@ mypy = "^1.15.0"
 pylint = "^3.3.6"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
-psycopg2 = "^2.9.10"
-opentelemetry-distro = "^0.58b0" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-instrumentation-aws-lambda = "^0.58b0"
-opentelemetry-test-utils = "^0.58b0"
-opentelemetry-exporter-otlp = "^1.37.0"
+psycopg2 = "^2.9.11"
+opentelemetry-distro = "^0.59b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-instrumentation-aws-lambda = "^0.59b0"
+opentelemetry-test-utils = "^0.59b0"
+opentelemetry-exporter-otlp = "^1.38.0"
 tornado = "^6.5" # fix trivy vulnerability
 python-logging-loki = "^0.3.1" # to avoid otl error: No module named 'logging_loki'
 s3fs = "^2025.7.0"
