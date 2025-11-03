@@ -401,8 +401,11 @@ class ProcessorCaller:
 
         logger.info("The dpr processing task started")
 
-        # Download the configuration folder from the S3 bucket into a local temp folder
-        local_config_dir = self.s3.get(recursive=True).path
+        # Download the configuration folder from the S3 bucket into a local temp folder.
+        # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
+        local_config_dir: AnyPath | str = self.s3.get(recursive=True)
+        if isinstance(local_config_dir, AnyPath):
+            local_config_dir = local_config_dir.path
 
         # Payload path and parent dir
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
