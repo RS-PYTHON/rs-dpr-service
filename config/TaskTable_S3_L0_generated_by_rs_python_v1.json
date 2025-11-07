@@ -146,7 +146,7 @@
               ]
             },
             {
-              "op": "t_contains",
+              "op": "t_intersects",
               "args": [
                 {
                   "interval": [
