@@ -14,8 +14,8 @@
 
 FROM ghcr.io/rs-python/python:3.11.7-slim-bookworm AS builder
 
-COPY ./layer-cleanup.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/layer-cleanup.sh
+COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 
 # Install dependencies
 RUN apt update && apt upgrade -y && apt install -y libpq-dev gcc git && layer-cleanup.sh
@@ -49,7 +49,7 @@ COPY --from=builder /rs-dpr-service/whl /rs-dpr-service/whl
 RUN chmod a+r /rs-dpr-service
 
 # Install dependencies necessary for execution (e.g. libpq) not compilation (gcc)
-RUN apt update && apt upgrade -y && \
+RUN restore-apt.sh && apt update && apt upgrade -y && \
     apt install -y libpq-dev libexpat1 && \
     rm -rf /var/cache/apt/archives /var/lib/apt/lists/* && \
     layer-cleanup.sh
@@ -69,9 +69,9 @@ WORKDIR /home/$USER
 # The CI/CD will replace this tag in debug mode or else remove it
 # [DEBUG_MODE_COMMANDS]
 
-# Remove apt repository list and custom scripts
+# Remove custom scripts
 USER root
-RUN rm -f /etc/apt/sources.list /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
+RUN rm -f /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 USER $USER
 
 ENTRYPOINT [ \
