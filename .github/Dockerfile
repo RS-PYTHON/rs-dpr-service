@@ -43,8 +43,8 @@ RUN cd /tmp/whl && pip install --no-cache-dir \
 # Final stage. Don't use alpine, it's too different from the build stage.
 FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm
 
-COPY ./layer-cleanup.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/layer-cleanup.sh
+COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 
 # Copy the wheel to store it in the final image from the builder stage
 COPY --from=builder /rs-dpr-service/whl /rs-dpr-service/whl
