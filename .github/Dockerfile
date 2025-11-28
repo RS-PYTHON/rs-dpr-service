@@ -12,6 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+#
+# Target Docker image name:
+# ghcr.io/rs-python/rs-dpr-service
+#
+
 ARG PYTHON_VERSION_DPR=3.11.7
 
 FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm AS builder
@@ -81,4 +86,4 @@ ENTRYPOINT [ \
     "--host", "0.0.0.0", "--port", "8000", "[DEBUG_MODE_RELOAD]" ]
 
 LABEL org.opencontainers.image.source="https://github.com/RS-PYTHON/rs-dpr-service"
-LABEL org.opencontainers.image.ref.name="ghcr.io/rs-python/rs-dpr-service"
+LABEL dockerfile.url="https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/.github/Dockerfile"
