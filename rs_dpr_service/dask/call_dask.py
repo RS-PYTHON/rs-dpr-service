@@ -370,7 +370,7 @@ class ProcessorCaller:
             except Exception as e:
                 logger.exception("Exception during payload file creation: %s", e)
                 raise
-            self.command = ["python3.11", "DPR_processor_mock.py", "-p", payload_abs_path]
+            self.command = ["python3", "DPR_processor_mock.py", "-p", payload_abs_path]
             self.working_dir = "/src/DPR"
             self.log_path = "./mockup.log"  # not used
             logger.debug(f"Working directory for subprocess: {self.working_dir} (type: {type(self.working_dir)})")

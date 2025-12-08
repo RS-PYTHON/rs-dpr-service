@@ -12,10 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM ghcr.io/rs-python/python:3.11.7-slim-bookworm AS builder
+#
+# Target Docker image name:
+# ghcr.io/rs-python/rs-dpr-service
+#
 
-COPY ./layer-cleanup.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/layer-cleanup.sh
+ARG PYTHON_VERSION_DPR=3.11.7
+
+FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm AS builder
+
+COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 
 # Install dependencies
 RUN apt update && apt upgrade -y && apt install -y libpq-dev gcc git && layer-cleanup.sh
@@ -39,17 +46,17 @@ RUN cd /tmp/whl && pip install --no-cache-dir \
     rs_dpr_service-*.whl && layer-cleanup.sh
 
 # Final stage. Don't use alpine, it's too different from the build stage.
-FROM ghcr.io/rs-python/python:3.11.7-slim-bookworm
+FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm
 
-COPY ./layer-cleanup.sh /usr/local/bin/
-RUN chmod 755 /usr/local/bin/layer-cleanup.sh
+COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 
 # Copy the wheel to store it in the final image from the builder stage
 COPY --from=builder /rs-dpr-service/whl /rs-dpr-service/whl
 RUN chmod a+r /rs-dpr-service
 
 # Install dependencies necessary for execution (e.g. libpq) not compilation (gcc)
-RUN apt update && apt upgrade -y && \
+RUN restore-apt.sh && apt update && apt upgrade -y && \
     apt install -y libpq-dev libexpat1 && \
     rm -rf /var/cache/apt/archives /var/lib/apt/lists/* && \
     layer-cleanup.sh
@@ -69,9 +76,9 @@ WORKDIR /home/$USER
 # The CI/CD will replace this tag in debug mode or else remove it
 # [DEBUG_MODE_COMMANDS]
 
-# Remove apt repository list and custom scripts
+# Remove custom scripts
 USER root
-RUN rm -f /etc/apt/sources.list /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
+RUN rm -f /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
 USER $USER
 
 ENTRYPOINT [ \
@@ -79,4 +86,4 @@ ENTRYPOINT [ \
     "--host", "0.0.0.0", "--port", "8000", "[DEBUG_MODE_RELOAD]" ]
 
 LABEL org.opencontainers.image.source="https://github.com/RS-PYTHON/rs-dpr-service"
-LABEL org.opencontainers.image.ref.name="ghcr.io/rs-python/rs-dpr-service"
+LABEL dockerfile.url="https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/.github/Dockerfile"
