@@ -235,8 +235,6 @@ class ProcessorCaller:
             "S3_REGION",
             "PREFECT_BUCKET_NAME",
             "PREFECT_BUCKET_FOLDER",
-            "AWS_REQUEST_CHECKSUM_CALCULATION",
-            "AWS_RESPONSE_CHECKSUM_VALIDATION",
             "TEMPO_ENDPOINT",
             "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
             "OTEL_PYTHON_REQUESTS_TRACE_BODY",
