@@ -13,7 +13,7 @@
     ],
     "units": [
         {
-            "name": "single_unit",
+            "name": "S1L0Processor",
             "module": "l0.s1.s1_l0_processor",
             "resources_min": {
                 "dask": {
@@ -178,7 +178,7 @@
             "description": "Full pipeline for S1 L0",
             "steps": [
                 {
-                    "unit_name": "single_unit",
+                    "unit_name": "S1L0Processor",
                     "order": 1,
                     "input_products": {
                         "S1CADUS": "pipeline_input"

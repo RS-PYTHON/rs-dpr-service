@@ -422,11 +422,11 @@ class ProcessorCaller:
         os.makedirs(self.local_report_dir, exist_ok=True)
 
         # Customize the payload file values
-        self.customize_payload_file(payload_dir, payload_file)
+        self.customize_payload_file(payload_file)
 
         self.command = ["eopf", "trigger", "local", payload_file]
 
-    def customize_payload_file(self, payload_dir: str, payload_file: str):
+    def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
 
         # Read the payload file contents
@@ -458,18 +458,19 @@ class ProcessorCaller:
                 log_file.write(message)
 
             # Get logging configuration file
-            log_conf_file = self.payload_contents.get("logging")
+            # log_conf_file = self.payload_contents.get("logging")
 
         # Patch the log config to set "disable_existing_loggers" to False else the logs are disabled.
         # This is a workaround for https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/837
-        if log_conf_file:
-            log_conf_file = osp.join(payload_dir, log_conf_file)
-            logger.warning(f"Patching logging configuration to use 'disable_existing_loggers=False': {log_conf_file!r}")
-            with open(log_conf_file, encoding="utf-8") as opened:
-                log_conf_contents = yaml.safe_load(opened)
-                log_conf_contents["disable_existing_loggers"] = False
-            with open(log_conf_file, "w+", encoding="utf-8") as opened:
-                opened.write(yaml.safe_dump(log_conf_contents))
+        # if log_conf_file:
+        #     log_conf_file = osp.join(payload_dir, log_conf_file)
+        #     logger.warning("Patching logging configuration to use"
+        # "'disable_existing_loggers=False': {log_conf_file!r}")
+        #     with open(log_conf_file, encoding="utf-8") as opened:
+        #         log_conf_contents = yaml.safe_load(opened)
+        #         log_conf_contents["disable_existing_loggers"] = False
+        #     with open(log_conf_file, "w+", encoding="utf-8") as opened:
+        #         opened.write(yaml.safe_dump(log_conf_contents))
 
     def write_dask_context(self, payload_contents: dict):
         """
