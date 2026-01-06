@@ -60,7 +60,7 @@ jsonpatch = "^1.33"
 dask-gateway = "2024.1.0"
 # same dask version as in the cluster i.e. same as eopf
 dask = {extras = ["distributed"], version = "2024.5.2"}
-openapi-core = "^0.19.5"
+openapi-core = ">=0.22.0"
 bandit = "^1.8.3"
 mypy = "^1.15.0"
 flake8-pyproject = "^1.2.3"
