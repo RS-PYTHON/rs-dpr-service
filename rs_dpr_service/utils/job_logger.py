@@ -35,7 +35,7 @@ class JobLogger:
     def __init__(self, db_process_manager: PostgreSQLManager):
         self.job_id: str = str(uuid.uuid4())  # Generate a unique job ID
         self.message: str = "Processing Unit was created"
-        self.progress: float = 0.0
+        self.progress: int = 0
         self.status = JobStatus.accepted
         self.db_process_manager = db_process_manager
         self.create_job_execution()
@@ -74,7 +74,7 @@ class JobLogger:
             "identifier": self.job_id,
             "processID": "dpr-service",
             "status": self.status.value,
-            "progress": self.progress,
+            "progress": int(self.progress),
             "message": self.message,
         }
         self.db_process_manager.add_job(job_metadata)
@@ -111,7 +111,7 @@ class JobLogger:
 
         update_data = {
             "status": self.status.value,
-            "progress": self.progress,
+            "progress": int(self.progress),
             "message": self.message,
             "updated": datetime.now(),  # Update updated each time a change is made
         }
