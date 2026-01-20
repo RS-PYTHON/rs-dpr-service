@@ -53,6 +53,7 @@ from rs_dpr_service.processors.eopf_processors import (
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -95,6 +96,9 @@ class DatabaseJobFormatError(Exception):
 
 class JobsFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
+
+
+app.add_middleware(HandleExceptionsMiddleware)
 
 
 def get_config_path() -> pathlib.Path:
