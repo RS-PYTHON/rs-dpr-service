@@ -57,8 +57,8 @@
     ],
     "io": [
         {
-            "name": "S1CADUS",
-            "type": "folder",
+            "name": "S1CADUS",            
+            "type": "filename",
             "store_type": "cadu"
         },
         {
@@ -72,7 +72,7 @@
                     "query": {
                         "name": "LatestValCover",
                         "parameters": {
-                            "product_type": "OPER_AUX_OBMEMC_PDMC",
+                            "product_type": "OPER_MPL_ORBSCT",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "dTa": 0,
@@ -93,7 +93,7 @@
                     "query": {
                         "name": "LatestValCover",
                         "parameters": {
-                            "product_type": "AUX_PP2",
+                            "product_type": "OPER_MPL_ORBPRE",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "dTa": 7200,
