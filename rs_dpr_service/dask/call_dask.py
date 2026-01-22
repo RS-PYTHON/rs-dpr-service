@@ -47,9 +47,6 @@ from rs_dpr_service.utils.settings import ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
 
-logger = Logging.default(__name__)
-logger.setLevel(logging.DEBUG)
-
 
 def get_ip_address() -> str:
     """Return IP address, see: https://stackoverflow.com/a/166520"""
@@ -100,7 +97,7 @@ def upload_this_module(dask_client: DaskClient):
         # We have this error if we scale up the number of workers.
         # But it's OK, the zip file is automatically uploaded to them anyway.
         except KeyError as e:
-            logger.debug(f"Ignoring error {e}")
+            Logging.default(__name__).debug(f"Ignoring error {e}")
 
 
 @dataclass
@@ -176,6 +173,7 @@ class ProcessorCaller:
         Constructor.
 
         Attributes:
+            logger: Opentelemetry-compliant logger, initialized locally to work in dask client
             caller_env: env variables coming from the caller
             span_context: OpenTelemetry caller span context
             cluster_address: Dask Gateway address
@@ -199,7 +197,9 @@ class ProcessorCaller:
         import s3fs  # pylint: disable=import-outside-toplevel
 
         # This should run on the rs-dpr-service container
-        logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
+        self.logger = Logging.default(__name__)
+        self.logger.setLevel(logging.DEBUG)
+        self.logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
 
         self.caller_env: dict = caller_env
         self.span_context = span_context
@@ -308,7 +308,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
+        init_opentelemetry.init_traces(None, SERVICE_NAME, self.logger)
         with init_opentelemetry.start_span(__name__, "dpr_tasktable", self.span_context):
 
             if self.use_mockup:
@@ -320,7 +320,7 @@ class ProcessorCaller:
 
             # Get the tasktable for default mode. See:
             # https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
-            logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
+            self.logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
             default_mode = class_.get_default_mode()
             tasktable = class_.get_tasktable_description(default_mode)
             return tasktable
@@ -333,11 +333,11 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
+        init_opentelemetry.init_traces(None, SERVICE_NAME, self.logger)
         with init_opentelemetry.start_span(__name__, "dpr_processor", self.span_context):
             try:
                 # This should run on the dask worker
-                logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
+                self.logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
 
                 self.init()
 
@@ -352,7 +352,7 @@ class ProcessorCaller:
                 try:
                     self.finalize()
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.exception(traceback.format_exc())
+                    self.logger.exception(traceback.format_exc())
                 raise e
 
     def init(self):
@@ -366,12 +366,12 @@ class ProcessorCaller:
                 with open(payload_abs_path, "w+", encoding="utf-8") as payload:
                     payload.write(yaml.safe_dump(self.data))
             except Exception as e:
-                logger.exception("Exception during payload file creation: %s", e)
+                self.logger.exception("Exception during payload file creation: %s", e)
                 raise
             self.command = ["python3", "DPR_processor_mock.py", "-p", payload_abs_path]
             self.working_dir = "/src/DPR"
             self.log_path = "./mockup.log"  # not used
-            logger.debug(f"Working directory for subprocess: {self.working_dir} (type: {type(self.working_dir)})")
+            self.logger.debug(f"Working directory for subprocess: {self.working_dir} (type: {type(self.working_dir)})")
             return
 
         #
@@ -397,7 +397,7 @@ class ProcessorCaller:
             },
         )
 
-        logger.info(f"The dpr processing task started in {s3_config_dir}")
+        self.logger.info(f"The dpr processing task started in {s3_config_dir}")
 
         # Download the configuration folder from the S3 bucket into a local temp folder.
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
@@ -452,7 +452,7 @@ class ProcessorCaller:
             message += f"Dask cluster instance: {self.cluster_info.cluster_instance!r}\n"
             message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
-            logger.debug(message)
+            self.logger.debug(message)
 
             with open(self.log_path, "w", encoding="utf-8") as log_file:
                 log_file.write(message)
@@ -464,7 +464,7 @@ class ProcessorCaller:
         # This is a workaround for https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/837
         # if log_conf_file:
         #     log_conf_file = osp.join(payload_dir, log_conf_file)
-        #     logger.warning("Patching logging configuration to use"
+        #     self.logger.warning("Patching logging configuration to use"
         # "'disable_existing_loggers=False': {log_conf_file!r}")
         #     with open(log_conf_file, encoding="utf-8") as opened:
         #         log_conf_contents = yaml.safe_load(opened)
@@ -590,7 +590,7 @@ class ProcessorCaller:
 
             # Download the product locally if not already there
             if not local_path.exists():
-                logger.info(f"Download {s3_path!r} to {str(local_path)!r}")
+                self.logger.info(f"Download {s3_path!r} to {str(local_path)!r}")
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 credentials.get(s3_path, local_path, recursive=True)
 
@@ -624,7 +624,9 @@ class ProcessorCaller:
             EORunner().run(self.payload_contents)
             return
 
-        logger.info(f"Trigger EOPF processing with command '{self.command}' in working directory '{self.working_dir}'")
+        self.logger.info(
+            f"Trigger EOPF processing with command '{self.command}' in working directory '{self.working_dir}'",
+        )
 
         # Trigger EOPF processing, catch output
         # NOTE: we run it in a subprocess because this allows us to capture stdout and stderr more easily.
@@ -654,7 +656,7 @@ class ProcessorCaller:
                     # Write to logger if not empty
                     line = line.rstrip()
                     if line:
-                        logger.info(line)
+                        self.logger.info(line)
 
             # Wait for the execution to finish
             status_code = proc.wait()
@@ -662,7 +664,7 @@ class ProcessorCaller:
             # Raise exception if the status code is != 0
             if status_code:
                 raise RuntimeError(f"EOPF error, status code {status_code!r}, please see the log.")
-            logger.info(f"EOPF finished successfully with status code {status_code!r}")
+            self.logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
             # search for the JSON-like part, parse it, and ignore the rest.
             if self.use_mockup:
@@ -689,7 +691,7 @@ class ProcessorCaller:
         try:
             # Upload the reports dir to the s3 bucket
             if self.s3:
-                logger.info(f"Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
+                self.logger.info(f"Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
                 self.s3._fs.put(  # pylint: disable=protected-access
                     self.local_report_dir,
                     self.s3_report_dir,
@@ -699,7 +701,7 @@ class ProcessorCaller:
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
-                logger.info(f"Upload {local_path!r} to {s3_path!r}")
+                self.logger.info(f"Upload {local_path!r} to {s3_path!r}")
                 try:
                     credentials.rm(s3_path, recursive=True)  # remove existing from s3 bucket
                 except FileNotFoundError:
@@ -710,10 +712,10 @@ class ProcessorCaller:
                 self.exec_times.append(("Upload output files", time.time() - start_time))
 
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            logger.error(exception)
+            self.logger.error(exception)
 
         for description, exec_time in self.exec_times:
-            logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
+            self.logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
 
         # NOTE: with the real processor, what should we return ?
         return {}
