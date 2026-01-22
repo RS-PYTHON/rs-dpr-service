@@ -42,12 +42,12 @@ from distributed.client import Client as DaskClient
 from opentelemetry.trace.span import SpanContext
 
 from rs_dpr_service.utils import init_opentelemetry, settings
+from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
 
-# Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
-logger = logging.getLogger(__name__)
+logger = Logging.default(__name__)
 logger.setLevel(logging.DEBUG)
 
 
@@ -397,7 +397,7 @@ class ProcessorCaller:
             },
         )
 
-        logger.info("The dpr processing task started")
+        logger.info(f"The dpr processing task started in {s3_config_dir}")
 
         # Download the configuration folder from the S3 bucket into a local temp folder.
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
@@ -624,6 +624,8 @@ class ProcessorCaller:
             EORunner().run(self.payload_contents)
             return
 
+        logger.info(f"Trigger EOPF processing with command '{self.command}' in working directory '{self.working_dir}'")
+
         # Trigger EOPF processing, catch output
         # NOTE: we run it in a subprocess because this allows us to capture stdout and stderr more easily.
         with subprocess.Popen(
@@ -646,7 +648,8 @@ class ProcessorCaller:
 
                     # Write to log file and string
                     log_file.write(line)
-                    log_str += line
+                    if self.use_mockup:
+                        log_str += line
 
                     # Write to logger if not empty
                     line = line.rstrip()
