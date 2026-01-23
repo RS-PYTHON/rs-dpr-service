@@ -99,6 +99,7 @@ class JobsFormatError(Exception):
 
 
 app.add_middleware(HandleExceptionsMiddleware)
+HandleExceptionsMiddleware.disable_default_exception_handler(app)
 
 
 def get_config_path() -> pathlib.Path:

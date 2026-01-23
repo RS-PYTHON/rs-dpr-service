@@ -12,21 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Common functions for fastapi middlewares"""
+"""
+Common functions for fastapi middlewares.
+
+NOTE: COPY-PASTED FROM RS-SERVER.
+"""
+
 import json
 from collections.abc import Callable
 from http import HTTPStatus
-from typing import TypedDict
+from typing import Any, TypedDict
 
-from fastapi import Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.concurrency import iterate_in_threadpool
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from rs_dpr_service.utils.logging import Logging
 
 logger = Logging.default(__name__)
+
+
+async def read_streaming_response(response: StreamingResponse) -> Any | None:
+    """Read a json-formatted streaming response content"""
+    body = [chunk async for chunk in response.body_iterator]
+    splits = map(lambda x: x if isinstance(x, bytes) else x.encode(), body)
+    str_content = b"".join(splits).decode()
+    py_content = json.loads(str_content) if str_content else None
+
+    # Reset the StreamingResponse so it can be used again
+    response.body_iterator = iterate_in_threadpool(iter(body))
+
+    return py_content
 
 
 class ErrorResponse(TypedDict):
@@ -50,49 +68,85 @@ class HandleExceptionsMiddleware(BaseHTTPMiddleware):  # pylint: disable=too-few
     This is useful in FastAPI when HttpExceptions are raised within the code but need to be handled gracefully.
     """
 
+    @staticmethod
+    def disable_default_exception_handler(app: FastAPI):
+        """
+        Disable the default FastAPI exception handler for HTTPException and StarletteHTTPException.
+        We just re-raise the exceptions so they'll be handled by HandleExceptionsMiddleware.
+        """
+
+        @app.exception_handler(HTTPException)
+        @app.exception_handler(StarletteHTTPException)
+        async def exception_handler(_request: Request, _exc: HTTPException):
+            """Implement disable_default_exception_handler"""
+            raise
+
     async def dispatch(self, request: Request, call_next: Callable):
         try:
-            # Call next middleware
+            # Call next middleware, get and return response, handle errors
             response = await call_next(request)
-
-            # In case of errors, log the response contents
-            if 400 <= response.status_code < 600:
-
-                # Read contents
-                body = [chunk async for chunk in response.body_iterator]
-                dec_content = b"".join(map(lambda x: x if isinstance(x, bytes) else x.encode(), body)).decode()  # type: ignore
-                logger.error(f"{response.status_code}: {json.loads(dec_content)}")
-
-                # Reset the StreamingResponse so it can be used again
-                response.body_iterator = iterate_in_threadpool(iter(body))
-
-            # Return the response from the next middleware
-            return response
+            return await self.handle_errors(response)
 
         except Exception as exc:  # pylint: disable=broad-exception-caught
+            return await self.handle_exceptions(request, exc)
 
-            # Log current stack trace
-            logger.exception(exc)
+    async def format_code(self, status_code: int) -> str:
+        """Convert e.g. HTTP_500_INTERNAL_SERVER_ERROR into 'InternalServerError'"""
+        phrase = HTTPStatus(status_code).phrase
+        return "".join(word.title() for word in phrase.split())
 
-            # Calculate HTTP response status code (int) and ErrorResponse code (str) and description (str)
-            if isinstance(exc, StarletteHTTPException):
-                status_code = exc.status_code
-                description = str(exc.detail)
-                # Convert e.g. HTTP_500_INTERNAL_SERVER_ERROR into 'InternalServerError'
-                phrase = HTTPStatus(exc.status_code).phrase
-                str_code = "".join(word.title() for word in phrase.split())
+    async def handle_errors(self, response: StreamingResponse) -> Response:
+        """
+        If no errors, just return the original response.
+        In case of errors, log, format and return the response contents.
+        """
+        if not (400 <= response.status_code < 600):
+            return response  # no error, return the original response
 
-            else:
-                # Use generic 400 or 500 code
-                status_code = (
-                    status.HTTP_400_BAD_REQUEST
-                    if HandleExceptionsMiddleware.is_bad_request(request, exc)
-                    else status.HTTP_500_INTERNAL_SERVER_ERROR
-                )
-                description = str(exc)
-                str_code = exc.__class__.__name__
+        # Read response content
+        content = await read_streaming_response(response)
 
-            return JSONResponse(status_code=status_code, content=ErrorResponse(code=str_code, description=description))
+        # The content should be formated as an ErrorResponse
+        formatted = None
+        try:
+            formatted = ErrorResponse(code=str(content["code"]), description=str(content["description"]))
+            if formatted != content:
+                formatted = None
+        except Exception:
+            pass
+
+        # Else format the content
+        if not formatted:
+            description = json.dumps(content) if isinstance(content, (dict, list, set)) else str(content)
+            formatted = ErrorResponse(code=await self.format_code(response.status_code), description=description)
+
+        logger.error(f"{response.status_code}: {json.dumps(formatted)}")
+        return JSONResponse(status_code=response.status_code, content=formatted)
+
+    async def handle_exceptions(self, request: Request, exc: Exception) -> JSONResponse:
+        """In case of exceptions, log the response contents"""
+
+        # Log current stack trace
+        logger.exception(exc)
+
+        # Calculate HTTP response status code (int) and ErrorResponse code (str) and description (str)
+        if isinstance(exc, StarletteHTTPException):
+            status_code = exc.status_code
+            # Format int status code into str
+            str_code = await self.format_code(exc.status_code)
+            description = str(exc.detail)
+
+        else:
+            # Use generic 400 or 500 code
+            status_code = (
+                status.HTTP_400_BAD_REQUEST
+                if HandleExceptionsMiddleware.is_bad_request(request, exc)
+                else status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+            str_code = exc.__class__.__name__
+            description = str(exc)
+
+        return JSONResponse(status_code=status_code, content=ErrorResponse(code=str_code, description=description))
 
     @staticmethod
     def is_bad_request(_request: Request, _e: Exception) -> bool:
