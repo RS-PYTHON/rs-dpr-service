@@ -189,7 +189,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         client = Client(self.cluster)
 
         # Configure dask client log format to be OpenTelemetry-compliant
-        Logging.default("dask")
+        Logging.default("dask.distributed.Client")
         # Forward logging from dask workers to the caller
         client.forward_logging()
 
