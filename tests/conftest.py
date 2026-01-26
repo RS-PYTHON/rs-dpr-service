@@ -19,16 +19,9 @@
 # pylint: disable=C0413, ungrouped-imports, unused-argument
 # flake8: noqa: F402
 
-import asyncio
 import os
-import os.path as osp
-import threading
-from datetime import datetime
-from importlib import reload
-from pathlib import Path
 
 import pytest
-import yaml
 from fastapi.testclient import TestClient
 
 # These env vars are mandatory before importing the main module

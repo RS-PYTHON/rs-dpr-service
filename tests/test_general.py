@@ -21,7 +21,7 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 import json
 from collections.abc import Callable
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -33,7 +33,13 @@ from rs_dpr_service.utils.middlewares import (
     StacErrorResponse,
 )
 
+# mypy: disable-error-code="typeddict-item,assignment,method-assign"
 
+
+rfc7807_response = HandleExceptionsMiddleware.rfc7807_response
+
+
+# pylint: disable=too-many-branches, too-many-statements, cell-var-from-loop, too-many-locals
 def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
     """
     Test that HandleExceptionsMiddleware handles and logs errors as expected.
@@ -97,7 +103,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
         if raise_from_func or raise_from_dependency:
             # If an exception was raised, then the log was called with the stack trace (exc_info=True arg)
-            assert spy_log_error.call_args[1]["exc_info"] == True
+            assert spy_log_error.call_args[1]["exc_info"] is True
 
             # The logged stack trace should contain either
             # HTTPException(status_code=<expected_status>, detail=<expected_content>)
@@ -124,7 +130,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
     content = "message from return_error_1"
     if rfc7807:
-        error_response = Rfc7807ErrorResponse.init(status.HTTP_418_IM_A_TEAPOT, detail=content)
+        error_response = rfc7807_response(status.HTTP_418_IM_A_TEAPOT, detail=content)
     else:
         error_response = StacErrorResponse(code="I'MATeapot", description=content)
 
@@ -146,7 +152,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
     content = {"custom field": "message from return_error_2"}
     if rfc7807:
-        expected_content = Rfc7807ErrorResponse.init(status.HTTP_418_IM_A_TEAPOT, detail=json.dumps(content))
+        expected_content = rfc7807_response(status.HTTP_418_IM_A_TEAPOT, detail=json.dumps(content))
     else:
         expected_content = StacErrorResponse(code="I'MATeapot", description=json.dumps(content))
 
@@ -169,7 +175,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
     content = "message from return_error_3"
     if rfc7807:
-        expected_content = Rfc7807ErrorResponse.init(status.HTTP_418_IM_A_TEAPOT, detail=content)
+        expected_content = rfc7807_response(status.HTTP_418_IM_A_TEAPOT, detail=content)
     else:
         expected_content = StacErrorResponse(code="I'MATeapot", description=content)
 
@@ -192,7 +198,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
     content = "message from raise_http"
     if rfc7807:
-        expected_content = Rfc7807ErrorResponse.init(status.HTTP_418_IM_A_TEAPOT, detail=content)
+        expected_content = rfc7807_response(status.HTTP_418_IM_A_TEAPOT, detail=content)
     else:
         expected_content = StacErrorResponse(code="I'MATeapot", description=content)
 
@@ -217,7 +223,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
     content = "message from raise_value_error"
     if rfc7807:
-        expected_content = Rfc7807ErrorResponse.init(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=content)
+        expected_content = rfc7807_response(status.HTTP_500_INTERNAL_SERVER_ERROR, detail=content)
     else:
         expected_content = StacErrorResponse(code="ValueError", description=content)
 
@@ -241,7 +247,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
         HandleExceptionsMiddleware.is_bad_request = lambda *_, **__: True  # always log 400
 
         if rfc7807:
-            expected_content = Rfc7807ErrorResponse.init(status.HTTP_400_BAD_REQUEST, detail=content)
+            expected_content = rfc7807_response(status.HTTP_400_BAD_REQUEST, detail=content)
 
         for raise_case in True, False:  # raise from either endpoint or dependency
             test_case(
