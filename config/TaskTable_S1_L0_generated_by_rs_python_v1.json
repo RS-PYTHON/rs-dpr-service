@@ -57,7 +57,7 @@
     ],
     "io": [
         {
-            "name": "S1CADUS",            
+            "name": "S1CADUS",
             "type": "filename",
             "store_type": "cadu"
         },
