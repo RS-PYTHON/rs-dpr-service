@@ -53,6 +53,7 @@ from rs_dpr_service.processors.eopf_processors import (
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -79,22 +80,16 @@ OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 logger = Logging.default(__name__)
 
 
-def ogc_error_response(status_code: int, detail: str):
-    """Generate an OGC-compliant error response"""
-    error_response = {
-        "type": f"https://developer.mozilla.org/en/docs/Web/HTTP/Reference/Status/{status_code}",
-        "status": status_code,
-        "detail": detail,
-    }
-    return JSONResponse(status_code=status_code, content=error_response)
-
-
 class DatabaseJobFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
 
 
 class JobsFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
+
+
+app.add_middleware(HandleExceptionsMiddleware, rfc7807=True)
+HandleExceptionsMiddleware.disable_default_exception_handler(app)
 
 
 def get_config_path() -> pathlib.Path:
@@ -210,26 +205,21 @@ async def ping():
 @router.get("/dpr/processes")
 async def get_processes(request: Request):
     """Returns list of all available processes from config."""
-
-    try:
-        processes = {
-            "processes": [],
-            "links": [
-                {"href": str(request.url), "rel": "self", "type": "application/json", "title": "List of processes"},
-            ],
-        }
-        for resource in api.config["resources"]:
-            processes["processes"].append(
-                {
-                    "id": api.config["resources"][resource]["processor"]["name"],
-                    "version": "1.0.0",
-                },
-            )
-        validate_response(request, processes)
-        return JSONResponse(status_code=HTTP_200_OK, content=processes)
-
-    except Exception as e:  # pylint: disable=W0718
-        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+    processes = {
+        "processes": [],
+        "links": [
+            {"href": str(request.url), "rel": "self", "type": "application/json", "title": "List of processes"},
+        ],
+    }
+    for resource in api.config["resources"]:
+        processes["processes"].append(
+            {
+                "id": api.config["resources"][resource]["processor"]["name"],
+                "version": "1.0.0",
+            },
+        )
+    validate_response(request, processes)
+    return JSONResponse(status_code=HTTP_200_OK, content=processes)
 
 
 @router.get("/dpr/processes/{resource}")
@@ -239,7 +229,7 @@ async def get_resource(request: Request, resource: str):
 
         # Check that the input resource exists
         if resource not in api.config["resources"]:
-            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
+            return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Process {resource!r} not found")
 
         # Read cluster information
         cluster_info = ClusterInfo(
@@ -330,14 +320,10 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 
         # Check that the input resource exists
         if resource not in api.config["resources"]:
-            return ogc_error_response(HTTP_404_NOT_FOUND, f"Process {resource!r} not found")
+            return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Process {resource!r} not found")
 
         # Validate request payload
-        try:
-            valid_body = await validate_request(request)
-        except Exception as e:  # pylint: disable=W0718
-            # Handle exceptions and return an appropriate error message
-            return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+        valid_body = await validate_request(request)
 
         # Read cluster information
         cluster_info = ClusterInfo(
@@ -365,7 +351,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
             formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
             validate_response(request, formatted_job_data, HTTP_201_CREATED)
             return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
-        return ogc_error_response(HTTP_404_NOT_FOUND, f"Processor '{processor_name}' not found")
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Processor {processor_name!r} not found")
 
 
 # Endpoint to return the list of jobs
@@ -377,7 +363,7 @@ async def get_jobs_list(request: Request):
         validate_response(request, formatted_jobs_data)
         return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
     except Exception as e:  # pylint: disable=W0718
-        return ogc_error_response(HTTP_404_NOT_FOUND, str(e))
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=str(e))
 
 
 # Endpoint to get the status of a job by job_id
@@ -388,14 +374,11 @@ async def get_job_status_endpoint(request: Request, job_id: str = Path(..., titl
         job = app.extra["process_manager"].get_job(job_id)
     except JobNotFoundError:  # pylint: disable=W0718
         # Handle case when job_id is not found
-        return ogc_error_response(HTTP_404_NOT_FOUND, f"Job with ID {job_id} not found")
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
-    try:
-        formatted_job_data = format_job_data(job)
-        validate_response(request, formatted_job_data)
-        return JSONResponse(status_code=HTTP_200_OK, content=formatted_job_data)
-    except Exception as e:  # pylint: disable=W0718
-        return ogc_error_response(HTTP_500_INTERNAL_SERVER_ERROR, str(e))
+    formatted_job_data = format_job_data(job)
+    validate_response(request, formatted_job_data)
+    return JSONResponse(status_code=HTTP_200_OK, content=formatted_job_data)
 
 
 # DPR_SERVICE FRONT LOGIC HERE
