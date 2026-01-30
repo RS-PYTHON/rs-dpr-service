@@ -106,6 +106,7 @@ class GenericProcessor(BaseProcessor):
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
                 cluster_info=self.cluster_handler.cluster_info,
+                job_id=self.job_logger.job_id,
                 data={},  # not used for the tasktables
                 use_mockup=self.use_mockup,
             )
@@ -252,6 +253,7 @@ class GenericProcessor(BaseProcessor):
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
                 cluster_info=self.cluster_handler.cluster_info,
+                job_id=self.job_logger.job_id,
                 data=data,
                 use_mockup=self.use_mockup,
             )
