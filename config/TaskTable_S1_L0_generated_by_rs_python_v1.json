@@ -102,13 +102,7 @@
                     }
                 }
             ]
-        },
-        {
-            "name": "S03ISPS",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        },
+        },        
         {
             "name": "output_folder",
             "type": "folder",

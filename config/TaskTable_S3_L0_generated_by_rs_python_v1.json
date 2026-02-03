@@ -13,7 +13,7 @@
   ],
   "units": [
     {
-      "name": "single_unit",
+      "name": "S3L0Processor",
       "module": "l0.s3.s3_l0_processor",
       "resources_min": {
         "dask": {
@@ -119,7 +119,7 @@
       "name": "S03CACHE",
       "type": "folder",
       "store_type": "zarr",
-      "opening_mode" :"CREATE_OVERWRITE"
+      "opening_mode": "CREATE_OVERWRITE"
     }
   ],
   "queries": [
@@ -146,7 +146,7 @@
               ]
             },
             {
-              "op": "t_contains",
+              "op": "t_intersects",
               "args": [
                 {
                   "interval": [
@@ -160,20 +160,8 @@
                 },
                 {
                   "interval": [
-                    {
-                      "op": "-",
-                      "args": [
-                        "{start_datetime}",
-                        "{dTa}"
-                      ]
-                    },
-                    {
-                      "op": "+",
-                      "args": [
-                        "{end_datetime}",
-                        "{dTb}"
-                      ]
-                    }
+                    "{start_datetime}",
+                    "{end_datetime}"
                   ]
                 }
               ]
@@ -196,7 +184,7 @@
       "description": "Full pipeline for S3 L0",
       "steps": [
         {
-          "unit_name": "single_unit",
+          "unit_name": "S3L0Processor",
           "order": 1,
           "input_products": {
             "S3ACADUS": "pipeline_input"
