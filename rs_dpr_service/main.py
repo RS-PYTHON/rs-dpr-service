@@ -72,7 +72,7 @@ processor_types: dict[str, type[GenericProcessor]] = {
 
 # Initialize a FastAPI application
 app = FastAPI(title="rs-dpr-service", root_path="", debug=True)
-router = APIRouter(tags=["DPR service"])
+router = APIRouter(tags=["Processing service"])
 
 JOB_ATTRS_MAPPING = {"identifier": "jobID"}
 OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
