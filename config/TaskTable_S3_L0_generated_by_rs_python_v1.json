@@ -78,7 +78,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "AX___OSF_AX",
+              "product_type": "OPER_AUX_OBMEMC_PDMC",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 6000,
@@ -99,7 +99,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "AX___FRO_AX",
+              "product_type": "AUX_PP2",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 7000,
@@ -126,55 +126,55 @@
     {
       "name": "LatestValCover",
       "parameters": [
-        "product_type",
-        "start_datetime",
-        "end_datetime",
-        "dTa",
-        "dTb"
+          "product_type",
+          "start_datetime",
+          "end_datetime",
+          "dTa",
+          "dTb"
       ],
       "stac": {
-        "filter": {
-          "op": "and",
-          "args": [
-            {
-              "op": "=",
+          "filter": {
+              "op": "and",
               "args": [
-                {
-                  "property": "product:type"
-                },
-                "{product_type}"
+                  {
+                      "op": "=",
+                      "args": [
+                          {
+                              "property": "product:type"
+                          },
+                          "{product_type}"
+                      ]
+                  },
+                  {
+                      "op": "t_intersects",
+                      "args": [
+                          {
+                              "interval": [
+                                  {
+                                      "property": "start_datetime"
+                                  },
+                                  {
+                                      "property": "end_datetime"
+                                  }
+                              ]
+                          },
+                          {
+                              "interval": [
+                                  "{start_datetime}",
+                                  "{end_datetime}"
+                              ]
+                          }
+                      ]
+                  }
               ]
-            },
-            {
-              "op": "t_intersects",
-              "args": [
-                {
-                  "interval": [
-                    {
-                      "property": "start_datetime"
-                    },
-                    {
-                      "property": "end_datetime"
-                    }
-                  ]
-                },
-                {
-                  "interval": [
-                    "{start_datetime}",
-                    "{end_datetime}"
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        "sortby": [
-          {
-            "field": "created",
-            "direction": "desc"
-          }
-        ],
-        "limit": 1
+          },
+          "sortby": [
+              {
+                  "field": "created",
+                  "direction": "desc"
+              }
+          ],
+          "limit": 1
       }
     }
   ],
