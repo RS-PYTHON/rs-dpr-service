@@ -388,6 +388,12 @@ async def get_jobs_endpoint(request: Request):
 @router.delete("/dpr/jobs/{job_id}")
 async def delete_job_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job to delete")):
     """Deletes a specific job from the database."""
+
+    # Send a dask distributed event for the cancellation of the job
+    cancel_event = distributed.Event(CANCEL_JOB.format(job_id=job_id))
+    if cancel_event.client:
+        cancel_event.set()
+
     try:
         job = app.extra["process_manager"].get_job(job_id)
     # Handle case when job_id is not found
@@ -395,10 +401,6 @@ async def delete_job_endpoint(request: Request, job_id: str = Path(..., title="T
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
     app.extra["process_manager"].delete_job(job_id)
-
-    # Send a dask distributed event for the cancellation of the job
-    cancel_event = distributed.Event(CANCEL_JOB.format(job_id=job_id))
-    cancel_event.set()
 
     # Create job response with a status message to confirm the job deletion
     job["message"] = f"Job {job_id} deleted successfully"

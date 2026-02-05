@@ -35,6 +35,7 @@ import zipfile
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
+from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
@@ -611,6 +612,50 @@ class ProcessorCaller:
         # Use the local path in the payload file
         original_product["path"] = str(local_path)
 
+    def handle_cancellation(self, proc: subprocess.Popen, log_file: TextIOWrapper) -> distributed.Event | None:
+        """Handle cancellation of an eopf task."""
+
+        # Check that we are in a dask context
+        try:
+            get_client()
+        except ValueError:
+            # This should always be the case in cluster mode
+            if settings.CLUSTER_MODE:
+                raise
+            # Else in local mode, just exit the method
+            return None
+
+        # Send/catch a dask distributed event for the cancellation of this job
+        cancel_event = distributed.Event(CANCEL_JOB.format(job_id=self.job_id))
+
+        def cancel_function():
+            """If the cancellation event is caucht, terminate the subprocess."""
+            cancel_event.wait()  # go to the next line if the cancellation event is caught
+
+            # If the subprocess has already finished, do nothing
+            if proc.returncode is not None:
+                return
+
+            msg = f"Force termination of EOPF job: {self.job_id!r}"
+            log_file.write(f"{msg}\n")
+            logger.warning(msg)
+
+            # Call .terminate() to SIGTERM. This signal can be caught by eopf to do some cleaning.
+            proc.terminate()
+
+            # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
+            # NOTE: the delay value should be configurable for each processor.
+            # Some processors could e.g. clean directories so it could take longer to finish.
+            time.sleep(60)
+            proc.kill()
+
+        # Run this in a separate thread.
+        # Use daemon=True so we don't have to wait for the thread to finish to exit the main process.
+        cancel_thread = threading.Thread(target=cancel_function, daemon=True)
+        cancel_thread.start()
+
+        return cancel_event
+
     def trigger(self):
         """Trigger eopf-cpm execution"""
 
@@ -634,59 +679,23 @@ class ProcessorCaller:
         # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
         # or cancel the subprocess.
         with subprocess.Popen(
-            self.command,
+            "/usr/bin/top",  # self.command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=self.working_dir,
         ) as proc:
 
-            #######################
-            # Handle cancellation #
-            #######################
-
-            # Only if we are in a dask context
-            try:
-                dask_client = get_client()
-            except ValueError:
-                cancel_event = None
-
-            if dask_client:
-                # Send/catch a dask distributed event for the cancellation of this job
-                cancel_event = distributed.Event(CANCEL_JOB.format(job_id=self.job_id))
-
-                def cancel_function():
-                    """If the cancellation event is caucht, terminate the subprocess."""
-                    cancel_event.wait()  # go to the next line if the cancellation event is caught
-
-                    # If the subprocess has already finished, do nothing
-                    if proc.returncode is not None:
-                        return
-
-                    # Call .terminate() to SIGTERM. This signal can be caught by eopf to do some cleaning.
-                    logger.warning("Force termination of EOPF")
-                    proc.terminate()
-
-                    # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
-                    # NOTE: the delay value should be configurable for each processor.
-                    # Some processors could e.g. clean directories so it could take longer to finish.
-                    time.sleep(60)
-                    proc.kill()
-
-                # Run this in a separate thread.
-                # Use daemon=True so we don't have to wait for the thread to finish to exit the main process.
-                cancel_thread = threading.Thread(target=cancel_function, daemon=True)
-                cancel_thread.start()
-
-            #######################
-            # Handle eopf outputs #
-            #######################
-
             # Log contents
             log_str = ""
 
             # Write output to a log file and string + redirect to the prefect logger
             with open(self.log_path, "a", encoding="utf-8") as log_file:
+
+                # Handle cancellation of eopf processing
+                cancel_event = self.handle_cancellation(proc, log_file)
+
+                # Read eopf stdout
                 while proc.stdout and (line := proc.stdout.readline()) != "":
 
                     # Hide secrets from logs
@@ -772,8 +781,8 @@ class ProcessorCaller:
         except Exception as exception:  # pylint: disable=broad-exception-caught
             logger.error(exception)
 
-        for description, exec_time in self.exec_times:
-            logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
+            for description, exec_time in self.exec_times:
+                logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
 
         # NOTE: with the real processor, what should we return ?
         return {}
