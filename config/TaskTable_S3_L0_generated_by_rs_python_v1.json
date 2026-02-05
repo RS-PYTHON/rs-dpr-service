@@ -64,7 +64,7 @@
   "io": [
     {
       "name": "S3ACADUS",
-      "type": "folder",
+      "type": "filename",
       "store_type": "cadu"
     },
     {
