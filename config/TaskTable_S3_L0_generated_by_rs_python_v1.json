@@ -50,13 +50,13 @@
           "name": "S03ISPS",
           "mode": "always",
           "mandatory": true,
-          "regex" : "^(?!cache).*"
+          "regex": "^(?!cache).*"
         },
         {
           "name": "S03CACHE",
           "mode": "always",
           "mandatory": true,
-          "regex" : "cache.*"
+          "regex": "cache.*"
         }
       ]
     }
@@ -78,7 +78,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "OPER_AUX_OBMEMC_PDMC",
+              "product_type": "AX___OSF_AX",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 6000,
@@ -99,7 +99,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "AUX_PP2",
+              "product_type": "AX___FRO_AX",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 7000,
@@ -109,13 +109,13 @@
         }
       ]
     },
-      {
+    {
       "name": "S03ISPS",
       "type": "folder",
       "store_type": "zarr",
-      "opening_mode" :"CREATE_OVERWRITE"
+      "opening_mode": "CREATE_OVERWRITE"
     },
-      {
+    {
       "name": "S03CACHE",
       "type": "folder",
       "store_type": "zarr",
@@ -126,55 +126,55 @@
     {
       "name": "LatestValCover",
       "parameters": [
-          "product_type",
-          "start_datetime",
-          "end_datetime",
-          "dTa",
-          "dTb"
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
       ],
       "stac": {
-          "filter": {
-              "op": "and",
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
               "args": [
-                  {
-                      "op": "=",
-                      "args": [
-                          {
-                              "property": "product:type"
-                          },
-                          "{product_type}"
-                      ]
-                  },
-                  {
-                      "op": "t_intersects",
-                      "args": [
-                          {
-                              "interval": [
-                                  {
-                                      "property": "start_datetime"
-                                  },
-                                  {
-                                      "property": "end_datetime"
-                                  }
-                              ]
-                          },
-                          {
-                              "interval": [
-                                  "{start_datetime}",
-                                  "{end_datetime}"
-                              ]
-                          }
-                      ]
-                  }
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
               ]
-          },
-          "sortby": [
-              {
-                  "field": "created",
-                  "direction": "desc"
-              }
-          ],
-          "limit": 1
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    "{start_datetime}",
+                    "{end_datetime}"
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
       }
     }
   ],
