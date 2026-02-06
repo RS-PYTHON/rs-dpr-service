@@ -636,8 +636,8 @@ class ProcessorCaller:
             if proc.returncode is not None:
                 return
 
-            msg = f"Force termination of EOPF job: {self.job_id!r}"
-            log_file.write(f"{msg}\n")
+            msg = f"\nForce termination of EOPF job: {self.job_id!r}\n"
+            log_file.write(msg)
             logger.warning(msg)
 
             # Call .terminate() to SIGTERM. This signal can be caught by eopf to do some cleaning.
@@ -679,7 +679,7 @@ class ProcessorCaller:
         # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
         # or cancel the subprocess.
         with subprocess.Popen(
-            "/usr/bin/top",  # self.command,
+            self.command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
