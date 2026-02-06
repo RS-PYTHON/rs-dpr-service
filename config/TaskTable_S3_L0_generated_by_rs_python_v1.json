@@ -3,8 +3,8 @@
   "tasktable": {
     "name": "s3-l0",
     "version": 1.0,
-    "specification_version": "1.0_draftE",
-    "update_datetime": "2025-09-29T17:22:00Z",
+    "specification_version": "1.0_draftG",
+    "update_datetime": "2026-06-02T14:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
@@ -55,6 +55,7 @@
         {
           "name": "S03CACHE",
           "mode": "always",
+          "final_product": false,
           "mandatory": true,
           "regex": "cache.*"
         }
@@ -160,8 +161,20 @@
                 },
                 {
                   "interval": [
-                    "{start_datetime}",
-                    "{end_datetime}"
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
                   ]
                 }
               ]

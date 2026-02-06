@@ -122,48 +122,60 @@
             ],
             "stac": {
                 "filter": {
-                    "op": "and",
+                "op": "and",
+                "args": [
+                    {
+                    "op": "=",
                     "args": [
                         {
-                            "op": "=",
-                            "args": [
-                                {
-                                    "property": "product:type"
-                                },
-                                "{product_type}"
-                            ]
+                        "property": "product:type"
+                        },
+                        "{product_type}"
+                    ]
+                    },
+                    {
+                    "op": "t_intersects",
+                    "args": [
+                        {
+                        "interval": [
+                            {
+                            "property": "start_datetime"
+                            },
+                            {
+                            "property": "end_datetime"
+                            }
+                        ]
                         },
                         {
-                            "op": "t_intersects",
+                        "interval": [
+                            {
+                            "op": "-",
                             "args": [
-                                {
-                                    "interval": [
-                                        {
-                                            "property": "start_datetime"
-                                        },
-                                        {
-                                            "property": "end_datetime"
-                                        }
-                                    ]
-                                },
-                                {
-                                    "interval": [
-                                        "{start_datetime}",
-                                        "{end_datetime}"
-                                    ]
-                                }
+                                "{start_datetime}",
+                                "{dTa}"
                             ]
+                            },
+                            {
+                            "op": "+",
+                            "args": [
+                                "{end_datetime}",
+                                "{dTb}"
+                            ]
+                            }
+                        ]
                         }
                     ]
+                    }
+                ]
                 },
                 "sortby": [
-                    {
-                        "field": "created",
-                        "direction": "desc"
-                    }
+                {
+                    "field": "created",
+                    "direction": "desc"
+                }
                 ],
                 "limit": 1
-            }
+            } 
         }
     ],
     "pipelines": [
