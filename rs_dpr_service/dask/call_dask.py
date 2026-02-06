@@ -629,7 +629,7 @@ class ProcessorCaller:
         cancel_event = distributed.Event(CANCEL_JOB.format(job_id=self.job_id))
 
         def cancel_function():
-            """If the cancellation event is caucht, terminate the subprocess."""
+            """If the cancellation event is caught, terminate the subprocess."""
             cancel_event.wait()  # go to the next line of code when the cancellation event is caught
 
             # If the subprocess has already finished, do nothing
@@ -736,20 +736,19 @@ class ProcessorCaller:
             return
 
         # search for the JSON-like part, parse it, and ignore the rest.
-        if self.use_mockup:
-            match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-            if not match:
-                raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
+        match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
+        if not match:
+            raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
 
-            payload_str = match.group(1)
+        payload_str = match.group(1)
 
-            # Use `ast.literal_eval` to safely evaluate the structure
-            try:
-                # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-                # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                self.mockup_return_value = ast.literal_eval(payload_str)
-            except Exception as e:
-                raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
+        # Use `ast.literal_eval` to safely evaluate the structure
+        try:
+            # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
+            # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
+            self.mockup_return_value = ast.literal_eval(payload_str)
+        except Exception as e:
+            raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
     def finalize(self) -> dict:
         """Code to run at the end of the processor."""
@@ -783,8 +782,8 @@ class ProcessorCaller:
         except Exception as exception:  # pylint: disable=broad-exception-caught
             logger.error(exception)
 
-            for description, exec_time in self.exec_times:
-                logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
+        for description, exec_time in self.exec_times:
+            logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
 
         # NOTE: with the real processor, what should we return ?
         return {}
