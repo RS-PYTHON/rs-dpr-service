@@ -630,7 +630,7 @@ class ProcessorCaller:
 
         def cancel_function():
             """If the cancellation event is caucht, terminate the subprocess."""
-            cancel_event.wait()  # go to the next line if the cancellation event is caught
+            cancel_event.wait()  # go to the next line of code when the cancellation event is caught
 
             # If the subprocess has already finished, do nothing
             if proc.returncode is not None:
@@ -640,7 +640,7 @@ class ProcessorCaller:
             log_file.write(msg)
             logger.warning(msg)
 
-            # Call .terminate() to SIGTERM. This signal can be caught by eopf to do some cleaning.
+            # Call .terminate() to send a SIGTERM. This signal can be caught by eopf to do some cleaning.
             proc.terminate()
 
             # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
