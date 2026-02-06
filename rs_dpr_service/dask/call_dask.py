@@ -641,12 +641,14 @@ class ProcessorCaller:
             logger.warning(msg)
 
             # Call .terminate() to send a SIGTERM. This signal can be caught by eopf to do some cleaning.
+            logger.warning("Send SIGTERM signal")
             proc.terminate()
 
             # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
             # NOTE: the delay value should be configurable for each processor.
             # Some processors could e.g. clean directories so it could take longer to finish.
             time.sleep(60)
+            logger.warning("Send SIGKILL signal")
             proc.kill()
 
         # Run this in a separate thread.
