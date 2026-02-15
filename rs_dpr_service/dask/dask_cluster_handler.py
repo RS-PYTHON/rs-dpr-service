@@ -16,9 +16,7 @@
 
 import os
 
-from dask.distributed import (  # LocalCluster,
-    Client,
-)
+from dask.distributed import Client
 from dask_gateway import Gateway, GatewayCluster
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
 
@@ -147,7 +145,6 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         - If `self.cluster` is not already defined, the method attempts to connect to a Dask Gateway
             (using environment variables `DASK_GATEWAY_ADDRESS` and `DASK_GATEWAY__AUTH__TYPE`) to
             retrieve a list of existing clusters.
-        - If no clusters are available, it attempts to create a new cluster scheduler.
 
         Raises:
             RuntimeError: Raised if the cluster name is None, required environment variables are missing,
@@ -174,7 +171,6 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         3. **Client Initialization**:
             - Once connected to the Dask cluster, the method creates a Dask `Client` object for managing tasks
             and logs the number of running workers.
-            - If no workers are found, it scales the cluster to 1 worker.
 
         4. **Error Handling**:
             - Handles various exceptions during the connection and creation process, including:
@@ -192,6 +188,8 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         # create the client as well
         client = Client(self.cluster)
 
+        # Configure dask client log format to be OpenTelemetry-compliant
+        Logging.default("dask.distributed.Client")
         # Forward logging from dask workers to the caller
         client.forward_logging()
 
@@ -201,8 +199,6 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         # set_dask_env function is in utils, uploaded to the dask cluster in call_dask
         client.run(set_dask_env, os.environ)
 
-        # This is a temporary fix for the dask cluster settings which does not create a scheduler by default
-        # This code should be removed as soon as this is fixed in the kubernetes cluster
         try:
             logger.debug(f"{client.get_versions(check=True)}")
             workers = client.scheduler_info()["workers"]
@@ -212,8 +208,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             logger.exception(f"Dask cluster client failed: {e}")
             raise RuntimeError(f"Dask cluster client failed: {e}") from e
         if len(workers) == 0:
-            logger.info("No workers are currently running in the Dask cluster. Scaling up to 1.")
-            self.cluster.scale(1)
+            logger.warning("No workers are currently running in the Dask cluster.")
 
         # Check the cluster dashboard
         logger.debug(f"Dask Client: {client} | Cluster dashboard: {self.cluster.dashboard_link}")
