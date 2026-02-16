@@ -21,6 +21,7 @@ from datetime import datetime
 from string import Template
 from time import sleep
 
+import distributed
 import yaml
 from fastapi import APIRouter, FastAPI, Path
 from pygeoapi.api import API
@@ -54,6 +55,7 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware
+from rs_dpr_service.utils.settings import CANCEL_JOB
 
 # flake8: noqa: F401
 # DON'T REMOVE (needed for SQLAlchemy)
@@ -354,18 +356,6 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Processor {processor_name!r} not found")
 
 
-# Endpoint to return the list of jobs
-@router.get("/dpr/jobs")
-async def get_jobs_list(request: Request):
-    """Returns all jobs from database."""
-    try:
-        formatted_jobs_data = format_jobs_data(app.extra["process_manager"].get_jobs())
-        validate_response(request, formatted_jobs_data)
-        return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
-    except Exception as e:  # pylint: disable=W0718
-        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=str(e))
-
-
 # Endpoint to get the status of a job by job_id
 @router.get("/dpr/jobs/{job_id}")
 async def get_job_status_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job")):
@@ -376,6 +366,44 @@ async def get_job_status_endpoint(request: Request, job_id: str = Path(..., titl
         # Handle case when job_id is not found
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
+    formatted_job_data = format_job_data(job)
+    validate_response(request, formatted_job_data)
+    return JSONResponse(status_code=HTTP_200_OK, content=formatted_job_data)
+
+
+# Endpoint to return the list of jobs
+@router.get("/dpr/jobs")
+async def get_jobs_endpoint(request: Request):
+    """Returns the status of all jobs from database."""
+    try:
+        # Generate an output conform to OGC process specifications
+        formatted_jobs_data = format_jobs_data(app.extra["process_manager"].get_jobs())
+        validate_response(request, formatted_jobs_data)
+        return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
+    except Exception as e:  # pylint: disable=W0718
+        # Handle exceptions and return an appropriate error message
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=str(e))
+
+
+@router.delete("/dpr/jobs/{job_id}")
+async def delete_job_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job to delete")):
+    """Deletes a specific job from the database."""
+
+    # Send a dask distributed event for the cancellation of the job
+    cancel_event = distributed.Event(CANCEL_JOB.format(job_id=job_id))
+    if cancel_event.client:
+        cancel_event.set()
+
+    try:
+        job = app.extra["process_manager"].get_job(job_id)
+    # Handle case when job_id is not found
+    except JobNotFoundError:  # pylint: disable=W0718
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
+
+    app.extra["process_manager"].delete_job(job_id)
+
+    # Create job response with a status message to confirm the job deletion
+    job["message"] = f"Job {job_id} deleted successfully"
     formatted_job_data = format_job_data(job)
     validate_response(request, formatted_job_data)
     return JSONResponse(status_code=HTTP_200_OK, content=formatted_job_data)

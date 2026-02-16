@@ -104,3 +104,11 @@ LOCAL_MODE: bool = env_bool("RSPY_LOCAL_MODE", default=False)
 
 # Cluster mode is the opposite of local mode
 CLUSTER_MODE: bool = not LOCAL_MODE
+
+
+###############
+# Dask events #
+###############
+
+# Cancel a job id
+CANCEL_JOB = "cancel_{job_id}"

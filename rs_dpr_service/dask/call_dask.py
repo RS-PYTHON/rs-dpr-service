@@ -28,21 +28,25 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import traceback
 import zipfile
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
+from io import TextIOWrapper
 from pathlib import Path
 from typing import Any
 
+import distributed
 import yaml
 from distributed.client import Client as DaskClient
+from distributed.worker import get_client
 from opentelemetry.trace.span import SpanContext
 
 from rs_dpr_service.utils import init_opentelemetry, settings
-from rs_dpr_service.utils.settings import ExperimentalConfig
+from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
 
@@ -169,6 +173,7 @@ class ProcessorCaller:
         span_context: SpanContext,
         cluster_address: str,
         cluster_info: ClusterInfo,
+        job_id: str,
         data: dict,
         use_mockup: bool,
     ):
@@ -180,6 +185,7 @@ class ProcessorCaller:
             span_context: OpenTelemetry caller span context
             cluster_address: Dask Gateway address
             cluster_info: Information to connect to a DPR Dask cluster.
+            job_id: pygeoapi job id saved in the database.
             data: data to send to the processor
             use_mockup: use the mockup or real processor
             s3: Bucket access to read/write configuration and report files
@@ -205,6 +211,7 @@ class ProcessorCaller:
         self.span_context = span_context
         self.cluster_address: str = cluster_address
         self.cluster_info: ClusterInfo = cluster_info
+        self.job_id: str = job_id
         self.data: dict = data
         self.use_mockup: bool = use_mockup
         self.s3: Any | None = None  # AnyPath
@@ -362,7 +369,7 @@ class ProcessorCaller:
         # Mockup processor
         if self.use_mockup:
             try:
-                payload_abs_path = osp.join("/", os.getcwd(), "payload.cfg")
+                payload_abs_path = str(Path.home() / "payload.cfg")
                 with open(payload_abs_path, "w+", encoding="utf-8") as payload:
                     payload.write(yaml.safe_dump(self.data))
             except Exception as e:
@@ -605,6 +612,52 @@ class ProcessorCaller:
         # Use the local path in the payload file
         original_product["path"] = str(local_path)
 
+    def handle_cancellation(self, proc: subprocess.Popen, log_file: TextIOWrapper) -> distributed.Event | None:
+        """Handle cancellation of an eopf task."""
+
+        # Check that we are in a dask context
+        try:
+            get_client()
+        except ValueError:
+            # This should always be the case in cluster mode
+            if settings.CLUSTER_MODE:
+                raise
+            # Else in local mode, just exit the method
+            return None
+
+        # Send/catch a dask distributed event for the cancellation of this job
+        cancel_event = distributed.Event(CANCEL_JOB.format(job_id=self.job_id))
+
+        def cancel_function():
+            """If the cancellation event is caught, terminate the subprocess."""
+            cancel_event.wait()  # go to the next line of code when the cancellation event is caught
+
+            # If the subprocess has already finished, do nothing
+            if proc.returncode is not None:
+                return
+
+            msg = f"\nForce termination of EOPF job: {self.job_id!r}\n"
+            log_file.write(msg)
+            logger.warning(msg)
+
+            # Call .terminate() to send a SIGTERM. This signal can be caught by eopf to do some cleaning.
+            logger.warning("Send SIGTERM signal")
+            proc.terminate()
+
+            # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
+            # NOTE: the delay value should be configurable for each processor.
+            # Some processors could e.g. clean directories so it could take longer to finish.
+            time.sleep(60)
+            logger.warning("Send SIGKILL signal")
+            proc.kill()
+
+        # Run this in a separate thread.
+        # Use daemon=True so we don't have to wait for the thread to finish to exit the main process.
+        cancel_thread = threading.Thread(target=cancel_function, daemon=True)
+        cancel_thread.start()
+
+        return cancel_event
+
     def trigger(self):
         """Trigger eopf-cpm execution"""
 
@@ -625,7 +678,8 @@ class ProcessorCaller:
             return
 
         # Trigger EOPF processing, catch output
-        # NOTE: we run it in a subprocess because this allows us to capture stdout and stderr more easily.
+        # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
+        # or cancel the subprocess.
         with subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
@@ -639,6 +693,11 @@ class ProcessorCaller:
 
             # Write output to a log file and string + redirect to the prefect logger
             with open(self.log_path, "a", encoding="utf-8") as log_file:
+
+                # Handle cancellation of eopf processing
+                cancel_event = self.handle_cancellation(proc, log_file)
+
+                # Read eopf stdout
                 while proc.stdout and (line := proc.stdout.readline()) != "":
 
                     # Hide secrets from logs
@@ -656,26 +715,40 @@ class ProcessorCaller:
             # Wait for the execution to finish
             status_code = proc.wait()
 
-            # Raise exception if the status code is != 0
+            # We don't need the cancellation thread anymore.
+            # Send the cancellation event it's been waiting for, to make sure the thread will finish.
+            if cancel_event:
+                cancel_event.set()
+
+            # Raise exception if the eopf status code is != 0
             if status_code:
                 raise RuntimeError(f"EOPF error, status code {status_code!r}, please see the log.")
             logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
-            # search for the JSON-like part, parse it, and ignore the rest.
-            if self.use_mockup:
-                match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-                if not match:
-                    raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
+            # Parse log contents
+            self.parse_eopf_log(log_str)
 
-                payload_str = match.group(1)
+    def parse_eopf_log(self, log_str: str):
+        """Parse the log contents returned by the eopf processing"""
 
-                # Use `ast.literal_eval` to safely evaluate the structure
-                try:
-                    # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-                    # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-                    self.mockup_return_value = ast.literal_eval(payload_str)
-                except Exception as e:
-                    raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
+        # Only for the mockup
+        if not self.use_mockup:
+            return
+
+        # search for the JSON-like part, parse it, and ignore the rest.
+        match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
+        if not match:
+            raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
+
+        payload_str = match.group(1)
+
+        # Use `ast.literal_eval` to safely evaluate the structure
+        try:
+            # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
+            # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
+            self.mockup_return_value = ast.literal_eval(payload_str)
+        except Exception as e:
+            raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
 
     def finalize(self) -> dict:
         """Code to run at the end of the processor."""
