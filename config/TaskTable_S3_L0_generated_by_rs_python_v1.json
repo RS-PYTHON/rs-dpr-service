@@ -3,8 +3,8 @@
   "tasktable": {
     "name": "s3-l0",
     "version": 1.0,
-    "specification_version": "1.0_draftE",
-    "update_datetime": "2025-09-29T17:22:00Z",
+    "specification_version": "1.0_draftG",
+    "update_datetime": "2026-06-02T14:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
@@ -13,7 +13,7 @@
   ],
   "units": [
     {
-      "name": "single_unit",
+      "name": "S3L0Processor",
       "module": "l0.s3.s3_l0_processor",
       "resources_min": {
         "dask": {
@@ -50,13 +50,14 @@
           "name": "S03ISPS",
           "mode": "always",
           "mandatory": true,
-          "regex" : "^(?!cache).*"
+          "regex": "^(?!cache).*"
         },
         {
           "name": "S03CACHE",
           "mode": "always",
+          "final_product": false,
           "mandatory": true,
-          "regex" : "cache.*"
+          "regex": "cache.*"
         }
       ]
     }
@@ -64,7 +65,7 @@
   "io": [
     {
       "name": "S3ACADUS",
-      "type": "folder",
+      "type": "filename",
       "store_type": "cadu"
     },
     {
@@ -109,17 +110,17 @@
         }
       ]
     },
-      {
+    {
       "name": "S03ISPS",
       "type": "folder",
       "store_type": "zarr",
-      "opening_mode" :"CREATE_OVERWRITE"
+      "opening_mode": "CREATE_OVERWRITE"
     },
-      {
+    {
       "name": "S03CACHE",
       "type": "folder",
       "store_type": "zarr",
-      "opening_mode" :"CREATE_OVERWRITE"
+      "opening_mode": "CREATE_OVERWRITE"
     }
   ],
   "queries": [
@@ -146,7 +147,7 @@
               ]
             },
             {
-              "op": "t_contains",
+              "op": "t_intersects",
               "args": [
                 {
                   "interval": [
@@ -196,7 +197,7 @@
       "description": "Full pipeline for S3 L0",
       "steps": [
         {
-          "unit_name": "single_unit",
+          "unit_name": "S3L0Processor",
           "order": 1,
           "input_products": {
             "S3ACADUS": "pipeline_input"
