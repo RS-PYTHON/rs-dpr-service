@@ -102,7 +102,7 @@
                     }
                 }
             ]
-        },        
+        },
         {
             "name": "output_folder",
             "type": "folder",
@@ -175,7 +175,7 @@
                 }
                 ],
                 "limit": 1
-            } 
+            }
         }
     ],
     "pipelines": [

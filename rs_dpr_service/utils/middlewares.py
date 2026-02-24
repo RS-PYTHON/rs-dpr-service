@@ -21,20 +21,22 @@ NOTE: COPY-PASTED FROM RS-SERVER.
 import json
 from collections.abc import Callable
 from http import HTTPStatus
-from typing import Any, TypedDict
+from typing import Any, ParamSpec, TypedDict
 
 from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.concurrency import iterate_in_threadpool
 from fastapi.responses import JSONResponse, StreamingResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware import Middleware, _MiddlewareFactory
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from rs_dpr_service.utils.logging import Logging
 
+# pylint: disable = too-few-public-methods
 # mypy: disable-error-code="index"
 
-
 logger = Logging.default(__name__)
+P = ParamSpec("P")
 
 
 async def read_streaming_response(response: StreamingResponse) -> Any | None:
@@ -219,3 +221,77 @@ class HandleExceptionsMiddleware(BaseHTTPMiddleware):
         return "bbox" in request.query_params and (
             str(e).endswith(" must have 4 or 6 values.") or str(e).startswith("could not convert string to float: ")
         )
+
+
+class HealthMiddleware(BaseHTTPMiddleware):
+    """
+    When Kubernetes calls the /health or /ping endpoint from this service, return response immediately,
+    because if the latency is too high (>2s) Kubernetes will kill and restart the pod.
+    """
+
+    async def dispatch(self, request: Request, call_next: Callable):
+        """Middleware implementation"""
+
+        if request.url.path.endswith("/health"):
+            # NOTE: for the catalog we could call "await self.api.health_check(request)" like in stac_fastapi.api.app
+            # but this async call may be slow and so may kill the pod. So we hardcode the response instead.
+            return JSONResponse({"healthy": True}, status.HTTP_200_OK)
+        if request.url.path.endswith("/_mgmt/ping"):
+            return JSONResponse({"message": "PONG"}, status.HTTP_200_OK)
+
+        # All other endpoints
+        return await call_next(request)
+
+
+#####################
+# Utility functions #
+#####################
+
+
+def insert_middleware_at(app: FastAPI, index: int, middleware: Middleware):
+    """Insert the given middleware at the specified index in a FastAPI application.
+
+    Args:
+        app (FastAPI): FastAPI application
+        index (int): index at which the middleware has to be inserted
+        middleware (Middleware): Middleware to insert
+
+    Raises:
+        RuntimeError: if the application has already started
+
+    Returns:
+        FastAPI: The modified FastAPI application instance with the required middleware.
+    """
+    if app.middleware_stack:
+        raise RuntimeError("Cannot add middleware after an application has started")
+    if not any(m.cls == middleware.cls for m in app.user_middleware):
+        logger.debug("Adding %s", middleware)
+        app.user_middleware.insert(index, middleware)
+    return app
+
+
+def insert_middleware_after(
+    app: FastAPI,
+    previous_mw_class: _MiddlewareFactory,
+    middleware_class: _MiddlewareFactory[P],
+    *args: P.args,
+    **kwargs: P.kwargs,
+):
+    """Insert the given middleware after an existing one in a FastAPI application.
+
+    Args:
+        app (FastAPI): FastAPI application
+        previous_mw_class (str): Class of middleware after which the new middleware has to be inserted
+        middleware_class (Middleware): Class of middleware to insert
+        args: args for middleware_class constructor
+        kwargs: kwargs for middleware_class constructor
+
+    Raises:
+        RuntimeError: if the application has already started
+
+    Returns:
+        FastAPI: The modified FastAPI application instance with the required middleware.
+    """
+    existing_middlewares = [middleware.cls for middleware in app.user_middleware]
+    middleware_index = existing_middlewares.index(previous_mw_class)
+    return insert_middleware_at(app, middleware_index + 1, Middleware(middleware_class, *args, **kwargs))

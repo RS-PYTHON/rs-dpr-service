@@ -54,7 +54,10 @@ from rs_dpr_service.processors.eopf_processors import (
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware
+from rs_dpr_service.utils.middlewares import (
+    HandleExceptionsMiddleware,
+    HealthMiddleware,
+)
 from rs_dpr_service.utils.settings import CANCEL_JOB
 
 # flake8: noqa: F401
@@ -90,8 +93,17 @@ class JobsFormatError(Exception):
     """Exception raised when an error occurred during the init of a provider."""
 
 
+# Add middlewares. When sending a request, the middleware order must be:
+# Health -> HandleExceptions -> Session -> Authentication -> [any other middlewares ...]
+# Then after processing the request, the response is sent in the opposite order:
+# [any other middlewares ...] -> Authentication -> Session -> HandleExceptions -> Health
+
+# Catch all exceptions and return a JSONResponse
 app.add_middleware(HandleExceptionsMiddleware, rfc7807=True)
 HandleExceptionsMiddleware.disable_default_exception_handler(app)
+
+# More responsive /health and /ping endpoints
+app.add_middleware(HealthMiddleware)
 
 
 def get_config_path() -> pathlib.Path:
@@ -194,13 +206,6 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Shutdown logic (cleanup)
     logger.info("Shutting down the application...")
     logger.info("Application gracefully stopped...")
-
-
-# Health check route
-@router.get("/_mgmt/ping", include_in_schema=False)
-async def ping():
-    """Liveliness probe."""
-    return JSONResponse(status_code=HTTP_200_OK, content="Healthy")
 
 
 # Endpoint to return the names of the available processors
