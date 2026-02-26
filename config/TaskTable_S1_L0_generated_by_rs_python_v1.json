@@ -122,57 +122,66 @@
             ],
             "stac": {
                 "filter": {
-                "op": "and",
-                "args": [
-                    {
-                    "op": "=",
+                    "op": "and",
                     "args": [
                         {
-                        "property": "product:type"
-                        },
-                        "{product_type}"
-                    ]
-                    },
-                    {
-                    "op": "t_intersects",
-                    "args": [
-                        {
-                        "interval": [
-                            {
-                            "property": "start_datetime"
-                            },
-                            {
-                            "property": "end_datetime"
-                            }
-                        ]
+                            "op": "=",
+                            "args": [
+                                {
+                                    "property": "product:type"
+                                },
+                                "{product_type}"
+                            ]
                         },
                         {
-                        "interval": [
-                            {
-                            "op": "-",
+                            "op": "=",
                             "args": [
-                                "{start_datetime}",
-                                "{dTa}"
+                                {
+                                    "property": "platform"
+                                },
+                                "sentinel-1a"
                             ]
-                            },
-                            {
-                            "op": "+",
+                        },
+                        {
+                            "op": "t_contains",
                             "args": [
-                                "{end_datetime}",
-                                "{dTb}"
+                                {
+                                    "interval": [
+                                        {
+                                            "property": "start_datetime"
+                                        },
+                                        {
+                                            "property": "end_datetime"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "interval": [
+                                        {
+                                            "op": "-",
+                                            "args": [
+                                                "{start_datetime}",
+                                                "{dTa}"
+                                            ]
+                                        },
+                                        {
+                                            "op": "+",
+                                            "args": [
+                                                "{end_datetime}",
+                                                "{dTb}"
+                                            ]
+                                        }
+                                    ]
+                                }
                             ]
-                            }
-                        ]
                         }
                     ]
-                    }
-                ]
                 },
                 "sortby": [
-                {
-                    "field": "created",
-                    "direction": "desc"
-                }
+                    {
+                        "field": "created",
+                        "direction": "desc"
+                    }
                 ],
                 "limit": 1
             }
