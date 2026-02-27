@@ -25,18 +25,66 @@ from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
+from starlette.middleware.cors import CORSMiddleware
 
 from rs_dpr_service.utils import middlewares
+from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import (
     HandleExceptionsMiddleware,
+    HealthMiddleware,
     Rfc7807ErrorResponse,
     StacErrorResponse,
 )
 
 # mypy: disable-error-code="typeddict-item,assignment,method-assign"
 
+logger = Logging.default(__name__)
 
 rfc7807_response = HandleExceptionsMiddleware.rfc7807_response
+
+
+def test_middleware_order(client):
+    """
+    Check that the FastAPI application middlewares were inserted in the right order.
+
+    When sending a request, the order of the middlewares must be:
+    Health -> CORS -> HandleExceptions -> Session -> Authentication -> [any other middlewares ...]
+    Then after processing the request, the response is sent in the opposite order:
+    [any other middlewares ...] -> Authentication -> Session -> HandleExceptions -> CORS -> Health
+
+    The reason for this is that:
+      - Health returns an HTTP 200 OK status for the /health and /ping probe endpoints, it must be first to be
+        as responsive as possible.
+      - Then CORS will respond to requests coming from the stac browsers.
+      - Then HandleExceptions is used to format error responses coming from all following middlewares and service.
+      - Then Authentication will block access to unauthorized users to all following middlewares and service. But it
+        must be preceded by the SessionMiddleware.
+
+    But some services don't use the AuthenticationMiddleware, instead the authentication is implemented as an
+    endpoint dependency. In this case the SessionMiddleware it at the end.
+    """
+    service_middlewares = [m.cls for m in client.app.user_middleware]
+    str_middlewares = "\n  - ".join([""] + [m.__name__ for m in service_middlewares])
+    logger.debug(f"FastAPI middlewares: {str_middlewares}")
+
+    tested_middlewares = [
+        (HealthMiddleware, False),
+        (CORSMiddleware, True),
+        (HandleExceptionsMiddleware, False),
+    ]
+
+    # Test the order of the middlewares
+    for tested, optional in tested_middlewares:
+        if optional and (tested not in service_middlewares):
+            continue
+
+        # Assert that the tested middleware is at the top of the list,
+        # and also remove this first list element.
+        assert tested == service_middlewares.pop(0)
+
+    # # Just check that the SessionMiddleware is somewhere after
+    # if not use_auth_middleware:
+    #     assert SessionMiddleware in service_middlewares
 
 
 # pylint: disable=too-many-branches, too-many-statements, cell-var-from-loop, too-many-locals

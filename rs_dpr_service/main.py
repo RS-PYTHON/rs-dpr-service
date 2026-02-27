@@ -94,9 +94,9 @@ class JobsFormatError(Exception):
 
 
 # Add middlewares. When sending a request, the middleware order must be:
-# Health -> HandleExceptions -> Session -> Authentication -> [any other middlewares ...]
+# Health -> HandleExceptions -> [any other middlewares ...]
 # Then after processing the request, the response is sent in the opposite order:
-# [any other middlewares ...] -> Authentication -> Session -> HandleExceptions -> Health
+# [any other middlewares ...] -> HandleExceptions -> Health
 
 # Catch all exceptions and return a JSONResponse
 app.add_middleware(HandleExceptionsMiddleware, rfc7807=True)
