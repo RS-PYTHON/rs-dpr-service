@@ -315,27 +315,27 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
 def test_build_cluster_info_all_fields():
     """Test the default behaviour for all parameters set."""
-    data = {"jupyter_token": "jupyter", "cluster_label": "dask-l0", "cluster_instance": "instance-1"} # nosec B105
+    data = {"jupyter_token": "jupyter", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}  # nosec B105
 
     result = build_cluster_info(data)
 
     assert isinstance(result, ClusterInfo)
-    assert result.jupyter_token == "jupyter" # nosec B105
-    assert result.cluster_label == "dask-l0" # nosec B105
-    assert result.cluster_instance == "instance-1" # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec B105
+    assert result.cluster_label == "dask-l0"  # nosec B105
+    assert result.cluster_instance == "instance-1"  # nosec B105
 
 
 def test_build_cluster_info_without_cluster_instance():
     """Test if the optional parameter is set to default value."""
     data = {
-        "jupyter_token": "jupyter", # nosec B105
-        "cluster_label": "dask-l0", # nosec B105
+        "jupyter_token": "jupyter",  # nosec B105
+        "cluster_label": "dask-l0",  # nosec B105
     }
 
     result = build_cluster_info(data)
 
-    assert result.jupyter_token == "jupyter" # nosec B105
-    assert result.cluster_label == "dask-l0" # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec B105
+    assert result.cluster_label == "dask-l0"  # nosec B105
     assert result.cluster_instance == ""
 
 
