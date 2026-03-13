@@ -21,12 +21,14 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 import json
 from collections.abc import Callable
 
+import pytest
 from fastapi import Depends, HTTPException
 from fastapi.responses import JSONResponse
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
+from rs_dpr_service.main import ClusterInfo, build_cluster_info
 from rs_dpr_service.utils import middlewares
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import (
@@ -309,3 +311,42 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
     # Restore old function
     finally:
         HandleExceptionsMiddleware.is_bad_request = old_bad_request
+
+
+def test_build_cluster_info_all_fields():
+    """Test the default behaviour for all parameters set."""
+    data = {"jupyter_token": "token123", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}
+
+    result = build_cluster_info(data)
+
+    assert isinstance(result, ClusterInfo)
+    assert result.jupyter_token == "token123"
+    assert result.cluster_label == "dask-l0"
+    assert result.cluster_instance == "instance-1"
+
+
+def test_build_cluster_info_without_cluster_instance():
+    """Test if the optional parameter is set to default value."""
+    data = {
+        "jupyter_token": "token123",
+        "cluster_label": "dask-l0",
+    }
+
+    result = build_cluster_info(data)
+
+    assert result.jupyter_token == "token123"
+    assert result.cluster_label == "dask-l0"
+    assert result.cluster_instance == ""
+
+
+def test_build_cluster_info_missing_jupyter_token():
+    """Test if an error is raised when required parameters are not supplied."""
+    data = {
+        "cluster_label": "dask-l0",
+    }
+
+    with pytest.raises(StarletteHTTPException) as exc:
+        build_cluster_info(data)
+
+    assert exc.value.status_code == 400
+    assert "Missing required fields" in exc.value.detail
