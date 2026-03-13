@@ -21,9 +21,11 @@ from dask.distributed import (  # LocalCluster,
 )
 from dask_gateway import Gateway, GatewayCluster
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
+from opentelemetry.trace import StatusCode
 
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.dask.call_dask import ClusterInfo
+from rs_dpr_service.utils.init_opentelemetry import record_error, start_span
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import LOCAL_MODE, set_dask_env
 
@@ -186,36 +188,43 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
         Returns:
             Dask client
         """
-        self._connect_to_cluster()
+        with start_span(__name__, "setup_dask_connection") as span:
+            try:
+                self._connect_to_cluster()
 
-        logger.debug("Cluster dashboard: %s", self.cluster.dashboard_link)
-        # create the client as well
-        client = Client(self.cluster)
+                logger.debug("Cluster dashboard: %s", self.cluster.dashboard_link)
+                # create the client as well
+                client = Client(self.cluster)
 
-        # Forward logging from dask workers to the caller
-        client.forward_logging()
+                # Forward logging from dask workers to the caller
+                client.forward_logging()
 
-        # Upload local module to the dask client.
-        call_dask.upload_this_module(client)
+                # Upload local module to the dask client.
+                call_dask.upload_this_module(client)
 
-        # set_dask_env function is in utils, uploaded to the dask cluster in call_dask
-        client.run(set_dask_env, os.environ)
+                # set_dask_env function is in utils, uploaded to the dask cluster in call_dask
+                client.run(set_dask_env, os.environ)
 
-        # This is a temporary fix for the dask cluster settings which does not create a scheduler by default
-        # This code should be removed as soon as this is fixed in the kubernetes cluster
-        try:
-            logger.debug(f"{client.get_versions(check=True)}")
-            workers = client.scheduler_info()["workers"]
-            logger.info(f"Number of running workers: {len(workers)}")
+                # This is a temporary fix for the dask cluster settings which does not create a scheduler by default
+                # This code should be removed as soon as this is fixed in the kubernetes cluster
+                try:
+                    logger.debug(f"{client.get_versions(check=True)}")
+                    workers = client.scheduler_info()["workers"]
+                    logger.info(f"Number of running workers: {len(workers)}")
 
-        except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception(f"Dask cluster client failed: {e}")
-            raise RuntimeError(f"Dask cluster client failed: {e}") from e
-        if len(workers) == 0:
-            logger.info("No workers are currently running in the Dask cluster. Scaling up to 1.")
-            self.cluster.scale(1)
+                except Exception as e:  # pylint: disable=broad-exception-caught
+                    record_error(span, e)
+                    logger.exception(f"Dask cluster client failed: {e}")
+                    raise RuntimeError(f"Dask cluster client failed: {e}") from e
+                if len(workers) == 0:
+                    logger.info("No workers are currently running in the Dask cluster. Scaling up to 1.")
+                    self.cluster.scale(1)
 
-        # Check the cluster dashboard
-        logger.debug(f"Dask Client: {client} | Cluster dashboard: {self.cluster.dashboard_link}")
+                # Check the cluster dashboard
+                logger.debug(f"Dask Client: {client} | Cluster dashboard: {self.cluster.dashboard_link}")
+                span.set_status(StatusCode.OK, str(client))
 
-        return client
+                return client
+            except Exception as e:
+                record_error(span, e)
+                raise

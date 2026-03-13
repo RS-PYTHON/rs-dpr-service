@@ -35,6 +35,7 @@ from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource  # type: ignore
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.trace import Status, StatusCode
 from opentelemetry.trace.span import NonRecordingSpan, Span, SpanContext, TraceFlags
 from opentelemetry.util._decorator import _agnosticcontextmanager
 
@@ -310,3 +311,16 @@ def start_span(
             # a new one, to be discussed.
             with tracer.start_as_current_span(name) as span:
                 yield span
+
+
+def record_error(span: Span, e: Exception):
+    """
+    Record an exception in the span and mark it as ERROR if recording.
+
+    Args:
+        span (Span): The tracing span.
+        e (Exception): The exception to record.
+    """
+    if span.is_recording() and e is not None:
+        span.record_exception(e)
+        span.set_status(Status(StatusCode.ERROR, str(e)))
