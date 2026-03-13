@@ -19,7 +19,7 @@ repos:
 
 # Basic verifications
 -   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
     -   id: check-merge-conflict
     -   id: end-of-file-fixer
@@ -30,25 +30,25 @@ repos:
 
 # Format (black)
 -   repo: https://github.com/psf/black
-    rev: 25.1.0
+    rev: 26.3.1
     hooks:
     -   id: black
 
 # Format (isort)
 -   repo: https://github.com/PyCQA/isort
-    rev: 6.0.1
+    rev: 8.0.1
     hooks:
     -   id: isort
         args: ["--profile", "black"]
 
 # Format (add trailing commas)
 -   repo: https://github.com/asottile/add-trailing-comma
-    rev: v3.1.0
+    rev: v4.0.0
     hooks:
     -   id: add-trailing-comma
 
 -   repo: https://github.com/asottile/pyupgrade
-    rev: v3.19.1
+    rev: v3.21.2
     hooks:
     -   id: pyupgrade
         args: [--py311-plus]
