@@ -315,12 +315,12 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
 
 def test_build_cluster_info_all_fields():
     """Test the default behaviour for all parameters set."""
-    data = {"jupyter_token": "token123", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}
+    data = {"jupyter_token": "jupyter", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}
 
     result = build_cluster_info(data)
 
     assert isinstance(result, ClusterInfo)
-    assert result.jupyter_token == "token123"
+    assert result.jupyter_token == "jupyter"
     assert result.cluster_label == "dask-l0"
     assert result.cluster_instance == "instance-1"
 
@@ -328,13 +328,13 @@ def test_build_cluster_info_all_fields():
 def test_build_cluster_info_without_cluster_instance():
     """Test if the optional parameter is set to default value."""
     data = {
-        "jupyter_token": "token123",
+        "jupyter_token": "jupyter",
         "cluster_label": "dask-l0",
     }
 
     result = build_cluster_info(data)
 
-    assert result.jupyter_token == "token123"
+    assert result.jupyter_token == "jupyter"
     assert result.cluster_label == "dask-l0"
     assert result.cluster_instance == ""
 
