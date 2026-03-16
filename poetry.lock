@@ -940,14 +940,14 @@ test = ["pandas[test]", "pre-commit", "pytest", "pytest-cov", "pytest-rerunfailu
 
 [[package]]
 name = "dask-gateway"
-version = "2024.1.0"
+version = "2025.4.0"
 description = "A client library for interacting with a dask-gateway server"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "dask-gateway-2024.1.0.tar.gz", hash = "sha256:b9f14dcc63780ac60ae2d2cb15a1bb01318758f831ff97128677e6dcade2e7c4"},
-    {file = "dask_gateway-2024.1.0-py3-none-any.whl", hash = "sha256:4bd362e8ca01c71d3417259fb239f5baa5b02fb36dd7e6bebbf9cc4344aa3f95"},
+    {file = "dask_gateway-2025.4.0-py3-none-any.whl", hash = "sha256:2bd30f7ee0b771d3f7e03710fc63b0e5a2ece5a1c1da10b361959f86ccb7475c"},
+    {file = "dask_gateway-2025.4.0.tar.gz", hash = "sha256:de9f880e909c6af6e369f94da8849bcca6cc18691cfd1ade2a83a796ed1c6b82"},
 ]
 
 [package.dependencies]
@@ -5174,4 +5174,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<4"
-content-hash = "6e80a1ecf9ab1afb34aabbcc40c3deda99f80fe2d18ed22d308fc906275fb8a9"
+content-hash = "b59d7df8fd2b88f63dc653d17d866ac135c33e02645c17e0262704d661d89416"
