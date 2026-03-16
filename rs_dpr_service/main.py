@@ -29,6 +29,7 @@ from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.sql import get_engine  # pylint: disable=no-name-in-module
 from sqlalchemy.exc import SQLAlchemyError
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 from starlette.status import (  # pylint: disable=C0411
@@ -208,6 +209,22 @@ async def app_lifespan(fastapi_app: FastAPI):
     logger.info("Application gracefully stopped...")
 
 
+def build_cluster_info(data: dict) -> ClusterInfo:
+    """This function handles missing parameters from request, hence properly creates a ClusterInfo object."""
+    jupyter_token = data.get("jupyter_token")
+    cluster_label = data.get("cluster_label")
+    cluster_instance = data.get("cluster_instance", "")
+
+    if jupyter_token is None or cluster_label is None:
+        raise HTTPException(status_code=400, detail="Missing required fields: jupyter_token or cluster_label")
+
+    return ClusterInfo(
+        jupyter_token=jupyter_token,
+        cluster_label=cluster_label,
+        cluster_instance=cluster_instance,
+    )
+
+
 # Endpoint to return the names of the available processors
 @router.get("/dpr/processes")
 async def get_processes(request: Request):
@@ -238,12 +255,7 @@ async def get_resource(request: Request, resource: str):
         if resource not in api.config["resources"]:
             return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Process {resource!r} not found")
 
-        # Read cluster information
-        cluster_info = ClusterInfo(
-            jupyter_token=request.query_params["jupyter_token"],
-            cluster_label=request.query_params["cluster_label"],
-            cluster_instance=request.query_params["cluster_instance"],
-        )
+        cluster_info = build_cluster_info(dict(request.query_params))
 
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processor_types:
@@ -332,12 +344,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         # Validate request payload
         valid_body = await validate_request(request)
 
-        # Read cluster information
-        cluster_info = ClusterInfo(
-            jupyter_token=valid_body.pop("jupyter_token"),
-            cluster_label=valid_body.pop("cluster_label"),
-            cluster_instance=valid_body.pop("cluster_instance"),
-        )
+        cluster_info = build_cluster_info(valid_body)
 
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processor_types:
