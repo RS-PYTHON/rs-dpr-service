@@ -25,6 +25,7 @@ from time import sleep
 import distributed
 import yaml
 from fastapi import APIRouter, FastAPI, Path
+from opentelemetry.trace import StatusCode
 from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
@@ -54,7 +55,11 @@ from rs_dpr_service.processors.eopf_processors import (
     S3L0Processor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
-from rs_dpr_service.utils import init_opentelemetry
+from rs_dpr_service.utils.init_opentelemetry import (
+    init_traces,
+    record_error,
+    start_span,
+)
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import (
     HandleExceptionsMiddleware,
@@ -250,7 +255,7 @@ async def get_processes(request: Request):
 @router.get("/dpr/processes/{resource}")
 async def get_resource(request: Request, resource: str):
     """Should return info about a specific resource."""
-    with init_opentelemetry.start_span(__name__, "tasktable"):
+    with start_span(__name__, "tasktable"):
 
         # Check that the input resource exists
         if resource not in api.config["resources"]:
@@ -336,37 +341,49 @@ def format_jobs_data(jobs: dict):
 async def execute_process(request: Request, resource: str):  # pylint: disable=unused-argument
     """Used to execute processing jobs."""
 
-    with init_opentelemetry.start_span(__name__, "processor"):
+    # Validate request payload. This will create the 'http receive' fastapi span
+    valid_body = await validate_request(request)
 
-        # Check that the input resource exists
-        if resource not in api.config["resources"]:
-            return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Process {resource!r} not found")
+    # Run business logic in our own span
+    with start_span(__name__, f"execute_processor_{resource}") as span:
+        try:
+            # Check that the input resource exists
+            if resource not in api.config["resources"]:
+                err_msg = f"Process {resource!r} not found"
+                span.set_status(StatusCode.ERROR, err_msg)
+                return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=err_msg)
 
-        # Validate request payload
-        valid_body = await validate_request(request)
+            cluster_info = build_cluster_info(valid_body)
 
-        cluster_info = build_cluster_info(valid_body)
+            processor_name = api.config["resources"][resource]["processor"]["name"]
+            if processor_name in processor_types:
+                processor_type = processor_types[processor_name]
+                # Asynchronously execute the dpr process in the dask cluster
+                _, dpr_status = await processor_type(app.extra["process_manager"], cluster_info).execute(
+                    valid_body,
+                )  # type: ignore
 
-        processor_name = api.config["resources"][resource]["processor"]["name"]
-        if processor_name in processor_types:
-            processor_type = processor_types[processor_name]
-            _, dpr_status = await processor_type(app.extra["process_manager"], cluster_info).execute(  # type: ignore
-                valid_body,
-            )
+                # Get identifier of the current job
+                status_dict = {
+                    "accepted": HTTP_201_CREATED,
+                    "running": HTTP_201_CREATED,
+                    "successful": HTTP_201_CREATED,
+                    "failed": HTTP_500_INTERNAL_SERVER_ERROR,
+                    "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
+                }
+                id_key = [status for status in status_dict if status in dpr_status][0]
+                formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
+                validate_response(request, formatted_job_data, HTTP_201_CREATED)
+                span.set_status(StatusCode.OK, str(formatted_job_data))
+                return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
 
-            # Get identifier of the current job
-            status_dict = {
-                "accepted": HTTP_201_CREATED,
-                "running": HTTP_201_CREATED,
-                "successful": HTTP_201_CREATED,
-                "failed": HTTP_500_INTERNAL_SERVER_ERROR,
-                "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
-            }
-            id_key = [status for status in status_dict if status in dpr_status][0]
-            formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
-            validate_response(request, formatted_job_data, HTTP_201_CREATED)
-            return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
-        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Processor {processor_name!r} not found")
+            err_msg = f"Processor {processor_name!r} not found"
+            span.set_status(StatusCode.ERROR, err_msg)
+            return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=err_msg)
+
+        except Exception as e:
+            record_error(span, e)
+            raise
 
 
 # Endpoint to get the status of a job by job_id
@@ -427,6 +444,6 @@ async def delete_job_endpoint(request: Request, job_id: str = Path(..., title="T
 
 app.include_router(router)
 app.router.lifespan_context = app_lifespan  # type: ignore
-init_opentelemetry.init_traces(app, "rs.dpr.service")
+init_traces(app, "rs.dpr.service")
 # Mount pygeoapi endpoints
 app.mount(path="/oapi", app=api)

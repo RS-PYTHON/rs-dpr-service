@@ -30,6 +30,8 @@ class Logging:  # pylint: disable=too-few-public-methods
     lock = Lock()
     level = logging.DEBUG
 
+    _HANDLER_NAME = "rspy-console-handler"
+
     @classmethod
     def default(cls, name="rspy"):
         """
@@ -44,9 +46,10 @@ class Logging:  # pylint: disable=too-few-public-methods
             # Don't propagate to root logger
             logger.propagate = False
 
-            # If we have already set the handlers for the logger with this name, do nothing more
-            if logger.hasHandlers():
-                return logger
+            # If we have already set our handler for the logger with this name, do nothing more
+            for handler in logger.handlers:
+                if getattr(handler, "name", None) == cls._HANDLER_NAME:
+                    return logger
 
             # Set the minimal log level to use for all new logging instances.
             logger.setLevel(cls.level)
@@ -54,6 +57,7 @@ class Logging:  # pylint: disable=too-few-public-methods
             # Create console handler
             handler = logging.StreamHandler()
             handler.setFormatter(CustomFormatter())
+            handler.name = cls._HANDLER_NAME
             logger.addHandler(handler)
 
             return logger

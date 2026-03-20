@@ -25,6 +25,7 @@ from dask.distributed import (  # LocalCluster,
     Client,
 )
 from opentelemetry import trace
+from opentelemetry.trace.span import Span
 from pygeoapi.process.base import BaseProcessor
 from pygeoapi.process.manager.postgresql import (
     PostgreSQLManager,  # pylint: disable=C0302
@@ -34,6 +35,7 @@ from pygeoapi.util import JobStatus
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
+from rs_dpr_service.utils.init_opentelemetry import record_error, start_span
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import LOCAL_MODE, ExperimentalConfig
@@ -94,6 +96,10 @@ class GenericProcessor(BaseProcessor):
             return pattern.sub(replacer, obj)
         return obj
 
+    def get_processor_name(self):
+        """Return the normalized processor name in lowercase"""
+        return self.__class__.__name__.lower().replace("processor", "")
+
     async def get_tasktable(self):
         """Return the EOPF tasktable for a given module and class names"""
         dask_client = self.cluster_handler.setup_dask_connection()
@@ -107,6 +113,7 @@ class GenericProcessor(BaseProcessor):
                 span_context=span_context,
                 cluster_address=self.cluster_handler.cluster_address,
                 cluster_info=self.cluster_handler.cluster_info,
+                processor_name=self.get_processor_name(),
                 job_id=self.job_logger.job_id,
                 data={},  # not used for the tasktables
                 use_mockup=self.use_mockup,
@@ -143,7 +150,7 @@ class GenericProcessor(BaseProcessor):
         Asynchronously execute the dpr process in the dask cluster
         """
 
-        # self.logger.debug(f"Executing staging processor for {data}")
+        logger.debug(f"Executing processor for {data}")
 
         self.job_logger.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
@@ -175,7 +182,7 @@ class GenericProcessor(BaseProcessor):
                 status message).
                 Example: ("application/json", {"running": <job_id>})
         """
-        logger.debug("Starting main loop")
+        logger.debug(f"Starting main loop for {data}")
 
         try:
             experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
@@ -232,7 +239,8 @@ class GenericProcessor(BaseProcessor):
         """
         Manages Dask tasks where the dpr processor is started.
         """
-        logger.info("Tasks monitoring started")
+        if dask_client:
+            logger.info(f"Processing tasks monitoring started with dask client {dask_client}")
         res = None
 
         self.job_logger.log_job_execution(
@@ -240,67 +248,60 @@ class GenericProcessor(BaseProcessor):
             50,
             "In progress",
         )
-        try:
-            # For the mockup, replace placeholders by env vars.
-            # For the real processor, it is done automatically by eopf.
-            if self.use_mockup:
-                data = self.replace_placeholders(data)
+        processor_name = self.get_processor_name()
+        with start_span(__name__, f"dpr_manage_dask_tasks_{processor_name}") as span:
+            try:
+                # For the mockup, replace placeholders by env vars.
+                # For the real processor, it is done automatically by eopf.
+                if self.use_mockup:
+                    data = self.replace_placeholders(data)
 
-            # Extract span infos to send to Dask
-            span_context = trace.get_current_span().get_span_context()
-
-            dpr_processor = call_dask.ProcessorCaller(
-                caller_env=dict(os.environ),
-                span_context=span_context,
-                cluster_address=self.cluster_handler.cluster_address,
-                cluster_info=self.cluster_handler.cluster_info,
-                job_id=self.job_logger.job_id,
-                data=data,
-                use_mockup=self.use_mockup,
-            )
-
-            # Nominal usecase: run processor in the dask client
-            if dask_client:
-                dpr_task = dask_client.submit(
-                    dpr_processor.run_processor,
-                    pure=False,  # disable cache
+                # Build the processor caller with span context
+                dpr_processor = call_dask.ProcessorCaller(
+                    caller_env=dict(os.environ),
+                    span_context=span.get_span_context(),
+                    cluster_address=self.cluster_handler.cluster_address,
+                    cluster_info=self.cluster_handler.cluster_info,
+                    processor_name=processor_name,
+                    job_id=self.job_logger.job_id,
+                    data=data,
+                    use_mockup=self.use_mockup,
                 )
 
-            # Specific case for local debugging
-            else:
-                dpr_task = None
-                res = dpr_processor.run_processor()
+                # Nominal usecase: run processor in the dask client
+                if dask_client:
+                    dpr_task = dask_client.submit(
+                        dpr_processor.run_processor,
+                        pure=False,  # disable cache
+                    )
 
-        except Exception:  # pylint: disable=broad-exception-caught
-            if not dask_client:
-                logger.exception(traceback.format_exc())
-                raise
-            self.job_logger.log_job_execution(
-                JobStatus.failed,
-                None,
-                f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}",
-                log_exception=True,
-            )
-            return
+                # Specific case for local debugging
+                else:
+                    dpr_task = None
+                    res = dpr_processor.run_processor()
 
-        try:
-            if dpr_task:
-                res = dpr_task.result()  # This will raise the exception from the task if it failed
-                logger.info("%s Task streaming completed", dpr_task.key)
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                if not dask_client:
+                    logger.exception(traceback.format_exc())
+                    raise
+                self._handle_error(span, e, f"Submitting task to dask cluster failed: {traceback.format_exc()}")
+                return
 
-        except Exception:  # pylint: disable=broad-exception-caught
-            # Update status for the job
-            self.job_logger.log_job_execution(
-                JobStatus.failed,
-                None,
-                f"The dpr processing task failed: {traceback.format_exc()}",
-                log_exception=True,
-            )
-            return
+            try:
+                if dpr_task:
+                    res = dpr_task.result()  # This will raise the exception from the task if it failed
+                    logger.info("%s Task streaming completed", dpr_task.key)
+
+            except Exception as e:  # pylint: disable=broad-exception-caught
+                self._handle_error(span, e, f"Processing task failed: {traceback.format_exc()}")
+                return
 
         # Update status and insert the result of the dask task in the jobs table
         self.job_logger.log_job_execution(JobStatus.successful, 100, str(res))
-        # write the results in a s3 bucket file
 
         # Update the subscribers for token refreshment
         logger.info("Tasks monitoring finished")
+
+    def _handle_error(self, span: Span, e: Exception, error_msg: str):
+        record_error(span, e)
+        self.job_logger.log_job_execution(JobStatus.failed, None, error_msg, log_exception=True)

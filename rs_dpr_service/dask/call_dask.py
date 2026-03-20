@@ -45,9 +45,16 @@ import distributed
 import yaml
 from distributed.client import Client as DaskClient
 from distributed.worker import get_client
-from opentelemetry.trace.span import SpanContext
+from opentelemetry.propagate import inject
+from opentelemetry.trace import Status, StatusCode
+from opentelemetry.trace.span import Span, SpanContext
 
-from rs_dpr_service.utils import init_opentelemetry, settings
+from rs_dpr_service.utils import settings
+from rs_dpr_service.utils.init_opentelemetry import (
+    init_traces,
+    record_error,
+    start_span,
+)
 from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 
 SERVICE_NAME = "rs.dpr.dask"
@@ -201,6 +208,7 @@ class ProcessorCaller:
         span_context: SpanContext,
         cluster_address: str,
         cluster_info: ClusterInfo,
+        processor_name: str,
         job_id: str,
         data: dict,
         use_mockup: bool,
@@ -213,6 +221,7 @@ class ProcessorCaller:
             span_context: OpenTelemetry caller span context
             cluster_address: Dask Gateway address
             cluster_info: Information to connect to a DPR Dask cluster.
+            processor_name: processor name used as opentelemetry service name
             job_id: pygeoapi job id saved in the database.
             data: data to send to the processor
             use_mockup: use the mockup or real processor
@@ -235,10 +244,11 @@ class ProcessorCaller:
         # This should run on the rs-dpr-service container
         logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
 
-        self.caller_env: dict = caller_env
+        self.caller_env: dict[str, str] = caller_env
         self.span_context = span_context
         self.cluster_address: str = cluster_address
         self.cluster_info: ClusterInfo = cluster_info
+        self.processor_name: str = processor_name
         self.job_id: str = job_id
         self.data: dict = data
         self.use_mockup: bool = use_mockup
@@ -271,8 +281,7 @@ class ProcessorCaller:
             "PREFECT_BUCKET_NAME",
             "PREFECT_BUCKET_FOLDER",
             "TEMPO_ENDPOINT",
-            "OTEL_PYTHON_REQUESTS_TRACE_HEADERS",
-            "OTEL_PYTHON_REQUESTS_TRACE_BODY",
+            "TRACEPARENT",
         ]
 
         if local_mode:
@@ -288,9 +297,19 @@ class ProcessorCaller:
                 ],
             )
 
+        # Copy our environment variables
         for key in keys:
             if value := self.caller_env.get(key):
                 os.environ[key] = value
+        # Copy all OpenTelemetry environment variables
+        for key, value in self.caller_env.items():
+            if key.startswith("OTEL_"):
+                os.environ[key] = value
+
+        # Debug gRPC Connectivity
+        # https://opentelemetry.io/docs/zero-code/python/troubleshooting/#grpc-connectivity
+        os.environ["GRPC_VERBOSITY"] = "debug"
+        os.environ["GRPC_TRACE"] = "http,call_error,connectivity_state"
 
         # Reload this module to read updated env vars (local/cluster mode)
         reload(settings)
@@ -343,8 +362,8 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
-        with init_opentelemetry.start_span(__name__, "dpr_tasktable", self.span_context):
+        init_traces(None, SERVICE_NAME, logger)
+        with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
 
             if self.use_mockup:
                 time.sleep(1)
@@ -368,8 +387,8 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_opentelemetry.init_traces(None, SERVICE_NAME, logger)
-        with init_opentelemetry.start_span(__name__, "dpr_processor", self.span_context):
+        init_traces(None, SERVICE_NAME, logger)
+        with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
                 logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
@@ -388,7 +407,8 @@ class ProcessorCaller:
                     self.finalize()
                 except Exception:  # pylint: disable=broad-exception-caught
                     logger.exception(traceback.format_exc())
-                raise e
+                record_error(span, e)
+                raise
 
     def init(self):
         """
@@ -432,7 +452,7 @@ class ProcessorCaller:
             },
         )
 
-        logger.info("The dpr processing task started")
+        logger.info(f"The dpr processing task started in {s3_config_dir}")
 
         # Download the configuration folder from the S3 bucket into a local temp folder.
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
@@ -459,7 +479,15 @@ class ProcessorCaller:
         # Customize the payload file values
         self.customize_payload_file(payload_file)
 
-        self.command = ["eopf", "trigger", "local", payload_file]
+        self.command = [
+            "opentelemetry-instrument",
+            "--service_name",
+            f"dpr.{self.processor_name}",
+            "eopf_otel",
+            "trigger",
+            "local",
+            payload_file,
+        ]
 
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
@@ -705,16 +733,30 @@ class ProcessorCaller:
             EORunner().run(self.payload_contents)
             return
 
-        # Trigger EOPF processing, catch output
+        # Trigger EOPF processing with trace context propagation, catch output
         # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
         # or cancel the subprocess.
+        with start_span(__name__, "eopf.subprocess") as span:
+            span.set_attribute("subprocess.command", str(self.command))
+            span.set_attribute("subprocess.working_dir", str(self.working_dir))
+            span.set_attribute("subprocess.log_file", self.log_path)
+
+            logger.info(
+                f"Trigger EOPF processing with command '{self.command}' in working directory '{self.working_dir}'",
+            )
+            self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
+
+    def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
         with subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=self.working_dir,
+            env=env,
         ) as proc:
+
+            span.set_attribute("subprocess.pid", proc.pid)
 
             # Log contents
             log_str = ""
@@ -733,7 +775,8 @@ class ProcessorCaller:
 
                     # Write to log file and string
                     log_file.write(line)
-                    log_str += line
+                    if self.use_mockup:
+                        log_str += line
 
                     # Write to logger if not empty
                     line = line.rstrip()
@@ -743,6 +786,8 @@ class ProcessorCaller:
             # Wait for the execution to finish
             status_code = proc.wait()
 
+            span.set_attribute("subprocess.returncode", status_code)
+
             # We don't need the cancellation thread anymore.
             # Send the cancellation event it's been waiting for, to make sure the thread will finish.
             if cancel_event:
@@ -750,11 +795,37 @@ class ProcessorCaller:
 
             # Raise exception if the eopf status code is != 0
             if status_code:
-                raise RuntimeError(f"EOPF error, status code {status_code!r}, please see the log.")
+                err_msg = f"EOPF error, status code {status_code!r}, please see the log."
+                span.set_status(Status(StatusCode.ERROR, err_msg))
+                raise RuntimeError(err_msg)
+
+            span.set_status(Status(StatusCode.OK))
             logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
             # Parse log contents
             self.parse_eopf_log(log_str)
+
+    def _prepare_env_with_trace_context(self) -> dict[str, str]:
+        # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes
+        # https://opentelemetry.io/docs/languages/python/propagation/#manual-context-propagation
+        env = os.environ.copy()
+
+        # Inject trace context into environment variables
+        carrier: dict[str, str] = {}
+        inject(carrier)
+
+        logger.info(f"OpenTelemetry carrier: {carrier!r}")
+
+        # Convert carrier to environment variables
+        if "traceparent" in carrier:
+            env["TRACEPARENT"] = carrier["traceparent"]
+        if "tracestate" in carrier:
+            env["TRACESTATE"] = carrier["tracestate"]
+
+        # Also pass as JSON for scripts that can parse it
+        env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
+
+        return env
 
     def parse_eopf_log(self, log_str: str):
         """Parse the log contents returned by the eopf processing"""
