@@ -18,6 +18,7 @@ Avoid import unnecessary dependencies here.
 """
 
 import ast
+import contextlib
 import importlib
 import json
 import logging
@@ -86,11 +87,26 @@ def upload_this_module(dask_client: DaskClient):
         root / "utils/settings.py": "rs_dpr_service/utils/settings.py",
     }
 
+    # We'll create a zip with our files, and upload and install it in all dask workers.
+    package_name = root.name  # should be "rs_dpr_service"
+    zip_filename = f"{root.name}.zip"
+
+    # But first, if we run this function several times,
+    # we need to remove the previous installed zip from the dask workers.
+    def remove_previous_zip(dask_worker):
+        with contextlib.suppress(FileNotFoundError):
+            worker_zip_path = f"{dask_worker.local_directory}/{zip_filename}"
+            os.remove(worker_zip_path)
+            return f"Removed from dask worker: {worker_zip_path!r}"
+        return ""
+
+    logger.debug(json.dumps(dask_client.run(remove_previous_zip), indent=2))
+
     # From a temp dir
     with tempfile.TemporaryDirectory() as tmpdir:
 
         # Create a zip with our files
-        zip_path = f"{tmpdir}/{root.name}.zip"
+        zip_path = f"{tmpdir}/{zip_filename}"
         with zipfile.ZipFile(zip_path, "w") as zipped:
 
             # Zip all files
@@ -106,6 +122,17 @@ def upload_this_module(dask_client: DaskClient):
         # But it's OK, the zip file is automatically uploaded to them anyway.
         except KeyError as e:
             logger.debug(f"Ignoring error {e}")
+
+    # If we run this function several times, we need to reload the uploaded modules from the dask workers
+    def reload_uploaded():
+        reloaded = []
+        for module in list(sys.modules.values()):
+            if module.__name__.startswith(f"{package_name}."):
+                reload(module)
+                reloaded.append(module.__name__)
+        return f"Reloaded: {reloaded}"
+
+    logger.debug(json.dumps(dask_client.run(reload_uploaded), indent=2))
 
 
 @dataclass
