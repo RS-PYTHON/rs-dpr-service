@@ -233,27 +233,11 @@ jobs:
         with:
           name:
             check-security
-      - name: Download pytest reports
-        uses: actions/download-artifact@v8
-        with:
-          name:
-            run-all-pytests
-
-      - name: Normalize coverage paths for SonarCloud
-        run: |
-          sed -i 's|<source>[^<]*</source>|<source>.</source>|g' ./cov-report.xml
 
       - name: Run SonarCloud Scanner
         uses: SonarSource/sonarqube-scan-action@a31c9398be7ace6bbfaf30c0bd5d415f843d45e9 # v7
         with:
           # See doc: https://docs.sonarsource.com/sonarqube-cloud
-          #
-          # "sonar.coverage.exclusions" excludes some files from the test coverage metrics but those files are still
-          # analyzed: other metrics, duplications, coding rules...
-          #
-          # "sonar.exclusions" completely excludes some files from the analysis: those files don't appear at all
-          # in SonarQube.
-          #
           projectBaseDir: .
           args: >
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
@@ -268,8 +252,6 @@ jobs:
             -Dsonar.python.pylint.reportPaths=./pylint-report.txt
             -Dsonar.python.flake8.reportPaths=./flake8-report.txt
             -Dsonar.python.bandit.reportPaths=./bandit-report.json
-            -Dsonar.python.coverage.reportPaths=./cov-report.xml
-            -Dsonar.python.xunit.reportPath=./junit-xml-report.xml
 
       - name: Wait for quality gate result
         run: sleep 5
