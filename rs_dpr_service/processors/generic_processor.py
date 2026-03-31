@@ -1,4 +1,4 @@
-# Copyright 2024 CS Group
+# Copyright 2023-2026 Airbus, CS Group
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,6 +21,7 @@ import re
 import traceback
 from pathlib import Path
 
+import anyio
 from dask.distributed import (  # LocalCluster,
     Client,
 )
@@ -130,8 +131,11 @@ class GenericProcessor(BaseProcessor):
 
             # Return a default hardcoded value for the mockup
             if (not res) and self.use_mockup:
-                with open(Path(__file__).parent.parent / "config" / "tasktable.json", encoding="utf-8") as tf:
-                    return json.loads(tf.read())
+                async with await anyio.open_file(
+                    Path(__file__).parent.parent / "config" / "tasktable.json",
+                    encoding="utf-8",
+                ) as tf:
+                    return json.loads(await tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
@@ -157,7 +161,7 @@ class GenericProcessor(BaseProcessor):
         loop = asyncio.get_event_loop()
         if loop.is_running():
             # If the loop is running, schedule the async function
-            asyncio.create_task(self.start_processor(data))
+            _ = asyncio.create_task(self.start_processor(data))
         else:
             # If the loop is not running, run it until complete
             loop.run_until_complete(self.start_processor(data))

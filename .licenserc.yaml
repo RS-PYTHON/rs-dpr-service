@@ -11,26 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-type: object
-properties:
-  title:
-    type: string
-  description:
-    type: string
-  keywords:
-    type: array
-    items:
-      type: string
-  metadata:
-    type: array
-    items:
-      $ref: "metadata.yaml"
-  additionalParameters:
-    allOf:
-      - $ref: "metadata.yaml"
-      - type: object
-        properties:
-          parameters:
-            type: array
-            items:
-              $ref: "additionalParameter.yaml"
+
+header:
+  license:
+    spdx-id: Apache-2.0
+    copyright-owner: Airbus, CS Group
+    copyright-year: '2023-2026'
+
+  paths-ignore:
+    - '**/*.csv'
+    - '**/*.env'
+    - '**/*.json'
+    - '**/*.lock'
+    - '**/*.md'
+    - '**/*.raw'
+    - '**/Dockerfile*'
+    - '**/.gitignore'
+    - '.gitmodules'
+    - '.safety-project.ini'
+    - '.trivyignore'
+    - 'LICENSE'
+    - 'NOTICE'
+
+  comment: on-failure
