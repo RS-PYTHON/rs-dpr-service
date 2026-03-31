@@ -249,7 +249,7 @@ jobs:
             -Dsonar.coverage.exclusions=tests,tests/**,**/tests/**
             -Dsonar.exclusions=tests,tests/**,**/tests/**
             -Dsonar.sourceEncoding=UTF-8
-            -Dsonar.python.version=${{ env.PYTHON_VERSION }}
+            -Dsonar.python.version=${{ env.PYTHON_VERSION_DPR }}
             -Dsonar.python.pylint.reportPaths=./pylint-report.txt
             -Dsonar.python.flake8.reportPaths=./flake8-report.txt
             -Dsonar.python.bandit.reportPaths=./bandit-report.json
