@@ -21,6 +21,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template
 from time import sleep
+from typing import Annotated
 
 import distributed
 import yaml
@@ -388,7 +389,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 
 # Endpoint to get the status of a job by job_id
 @router.get("/dpr/jobs/{job_id}")
-async def get_job_status_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job")):
+async def get_job_status_endpoint(request: Request, job_id=Annotated[str, Path(..., title="The ID of the job")]):
     """Used to get status of processing job."""
     try:
         job = app.extra["process_manager"].get_job(job_id)
@@ -416,7 +417,7 @@ async def get_jobs_endpoint(request: Request):
 
 
 @router.delete("/dpr/jobs/{job_id}")
-async def delete_job_endpoint(request: Request, job_id: str = Path(..., title="The ID of the job to delete")):
+async def delete_job_endpoint(request: Request, job_id=Annotated[str, Path(..., title="The ID of the job to delete")]):
     """Deletes a specific job from the database."""
 
     # Send a dask distributed event for the cancellation of the job
