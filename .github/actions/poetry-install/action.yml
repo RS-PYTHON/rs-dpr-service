@@ -34,13 +34,15 @@ runs:
   using: "composite"
   steps:
     - uses: ./.github/actions/install-python
-    - uses: snok/install-poetry@v1
+    - uses: snok/install-poetry@76e04a911780d5b312d89783f7b1cd627778900a # v1
       with:
         version: 2.3.2
 
-    - run: |
+    - env:
+        INPUTS_OPTIONS: ${{ inputs.options }}
+      run: |
         set -x
-        poetry install ${{ inputs.options }} # don't use quotes around options
+        poetry install $INPUTS_OPTIONS # don't use quotes around options
         poetry -q run opentelemetry-bootstrap -a install || true # install otel instrumentation packages for dependencies
       working-directory: ${{ inputs.working-directory }}
       shell: bash
