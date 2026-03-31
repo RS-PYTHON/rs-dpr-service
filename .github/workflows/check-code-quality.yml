@@ -18,6 +18,7 @@ on:
   push:
     branches:
       - develop # pushes on the 'develop' branch
+      - feat-rspy995/run-sonar-from-project-root
     tags:
       - '**' # new git tags (including hierarchical tags like v1.0/beta)
   pull_request:
@@ -244,6 +245,7 @@ jobs:
             -Dsonar.projectKey=${{ env.SONAR_PROJECT_KEY }}
             -Dsonar.organization=rs-python
             -Dsonar.branch.name=${{ github.ref_name }}
+            -Dsonar.branch.target=develop
             -Dsonar.sources=.
             -Dsonar.tests=./tests
             -Dsonar.coverage.exclusions=tests,tests/**,**/tests/**
