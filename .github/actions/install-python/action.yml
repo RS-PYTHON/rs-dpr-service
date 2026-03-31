@@ -17,6 +17,6 @@ description: Install python with hardcoded version
 runs:
   using: "composite"
   steps:
-    - uses: actions/setup-python@v5
+    - uses: actions/setup-python@v6
       with:
         python-version: ${{ env.PYTHON_VERSION_DPR }}
