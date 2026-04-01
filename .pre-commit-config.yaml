@@ -26,7 +26,6 @@ repos:
     -   id: trailing-whitespace
     -   id: check-toml
     -   id: check-yaml
-        exclude: services/frontend/tests/resources/tools/invalid.yml
 
 # Format (black)
 -   repo: https://github.com/psf/black
