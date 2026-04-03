@@ -14,7 +14,7 @@
 
 """
 Implementation of EOPF processors based on GenericProcessor.
-Processors: S1L0, S3L0, S1ARD.
+Processors: S1L0, S3L0, S1ARD, S3OLCI.
 """
 
 import json
@@ -114,3 +114,43 @@ class S1ARDProcessor(GenericProcessor):
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
         return _load_tasktable("TaskTable_S1_ARD_generated_by_rs_python_v1.json")
+
+
+class S3OL1Processor(GenericProcessor):
+    """S3OLCI L1 Processor implementation"""
+
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
+        """
+        Initialize S3OLCI L1 Processor (here called S3OL1Processor)
+        """
+        super().__init__(
+            db_process_manager=db_process_manager,
+            cluster_info=cluster_info,
+            local_mode_address="DASK_GATEWAY_S3OLCI_ADDRESS",
+            tasktable_module="s3olci.s3_ol1.ol1_processor",
+            tasktable_class="OL1Processor",
+        )
+
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        return _load_tasktable("TaskTable_S3OLCI_L1_generated_by_rs_python_v1.json")
+
+
+class S3OL2Processor(GenericProcessor):
+    """S3OLCI L2 Processor implementation"""
+
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
+        """
+        Initialize S3OLCI L2 Processor (here called S3OL2Processor)
+        """
+        super().__init__(
+            db_process_manager=db_process_manager,
+            cluster_info=cluster_info,
+            local_mode_address="DASK_GATEWAY_S3OLCI_ADDRESS",
+            tasktable_module="s3olci.s3_ol2.ol2_processor",
+            tasktable_class="OL2Processor",
+        )
+
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        return _load_tasktable("TaskTable_S3OLCI_L2_generated_by_rs_python_v1.json")
