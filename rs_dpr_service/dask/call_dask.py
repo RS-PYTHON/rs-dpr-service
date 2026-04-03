@@ -269,8 +269,6 @@ class ProcessorCaller:
         Copy environment variables from the calling service environment to the dask client.
         This function is run from inside the dask pod.
         """
-        local_mode = self.caller_env.get("RSPY_LOCAL_MODE") == "1"
-
         # Copy env vars from the caller
         keys = [
             "RSPY_LOCAL_MODE",
@@ -282,20 +280,9 @@ class ProcessorCaller:
             "PREFECT_BUCKET_FOLDER",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            "LOCAL_DASK_USERNAME",
+            "LOCAL_DASK_PASSWORD",
         ]
-
-        if local_mode:
-            keys.extend(
-                [
-                    "LOCAL_DASK_USERNAME",
-                    "LOCAL_DASK_PASSWORD",
-                    "access_key",
-                    "bucket_location",
-                    "host_base",
-                    "host_bucket",
-                    "secret_key",
-                ],
-            )
 
         # Copy our environment variables
         for key in keys:
@@ -320,20 +307,10 @@ class ProcessorCaller:
     def set_aws_env(self):
         """Init the AWS environment variables from the bucket credentials."""
 
-        # In local mode, the env vars are read from the ~/.s3cfg
-        # config file, that contains access to the "real" s3 bucket
-        if settings.LOCAL_MODE:
-            os.environ["AWS_ACCESS_KEY_ID"] = os.environ["access_key"]
-            os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["secret_key"]
-            os.environ["AWS_ENDPOINT_URL_S3"] = os.environ["host_bucket"]
-            os.environ["AWS_DEFAULT_REGION"] = os.environ["bucket_location"]
-
-        # In cluster mode, just use the "real" s3 bucket
-        else:
-            os.environ["AWS_ACCESS_KEY_ID"] = os.environ["S3_ACCESSKEY"]
-            os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["S3_SECRETKEY"]
-            os.environ["AWS_ENDPOINT_URL_S3"] = os.environ["S3_ENDPOINT"]
-            os.environ["AWS_DEFAULT_REGION"] = os.environ["S3_REGION"]
+        os.environ["AWS_ACCESS_KEY_ID"] = os.environ["S3_ACCESSKEY"]
+        os.environ["AWS_SECRET_ACCESS_KEY"] = os.environ["S3_SECRETKEY"]
+        os.environ["AWS_ENDPOINT_URL_S3"] = os.environ["S3_ENDPOINT"]
+        os.environ["AWS_DEFAULT_REGION"] = os.environ["S3_REGION"]
 
         os.environ["AWS_DEFAULT_OUTPUT"] = "json"
 
