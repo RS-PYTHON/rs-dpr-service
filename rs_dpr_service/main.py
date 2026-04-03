@@ -55,7 +55,7 @@ from rs_dpr_service.processors.eopf_processors import (
     S1L0Processor,
     S3L0Processor,
     S3OL1Processor,
-    S3OL2Processor
+    S3OL2Processor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.init_opentelemetry import (
