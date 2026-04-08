@@ -1,14 +1,16 @@
 {
-  "$schema": "./../schemas/TaskTable.schema.json",
+  "$schema": "../../schemas/TaskTable_schema_1_draft_H.json",
   "tasktable": {
     "name": "s3-olci-l1-eo",
-    "version": "1.4.0",
+    "version": 1.32,
     "specification_version": "1.1a",
+    "update_datetime": "2024-03-26T18:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
     "start_datetime",
-    "end_datetime"
+    "end_datetime",
+    "satellite"
   ],
   "units": [
     {
@@ -27,7 +29,17 @@
       },
       "input_products": [
         {
-          "name": "S03OLCL0_",
+          "name": "S03OLCL0_1",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03OLCL0_2",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03OLCL0_3",
           "mode": "always",
           "mandatory": true
         },
@@ -37,19 +49,29 @@
           "mandatory": false
         },
         {
-          "name": "S03NATL0_",
+          "name": "S03NATL0_1",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03NATL0_2",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03NATL0_3",
           "mode": "always",
           "mandatory": false
         }
       ],
       "input_adfs": [
         {
-          "name": "Orbit file",
+          "name": "Orbit_file",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "Reference Orbit Scenario file",
+          "name": "Reference_Orbit_Scenario_file",
           "mode": "always",
           "mandatory": true
         },
@@ -115,7 +137,23 @@
   ],
   "io": [
     {
-      "name": "S03OLCL0_",
+      "name": "S03OLCL0_1",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCL0_2",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -131,7 +169,7 @@
       }
     },
     {
-      "name": "S03NATL0_",
+      "name": "S03NATL0_1",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -139,7 +177,23 @@
       }
     },
     {
-      "name": "Orbit file",
+      "name": "S03NATL0_2",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03NATL0_3",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "Orbit_file",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -147,65 +201,69 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_FROAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "8.8",
-              "dTb": "8.8"
+              "dTa": 8.8,
+              "dTb": 8.8
             }
           }
         },
         {
-          "order": "2",
+          "order": 2,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_FPOAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "8.8",
-              "dTb": "8.8"
+              "dTa": 8.8,
+              "dTb": 8.8
             }
           }
         },
         {
-          "order": "3",
+          "order": 3,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "8.8",
-              "dTb": "8.8"
+              "dTa": 8.8,
+              "dTb": 8.8
             }
           }
         },
         {
-          "order": "4",
+          "order": 4,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S00_ADF_IERSB",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "8.8",
-              "dTb": "8.8"
+              "dTa": 8.8,
+              "dTb": 8.8
             }
           }
         }
       ]
     },
     {
-      "name": "Reference Orbit Scenario file",
+      "name": "Reference_Orbit_Scenario_file",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -213,16 +271,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "8.8",
-              "dTb": "8.8"
+              "dTa": 8.8,
+              "dTb": 8.8
             }
           }
         }
@@ -237,16 +296,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
               "product_type": "S00_ADF_ECMWF",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "10800"
+              "dTa": 0,
+              "dTb": 10800
             }
           }
         }
@@ -261,16 +321,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
               "product_type": "S00_ADF_ECMWA",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "10800"
+              "dTa": 0,
+              "dTb": 10800
             }
           }
         }
@@ -285,16 +346,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_OLINS",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -309,16 +371,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_OLCAL",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -333,16 +396,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_OLPRG",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -357,16 +421,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_OLLUT",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -381,16 +446,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S00_ADF_GETAS",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -405,16 +471,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S00_ADF_WATER",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -429,16 +496,17 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_OLEOP",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -450,8 +518,7 @@
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
-      },
-      "apply_eoqc": false
+      }
     },
     {
       "name": "S03OLCERR",
@@ -459,8 +526,7 @@
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
-      },
-      "apply_eoqc": false
+      }
     }
   ],
   "queries": [
@@ -468,6 +534,7 @@
       "name": "LatestValCover",
       "parameters": [
         "product_type",
+        "satellite",
         "start_datetime",
         "end_datetime",
         "dTa",
@@ -484,6 +551,15 @@
                   "property": "product:type"
                 },
                 "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
               ]
             },
             {
@@ -534,6 +610,7 @@
       "name": "ValIntersect",
       "parameters": [
         "product_type",
+        "satellite",
         "start_datetime",
         "end_datetime",
         "dTa",
@@ -550,6 +627,15 @@
                   "property": "product:type"
                 },
                 "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
               ]
             },
             {
@@ -593,6 +679,7 @@
       "name": "LatestValIntersect",
       "parameters": [
         "product_type",
+        "satellite",
         "start_datetime",
         "end_datetime",
         "dTa",
@@ -609,6 +696,15 @@
                   "property": "product:type"
                 },
                 "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
               ]
             },
             {
@@ -659,6 +755,7 @@
       "name": "ClosestStopValidity",
       "parameters": [
         "product_type",
+        "satellite",
         "start_datetime",
         "end_datetime",
         "dTa",
@@ -678,7 +775,16 @@
               ]
             },
             {
-              "op": "t_closest_to_stop",
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_closest_to_start",
               "args": [
                 {
                   "interval": [
@@ -731,9 +837,13 @@
           "unit_name": "OL1",
           "order": 1,
           "input_products": {
-            "S03OLCL0_": "pipeline_input",
+            "S03OLCL0_1": "pipeline_input",
+            "S03OLCL0_2": "pipeline_input",
+            "S03OLCL0_3": "pipeline_input",
             "S03OLCRAC": "pipeline_input",
-            "S03NATL0_": "pipeline_input"
+            "S03NATL0_1": "pipeline_input",
+            "S03NATL0_2": "pipeline_input",
+            "S03NATL0_3": "pipeline_input"
           },
           "output_products": {
             "S03OLCEFR": "pipeline_output",
