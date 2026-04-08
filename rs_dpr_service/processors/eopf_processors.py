@@ -116,12 +116,12 @@ class S1ARDProcessor(GenericProcessor):
         return _load_tasktable("TaskTable_S1_ARD_generated_by_rs_python_v1.json")
 
 
-class S3OL1Processor(GenericProcessor):
-    """S3OLCI L1 Processor implementation"""
+class S3L1OLCIProcessor(GenericProcessor):
+    """S3 L1 OLCI Processor implementation"""
 
     def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
-        Initialize S3OLCI L1 Processor (here called S3OL1Processor)
+        Initialize S3 L1 OLCI Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
@@ -133,15 +133,15 @@ class S3OL1Processor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        return _load_tasktable("TaskTable_S3OLCI_L1_generated_by_rs_python_v1.json")
+        return _load_tasktable("TaskTable_S3_L1OLCI_generated_by_rs_python_v1.json")
 
 
-class S3OL2Processor(GenericProcessor):
-    """S3OLCI L2 Processor implementation"""
+class S3L2OLCIProcessor(GenericProcessor):
+    """S3 L2 OLCI Processor implementation"""
 
     def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
-        Initialize S3OLCI L2 Processor (here called S3OL2Processor)
+        Initialize S3 L2 OLCI Processor
         """
         super().__init__(
             db_process_manager=db_process_manager,
@@ -153,4 +153,4 @@ class S3OL2Processor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        return _load_tasktable("TaskTable_S3OLCI_L2_generated_by_rs_python_v1.json")
+        return _load_tasktable("TaskTable_S3_L2OLCI_generated_by_rs_python_v1.json")

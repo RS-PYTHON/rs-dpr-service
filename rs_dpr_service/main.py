@@ -54,8 +54,8 @@ from rs_dpr_service.processors.eopf_processors import (
     S1ARDProcessor,
     S1L0Processor,
     S3L0Processor,
-    S3OL1Processor,
-    S3OL2Processor,
+    S3L1OLCIProcessor,
+    S3L2OLCIProcessor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.init_opentelemetry import (
@@ -83,8 +83,8 @@ processor_types: dict[str, type[GenericProcessor]] = {
     "s1_l0": S1L0Processor,
     "s3_l0": S3L0Processor,
     "s1_ard": S1ARDProcessor,
-    "s3olci_l1": S3OL1Processor,
-    "s3olci_l2": S3OL2Processor,
+    "s3_l1olci": S3L1OLCIProcessor,
+    "s3_l2olci": S3L2OLCIProcessor,
 }
 
 # Initialize a FastAPI application

@@ -64,14 +64,14 @@ resources:
     type: process
     processor:
       name: s1_ard
-  s3olci_l1:
+  s3_l1olci:
     type: process
     processor:
-      name: s3olci_l1
-  s3olci_l2:
+      name: s3_l1olci
+  s3_l2olci:
     type: process
     processor:
-      name: s3olci_l2
+      name: s3_l2olci
 
 openapi:
   path: # not used
