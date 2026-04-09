@@ -1,0 +1,334 @@
+{
+  "$schema": "./../schemas/TaskTable.schema.json",
+  "tasktable": {
+    "name": "s3-olci-l2-fr",
+    "version": "1.4.0",
+    "specification_version": "1.1a",
+    "configuration_path": {}
+  },
+  "external_variables": [
+    "start_datetime",
+    "end_datetime"
+  ],
+  "units": [
+    {
+      "name": "OL2",
+      "module": "s3olci.s3_ol2.ol2_processor",
+      "resources_min": {
+        "dask": {
+          "worker_cpu": 1.0,
+          "worker_ram": "20GB",
+          "worker_thread_count": 1,
+          "worker_count": 1
+        },
+        "disk": {
+          "size_per_worker": "50GB"
+        }
+      },
+      "input_products": [
+        {
+          "name": "S03OLCEFR",
+          "mode": "always",
+          "mandatory": true
+        }
+      ],
+      "input_adfs": [
+        {
+          "name": "S03_ADF_OLPCP",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLPPP",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLWVP",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLVGP",
+          "mode": "always",
+          "mandatory": true
+        }
+      ],
+      "output_products": [
+        {
+          "name": "S03OLCLFR",
+          "mode": "always",
+          "mandatory": false
+        }
+      ]
+    }
+  ],
+  "io": [
+    {
+      "name": "S03OLCEFR",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03_ADF_OLPCP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": "1",
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLPCP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": "0",
+              "dTb": "0"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLPPP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": "1",
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLPPP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": "0",
+              "dTb": "0"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLWVP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": "1",
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLWVP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": "0",
+              "dTb": "0"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLVGP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": "1",
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLVGP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": "0",
+              "dTb": "0"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TODO_S00_ADF_MNO2C_S00_ADF_MSICC_S03_ADF_OLCLP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCLFR",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "apply_eoqc": false
+    }
+  ],
+  "queries": [
+    {
+      "name": "ValIntersect",
+      "parameters": [
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "LatestValIntersect",
+      "parameters": [
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    }
+  ],
+  "pipelines": [
+    {
+      "name": "ol2_fr",
+      "description": "Full Sentinel-3 OLCI L2 FR processing",
+      "steps": [
+        {
+          "unit_name": "OL2",
+          "order": 1,
+          "input_products": {
+            "S03OLCEFR": "pipeline_input"
+          },
+          "output_products": {
+            "S03OLCLFR": "pipeline_output"
+          }
+        }
+      ]
+    }
+  ]
+}
