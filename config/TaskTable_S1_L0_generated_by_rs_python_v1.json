@@ -9,7 +9,8 @@
     },
     "external_variables": [
         "start_datetime",
-        "end_datetime"
+        "end_datetime",
+	"satellite"
     ],
     "units": [
         {
@@ -93,6 +94,7 @@
                             "product_type": "MPL_ORBSCT",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
+			    "satellite": "{external_variable.satellite}",
                             "dTa": 0,
                             "dTb": 0
                         }
@@ -114,6 +116,7 @@
                             "product_type": "MPL_ORBPRE",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
+			    "satellite": "{external_variable.satellite}",
                             "dTa": 345600,
                             "dTb": 0
                         }
@@ -153,6 +156,7 @@
                 "product_type",
                 "start_datetime",
                 "end_datetime",
+		"satellite",
                 "dTa",
                 "dTb"
             ],
@@ -175,7 +179,7 @@
                                 {
                                     "property": "platform"
                                 },
-                                "sentinel-1a"
+                                "{satellite}"
                             ]
                         },
                         {
