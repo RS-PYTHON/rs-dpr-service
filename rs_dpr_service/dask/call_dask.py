@@ -622,7 +622,7 @@ class ProcessorCaller:
 
             # For each input or output product
             start_time = time.time()
-            for io_key, io_value in payload_contents.get("I/O", {}).items():
+            for io_key, io_value in payload_contents.get("I/O", payload_contents.get("io", {})).items():
                 for product in io_value:
                     self.handle_local_product(io_key, product)
             self.exec_times.append(("Download input files", time.time() - start_time))
