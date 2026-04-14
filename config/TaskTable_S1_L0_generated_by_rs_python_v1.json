@@ -3,7 +3,7 @@
     "tasktable": {
         "name": "s1-l0",
         "version": 1.0,
-        "specification_version": "1.0_draftE",
+        "specification_version": "1.0_draftG",
         "update_datetime": "2025-10-03T11:00:00Z",
         "configuration_path": {}
     },
@@ -47,10 +47,28 @@
             ],
             "output_products": [
                 {
-                    "name": "output_folder",
+                    "name": "S01SARRAW",
                     "mode": "always",
-                    "mandatory": true,
-                    "regex": ".*"
+                    "mandatory": false,
+                    "regex": "^datatakeid_.*"
+                },
+                {
+                    "name": "S01GPSRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^gps$"
+                },
+                {
+                    "name": "S01HKMRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^hktm$"
+                },
+                {
+                    "name": "S01AISRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^ais_.*"
                 }
             ]
         }
@@ -96,7 +114,7 @@
                             "product_type": "MPL_ORBPRE",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
-                            "dTa": 7200,
+                            "dTa": 345600,
                             "dTb": 0
                         }
                     }
@@ -104,7 +122,25 @@
             ]
         },
         {
-            "name": "output_folder",
+            "name": "S01SARRAW",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
+        },
+        {
+            "name": "S01GPSRAW",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
+        },
+        {
+            "name": "S01HKMRAW",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
+        },
+        {
+            "name": "S01AISRAW",
             "type": "folder",
             "store_type": "zarr",
             "opening_mode": "CREATE_OVERWRITE"
@@ -122,57 +158,66 @@
             ],
             "stac": {
                 "filter": {
-                "op": "and",
-                "args": [
-                    {
-                    "op": "=",
+                    "op": "and",
                     "args": [
                         {
-                        "property": "product:type"
-                        },
-                        "{product_type}"
-                    ]
-                    },
-                    {
-                    "op": "t_intersects",
-                    "args": [
-                        {
-                        "interval": [
-                            {
-                            "property": "start_datetime"
-                            },
-                            {
-                            "property": "end_datetime"
-                            }
-                        ]
+                            "op": "=",
+                            "args": [
+                                {
+                                    "property": "product:type"
+                                },
+                                "{product_type}"
+                            ]
                         },
                         {
-                        "interval": [
-                            {
-                            "op": "-",
+                            "op": "=",
                             "args": [
-                                "{start_datetime}",
-                                "{dTa}"
+                                {
+                                    "property": "platform"
+                                },
+                                "sentinel-1a"
                             ]
-                            },
-                            {
-                            "op": "+",
+                        },
+                        {
+                            "op": "t_contains",
                             "args": [
-                                "{end_datetime}",
-                                "{dTb}"
+                                {
+                                    "interval": [
+                                        {
+                                            "property": "start_datetime"
+                                        },
+                                        {
+                                            "property": "end_datetime"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "interval": [
+                                        {
+                                            "op": "-",
+                                            "args": [
+                                                "{start_datetime}",
+                                                "{dTa}"
+                                            ]
+                                        },
+                                        {
+                                            "op": "+",
+                                            "args": [
+                                                "{end_datetime}",
+                                                "{dTb}"
+                                            ]
+                                        }
+                                    ]
+                                }
                             ]
-                            }
-                        ]
                         }
                     ]
-                    }
-                ]
                 },
                 "sortby": [
-                {
-                    "field": "created",
-                    "direction": "desc"
-                }
+                    {
+                        "field": "created",
+                        "direction": "desc"
+                    }
                 ],
                 "limit": 1
             }
@@ -190,7 +235,10 @@
                         "S1CADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_output"
+                        "S01SARRAW": "pipeline_output",
+                        "S01GPSRAW": "pipeline_output",
+                        "S01HKMRAW": "pipeline_output",
+                        "S01AISRAW": "pipeline_output"
                     }
                 }
             ]
