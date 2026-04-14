@@ -148,7 +148,7 @@ class GenericProcessor(BaseProcessor):
     async def execute(  # pylint: disable=invalid-overridden-method
         self,
         data: dict,
-        outputs=None,
+        _outputs=None,
     ) -> tuple[str, dict]:
         """
         Asynchronously execute the dpr process in the dask cluster
