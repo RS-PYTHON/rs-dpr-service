@@ -1,0 +1,856 @@
+{
+  "$schema": "../../schemas/TaskTable_schema_1_draft_H.json",
+  "tasktable": {
+    "name": "s3-olci-l1-eo",
+    "version": 1.32,
+    "specification_version": "1.1a",
+    "update_datetime": "2024-03-26T18:00:00Z",
+    "configuration_path": {}
+  },
+  "external_variables": [
+    "start_datetime",
+    "end_datetime",
+    "satellite"
+  ],
+  "units": [
+    {
+      "name": "OL1",
+      "module": "s3olci.s3_ol1.ol1_processor",
+      "resources_min": {
+        "dask": {
+          "worker_cpu": 1.0,
+          "worker_ram": "20GB",
+          "worker_thread_count": 1,
+          "worker_count": 1
+        },
+        "disk": {
+          "size_per_worker": "50GB"
+        }
+      },
+      "input_products": [
+        {
+          "name": "S03OLCL0_1",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03OLCL0_2",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03OLCL0_3",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03OLCRAC",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03NATL0_1",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03NATL0_2",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03NATL0_3",
+          "mode": "always",
+          "mandatory": false
+        }
+      ],
+      "input_adfs": [
+        {
+          "name": "Orbit_file",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "Reference_Orbit_Scenario_file",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_ECMWF",
+          "mode": "nrt",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_ECMWA",
+          "mode": "ntc",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLINS",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLCAL",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLPRG",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLLUT",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_GETAS",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_WATER",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OLEOP",
+          "mode": "always",
+          "mandatory": true
+        }
+      ],
+      "output_products": [
+        {
+          "name": "S03OLCEFR",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S03OLCERR",
+          "mode": "always",
+          "mandatory": false
+        }
+      ]
+    }
+  ],
+  "io": [
+    {
+      "name": "S03OLCL0_1",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCL0_2",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCL0_3",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCRAC",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03NATL0_1",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03NATL0_2",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03NATL0_3",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "Orbit_file",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_FROAX",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 8.8,
+              "dTb": 8.8
+            }
+          }
+        },
+        {
+          "order": 2,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_FPOAX",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 8.8,
+              "dTb": 8.8
+            }
+          }
+        },
+        {
+          "order": 3,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 8.8,
+              "dTb": 8.8
+            }
+          }
+        },
+        {
+          "order": 4,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S00_ADF_IERSB",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 8.8,
+              "dTb": 8.8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Reference_Orbit_Scenario_file",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 8.8,
+              "dTb": 8.8
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_ECMWF",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "ValIntersectWithoutDuplicates",
+            "parameters": {
+              "product_type": "S00_ADF_ECMWF",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 10800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_ECMWA",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "ValIntersectWithoutDuplicates",
+            "parameters": {
+              "product_type": "S00_ADF_ECMWA",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 10800
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLINS",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLINS",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLCAL",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLCAL",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLPRG",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLPRG",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLLUT",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLLUT",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_GETAS",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S00_ADF_GETAS",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_WATER",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S00_ADF_WATER",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OLEOP",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_OLEOP",
+              "satellite": "{external_variable.satellite}",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03OLCEFR",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03OLCERR",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    }
+  ],
+  "queries": [
+    {
+      "name": "LatestValCover",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_contains",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    },
+    {
+      "name": "ValIntersect",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "LatestValIntersect",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    },
+    {
+      "name": "ClosestStopValidity",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_closest_to_start",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    }
+  ],
+  "pipelines": [
+    {
+      "name": "ol1_eo",
+      "description": "Full Sentinel-3 OLCI L1 EO processing",
+      "steps": [
+        {
+          "unit_name": "OL1",
+          "order": 1,
+          "input_products": {
+            "S03OLCL0_1": "pipeline_input",
+            "S03OLCL0_2": "pipeline_input",
+            "S03OLCL0_3": "pipeline_input",
+            "S03OLCRAC": "pipeline_input",
+            "S03NATL0_1": "pipeline_input",
+            "S03NATL0_2": "pipeline_input",
+            "S03NATL0_3": "pipeline_input"
+          },
+          "output_products": {
+            "S03OLCEFR": "pipeline_output",
+            "S03OLCERR": "pipeline_output"
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -59,15 +59,20 @@ SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
 dask-gateway = "2025.4.0"
 # same dask version as in the cluster i.e. same as eopf
-dask = {extras = ["distributed"], version = "2024.5.2"}
+dask = [
+    {extras = ["distributed"], version = "2024.5.2", python = "~3.11"},
+    # Note: we use Dask 2026.1.2 with Python 3.13 to avoid a dependency conflict with other packages when deploying them together.
+    # The only use case for now is rs-documentation because everywhere else rs-dpr-service is used with Python 3.11.
+    {extras = ["distributed"], version = "2026.1.2", python = "~3.13"}
+]
 openapi-core = ">=0.22.0"
 bandit = "^1.8.3"
 mypy = "^1.15.0"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.11"
-opentelemetry-distro = "^0.61b0" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-exporter-otlp = "^1.40.0"
+opentelemetry-distro = "^0.62b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-exporter-otlp = "^1.41.0"
 tornado = "^6.5" # fix trivy vulnerability
 s3fs = "^2025.7.0"
 
