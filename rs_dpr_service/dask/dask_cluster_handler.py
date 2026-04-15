@@ -83,12 +83,14 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             # We need to find the cluster instance, if it is not set in the input info
             if not self.cluster_info.cluster_instance:
 
+                # Look up the cluster by its configured cluster_name label.
                 logger.info(f"Cluster label: {cluster_label}")
                 cluster_labels = [
                     cluster.options.get("cluster_name") for cluster in clusters if isinstance(cluster.options, dict)
                 ]
                 logger.info(f"Available cluster labels: {cluster_labels}")
 
+                # Keep the newest matching cluster, as the list is already sorted.
                 self.cluster_info.cluster_instance = next(
                     (
                         cluster.name
