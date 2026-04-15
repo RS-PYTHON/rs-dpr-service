@@ -295,8 +295,8 @@ class ProcessorCaller:
 
         # Debug gRPC Connectivity
         # https://opentelemetry.io/docs/zero-code/python/troubleshooting/#grpc-connectivity
-        os.environ["GRPC_VERBOSITY"] = "debug"
-        os.environ["GRPC_TRACE"] = "http,call_error,connectivity_state"
+        # os.environ["GRPC_VERBOSITY"] = "debug"
+        # os.environ["GRPC_TRACE"] = "http,call_error,connectivity_state"
 
         # Reload this module to read updated env vars (local/cluster mode)
         reload(settings)
