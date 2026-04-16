@@ -28,7 +28,14 @@ from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
-from rs_dpr_service.main import ClusterInfo, build_cluster_info
+from rs_dpr_service.main import (
+    ClusterInfo,
+    DatabaseJobFormatError,
+    JobsFormatError,
+    build_cluster_info,
+    format_job_data,
+    format_jobs_data,
+)
 from rs_dpr_service.utils import middlewares
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import (
@@ -350,3 +357,27 @@ def test_build_cluster_info_missing_jupyter_token():
 
     assert exc.value.status_code == 400
     assert "Missing required fields" in exc.value.detail
+
+
+def test_format_jobs_data_missing_jobs_key():
+    """Test that format_jobs_data raises when the 'jobs' key is missing."""
+    with pytest.raises(JobsFormatError) as exc:
+        format_jobs_data({"attr1": "val1", "attr2": "val2"})
+
+    assert "missing 'jobs' key" in str(exc.value)
+
+
+def test_format_jobs_data_wrong_input_type():
+    """Test that format_jobs_data raises when input is not a dictionary."""
+    with pytest.raises(JobsFormatError) as exc:
+        format_jobs_data("wrong_data")  # type: ignore
+
+    assert "Expected a dictionary as input" in str(exc.value)
+
+
+def test_format_job_data_missing_identifier():
+    """Test that format_job_data raises when identifier is missing."""
+    with pytest.raises(DatabaseJobFormatError) as exc:
+        format_job_data({"status": "running"})
+
+    assert "attribute 'identifier' is missing" in str(exc.value)
