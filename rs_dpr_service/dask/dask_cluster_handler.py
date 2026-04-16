@@ -83,33 +83,23 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             # We need to find the cluster instance, if it is not set in the input info
             if not self.cluster_info.cluster_instance:
 
-                # In local mode, get the first cluster from the gateway.
-                # This cluster instance id is needed by the eopf dask scheduler to connect later to this cluster.
-                # This is something like "dask-gateway.17e196069443463495547eb97f532834"
-                if LOCAL_MODE:
-                    if clusters:
-                        self.cluster_info.cluster_instance = clusters[0].name
+                # Look up the cluster by its configured cluster_name label.
+                logger.info(f"Cluster label: {cluster_label}")
+                cluster_labels = [
+                    cluster.options.get("cluster_name") for cluster in clusters if isinstance(cluster.options, dict)
+                ]
+                logger.info(f"Available cluster labels: {cluster_labels}")
 
-                # In cluster mode, get the instance of the cluster identified by its label.
-                else:
-                    logger.info(f"Cluster label: {cluster_label}")
-
-                    for cluster in clusters:
-                        logger.info(f"Existing cluster labels: {cluster.options.get('cluster_name')}")
-
-                        is_equal = cluster.options.get("cluster_name") == cluster_label
-                        logger.info(f"Is equal: {is_equal}")
-
-                    self.cluster_info.cluster_instance = next(
-                        (
-                            cluster.name
-                            for cluster in clusters
-                            if isinstance(cluster.options, dict)
-                            and cluster.options.get("cluster_name") == cluster_label
-                        ),
-                        "",
-                    )
-                    logger.info(f"Cluster instance: {self.cluster_info.cluster_instance}")
+                # Keep the newest matching cluster, as the list is already sorted.
+                self.cluster_info.cluster_instance = next(
+                    (
+                        cluster.name
+                        for cluster in clusters
+                        if isinstance(cluster.options, dict) and cluster.options.get("cluster_name") == cluster_label
+                    ),
+                    "",
+                )
+                logger.info(f"Cluster instance: {self.cluster_info.cluster_instance}")
 
                 if not self.cluster_info.cluster_instance:
                     raise IndexError(f"Dask cluster with 'cluster_name'={cluster_label!r} was not found.")
