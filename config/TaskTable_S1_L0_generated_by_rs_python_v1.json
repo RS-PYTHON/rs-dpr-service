@@ -10,7 +10,7 @@
     "external_variables": [
         "start_datetime",
         "end_datetime",
-	"satellite"
+        "satellite"
     ],
     "units": [
         {
@@ -94,7 +94,7 @@
                             "product_type": "MPL_ORBSCT",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
-			    "satellite": "{external_variable.satellite}",
+                            "satellite": "{external_variable.satellite}",
                             "dTa": 0,
                             "dTb": 0
                         }
@@ -116,7 +116,7 @@
                             "product_type": "MPL_ORBPRE",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
-			    "satellite": "{external_variable.satellite}",
+                            "satellite": "{external_variable.satellite}",
                             "dTa": 345600,
                             "dTb": 0
                         }
