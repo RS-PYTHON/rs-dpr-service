@@ -27,23 +27,16 @@ import pytest
 
 def install_fake_eopf_dependencies(monkeypatch, mocker):
     """Install mocked EOPF dependencies in sys.modules."""
-    eo_config = {}
+    eo_config: dict[str, bool] = {}
     any_path = mocker.Mock(side_effect=lambda path, **kwargs: {"path": path, "kwargs": kwargs})
     convert = mocker.Mock()
 
-    fake_eopf = types.ModuleType("eopf")
-    fake_eopf.__version__ = "1.2.3"
-
+    fake_eopf = types.SimpleNamespace(__version__="1.2.3")
     fake_common = types.ModuleType("eopf.common")
-    fake_file_utils = types.ModuleType("eopf.common.file_utils")
-    fake_file_utils.AnyPath = any_path
-
-    fake_config = types.ModuleType("eopf.config")
-    fake_config.EOConfiguration = lambda: eo_config
-
+    fake_file_utils = types.SimpleNamespace(AnyPath=any_path)
+    fake_config = types.SimpleNamespace(EOConfiguration=lambda: eo_config)
     fake_store = types.ModuleType("eopf.store")
-    fake_convert = types.ModuleType("eopf.store.convert")
-    fake_convert.convert = convert
+    fake_convert = types.SimpleNamespace(convert=convert)
 
     for name, module in {
         "eopf": fake_eopf,
@@ -121,7 +114,7 @@ def test_main_success(monkeypatch, mocker):
 
     expected_s3_cfg = {
         "key": "access",
-        "secret": "secret",
+        "secret": "secret",  # nosec B105
         "client_kwargs": {
             "endpoint_url": "https://example.com",
             "region_name": "eu-west-1",
