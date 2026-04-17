@@ -3,8 +3,8 @@
     "tasktable": {
         "name": "s1-l0",
         "version": 1.0,
-        "specification_version": "1.0_draftG",
-        "update_datetime": "2025-10-03T11:00:00Z",
+        "specification_version": "1.0_draftI",
+        "update_datetime": "2026-04-17T11:00:00Z",
         "configuration_path": {}
     },
     "external_variables": [
