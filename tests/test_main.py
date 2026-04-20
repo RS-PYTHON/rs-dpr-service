@@ -18,6 +18,7 @@ Implement tests that are common to several services.
 NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
+import copy
 from datetime import datetime
 
 import pytest
@@ -33,6 +34,20 @@ from rs_dpr_service.main import (
     format_jobs_data,
     init_db,
 )
+
+
+def job_record(identifier: str, status: str = "running") -> dict:
+    """Create a database-shaped job payload for endpoint tests."""
+    return {
+        "identifier": identifier,
+        "status": status,
+        "type": "process",
+        "progress": 55 if status == "running" else 100,
+        "message": "Test detail",
+        "created": datetime(2026, 4, 20, 10, 0, 0),
+        "updated": datetime(2026, 4, 20, 11, 0, 0),
+        "processID": "mockup",
+    }
 
 
 def test_build_cluster_info_all_fields():
@@ -246,3 +261,205 @@ def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mock
     payload = response.json()
     assert payload["tasktable"]["name"] == "mockup"
     assert payload["tasktable"]["version"] == 1.0
+
+
+def test_execute_process_returns_404_for_unknown_resource(client, mocker):
+    """Test the execution endpoint when the requested process does not exist."""
+    span = mocker.Mock()
+    start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
+    start_span_mock.return_value.__enter__.return_value = span
+    start_span_mock.return_value.__exit__.return_value = False
+    mocker.patch(
+        "rs_dpr_service.main.validate_request",
+        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+    )
+
+    response = client.post("/dpr/processes/unknown-process/execution", json={})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Process 'unknown-process' not found"
+    span.set_status.assert_called_once()
+
+
+def test_execute_process_endpoint_success(client, mocker):
+    """Test the execution endpoint for a valid process with a successful execution."""
+    span = mocker.Mock()
+    start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
+    start_span_mock.return_value.__enter__.return_value = span
+    start_span_mock.return_value.__exit__.return_value = False
+    valid_body = {"jupyter_token": "jupyter", "cluster_label": "dask-l0"}  # nosec B105
+    mocker.patch("rs_dpr_service.main.validate_request", return_value=valid_body)
+    mocker.patch("rs_dpr_service.main.validate_response")
+    process_manager = mocker.Mock()
+    process_manager.get_job.return_value = job_record("job-1", status="accepted")
+    client.app.extra["process_manager"] = process_manager
+
+    class SuccessfulProcessor:
+        """Fake processor used to test the success path."""
+
+        def __init__(self, db_process_manager, cluster_info):
+            self.db_process_manager = db_process_manager
+            self.cluster_info = cluster_info
+
+        async def execute(self, data):
+            """Return a successful DPR execution payload."""
+            assert self.db_process_manager is process_manager
+            assert self.cluster_info.cluster_label == "dask-l0"
+            assert data == valid_body
+            return "application/json", {"accepted": "job-1"}
+
+    api_mock = mocker.Mock()
+    api_mock.config = {"resources": {"mockup": {"processor": {"name": "mockup"}}}}
+    mocker.patch.object(main_module, "api", api_mock)
+    mocker.patch.dict(main_module.processor_types, {"mockup": SuccessfulProcessor}, clear=False)
+
+    response = client.post("/dpr/processes/mockup/execution", json={})
+
+    assert response.status_code == 201
+    assert response.json() == format_job_data(process_manager.get_job.return_value)
+    process_manager.get_job.assert_called_once_with("job-1")
+    span.set_status.assert_called_once()
+
+
+def test_execute_process_returns_404_for_unknown_processor_name(client, mocker):
+    """Test the execution endpoint when a configured processor is missing from processor_types."""
+    span = mocker.Mock()
+    start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
+    start_span_mock.return_value.__enter__.return_value = span
+    start_span_mock.return_value.__exit__.return_value = False
+    mocker.patch(
+        "rs_dpr_service.main.validate_request",
+        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+    )
+    api_mock = mocker.Mock()
+    api_mock.config = {"resources": {"mockup": {"processor": {"name": "unknown_processor"}}}}
+    mocker.patch.object(main_module, "api", api_mock)
+
+    response = client.post("/dpr/processes/mockup/execution", json={})
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Processor 'unknown_processor' not found"
+    span.set_status.assert_called_once()
+
+
+def test_execute_process_records_error_when_processor_execution_fails(client, mocker):
+    """Test the execution endpoint when the processor raises an exception."""
+    span = mocker.Mock()
+    start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
+    start_span_mock.return_value.__enter__.return_value = span
+    start_span_mock.return_value.__exit__.return_value = False
+    mocker.patch(
+        "rs_dpr_service.main.validate_request",
+        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+    )
+    record_error = mocker.patch("rs_dpr_service.main.record_error")
+    client.app.extra["process_manager"] = mocker.Mock()
+
+    class FailingProcessor:
+        """Fake processor used to test the error path."""
+
+        def __init__(self, db_process_manager, cluster_info):
+            self.db_process_manager = db_process_manager
+            self.cluster_info = cluster_info
+
+        async def execute(self, data):
+            """Raise an exception to exercise the error path."""
+            raise ValueError("processor exploded")
+
+    api_mock = mocker.Mock()
+    api_mock.config = {"resources": {"mockup": {"processor": {"name": "mockup"}}}}
+    mocker.patch.object(main_module, "api", api_mock)
+    mocker.patch.dict(main_module.processor_types, {"mockup": FailingProcessor}, clear=False)
+
+    response = client.post("/dpr/processes/mockup/execution", json={})
+
+    assert response.status_code == 500
+    assert response.json()["detail"] == "processor exploded"
+    record_error.assert_called_once()
+
+
+def test_get_job_status_endpoint_success(client, mocker):
+    """Test the job status endpoint when the job exists."""
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_job.return_value = job_record("job-1")
+
+    response = client.get("/dpr/jobs/job-1")
+
+    assert response.status_code == 200
+    assert response.json() == format_job_data(process_manager.get_job.return_value)
+
+
+def test_get_job_status_endpoint_returns_404_for_unknown_job(client, mocker):
+    """Test the job status endpoint when the job does not exist."""
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_job.side_effect = main_module.JobNotFoundError
+
+    response = client.get("/dpr/jobs/unknown-job")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job with ID unknown-job not found"
+
+
+def test_get_jobs_endpoint_success(client, mocker):
+    """Test the jobs endpoint when jobs are available."""
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_jobs.return_value = {"jobs": [job_record("job-1")], "numberMatched": 1}
+
+    response = client.get("/dpr/jobs")
+
+    assert response.status_code == 200
+    assert response.json() == format_jobs_data(process_manager.get_jobs.return_value)
+
+
+def test_get_jobs_endpoint_returns_404_on_error(client, mocker):
+    """Test the jobs endpoint when get_jobs raises an exception."""
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_jobs.side_effect = Exception("get_jobs failed")
+
+    response = client.get("/dpr/jobs")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "get_jobs failed"
+
+
+def test_delete_job_endpoint_success(client, mocker):
+    """Test the delete job endpoint when the job exists."""
+    cancel_event = mocker.Mock()
+    cancel_event.client = True
+    mocker.patch("rs_dpr_service.main.distributed.Event", return_value=cancel_event)
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_job.return_value = copy.deepcopy(job_record("job-1"))
+
+    response = client.delete("/dpr/jobs/job-1")
+
+    expected_job = format_job_data(
+        {
+            **job_record("job-1"),
+            "message": "Job job-1 deleted successfully",
+        },
+    )
+    assert response.status_code == 200
+    assert response.json() == expected_job
+    cancel_event.set.assert_called_once()
+    process_manager.delete_job.assert_called_once_with("job-1")
+
+
+def test_delete_job_endpoint_returns_404_for_unknown_job(client, mocker):
+    """Test the delete job endpoint when the job does not exist."""
+    cancel_event = mocker.Mock()
+    cancel_event.client = False
+    mocker.patch("rs_dpr_service.main.distributed.Event", return_value=cancel_event)
+    process_manager = mocker.Mock()
+    client.app.extra["process_manager"] = process_manager
+    process_manager.get_job.side_effect = main_module.JobNotFoundError
+
+    response = client.delete("/dpr/jobs/unknown-job")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Job with ID unknown-job not found"
+    cancel_event.set.assert_not_called()
