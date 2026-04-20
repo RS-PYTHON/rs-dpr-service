@@ -18,9 +18,12 @@ Implement tests that are common to several services.
 NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
+from datetime import datetime
+
 import pytest
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+import rs_dpr_service.main as main_module
 from rs_dpr_service.main import (
     ClusterInfo,
     DatabaseJobFormatError,
@@ -28,6 +31,7 @@ from rs_dpr_service.main import (
     build_cluster_info,
     format_job_data,
     format_jobs_data,
+    init_db,
 )
 
 
@@ -86,9 +90,159 @@ def test_format_jobs_data_wrong_input_type():
     assert "Expected a dictionary as input" in str(exc.value)
 
 
+def test_format_jobs_data_valid_input():
+    """Test that format_jobs_data adds links and formats each job entry."""
+    created = datetime(2026, 4, 19, 10, 30, 0)
+    updated = datetime(2026, 4, 19, 11, 45, 0)
+    jobs = {
+        "jobs": [
+            {
+                "identifier": "job-1",
+                "status": "running",
+                "created": created,
+                "updated": updated,
+                "finished": None,
+                "_sa_instance_state": "state",
+                "location": "result-path",
+                "mimetype": "application/json",
+            },
+        ],
+    }
+
+    result = format_jobs_data(jobs)
+
+    assert "links" in result
+    assert result["links"][0]["title"] == "List of jobs"
+    assert result["jobs"] == [
+        {
+            "jobID": "job-1",
+            "status": "running",
+            "created": "2026-04-19T10:30:00Z",
+            "updated": "2026-04-19T11:45:00Z",
+        },
+    ]
+
+
 def test_format_job_data_missing_identifier():
     """Test that format_job_data raises when identifier is missing."""
     with pytest.raises(DatabaseJobFormatError) as exc:
         format_job_data({"status": "running"})
 
     assert "attribute 'identifier' is missing" in str(exc.value)
+
+
+def test_format_job_data_valid_input():
+    """Test that format_job_data reformats a valid database job."""
+    created = datetime(2026, 4, 19, 10, 30, 0)
+    started = datetime(2026, 4, 19, 10, 31, 0)
+    job = {
+        "identifier": "job-1",
+        "status": "successful",
+        "created": created,
+        "started": started,
+        "finished": None,
+        "_sa_instance_state": "state",
+        "location": "result-path",
+        "mimetype": "application/json",
+        "message": "done",
+    }
+
+    result = format_job_data(job)
+
+    assert result == {
+        "jobID": "job-1",
+        "status": "successful",
+        "created": "2026-04-19T10:30:00Z",
+        "started": "2026-04-19T10:31:00Z",
+        "message": "done",
+    }
+
+
+def test_init_db_invalid_manager_definition(mocker):
+    """Test that init_db raises when pygeoapi manager config is invalid."""
+    mocker.patch.object(main_module, "api", mocker.Mock(config={"manager": None}))
+
+    with pytest.raises(RuntimeError, match="Error reading the manager definition"):
+        init_db()
+
+
+def test_init_db_retries_then_succeeds(mocker):
+    """Test that init_db retries after a database error and then returns a manager."""
+    manager_def = {"connection": {"host": "db-host"}}
+    engine = mocker.Mock()
+    engine.url = "postgresql://db-host"
+    postgres_manager = mocker.Mock(name="postgres_manager")
+    create_all = mocker.patch.object(
+        main_module.Base.metadata,
+        "create_all",
+        side_effect=[main_module.SQLAlchemyError("db down"), None],
+    )
+    sleep_mock = mocker.patch("rs_dpr_service.main.sleep")
+    get_engine_mock = mocker.patch("rs_dpr_service.main.get_engine", return_value=engine)
+    postgres_manager_mock = mocker.patch("rs_dpr_service.main.PostgreSQLManager", return_value=postgres_manager)
+    mocker.patch.object(main_module, "api", mocker.Mock(config={"manager": manager_def}))
+
+    result = init_db(pause=5, timeout=10)
+
+    assert result is postgres_manager
+    get_engine_mock.assert_called_once_with(driver_name="postgresql+psycopg2", **manager_def["connection"])
+    assert create_all.call_count == 2
+    sleep_mock.assert_called_once_with(5)
+    postgres_manager_mock.assert_called_once_with(manager_def)
+
+
+def test_init_db_raises_on_timeout(mocker):
+    """Test that init_db re-raises the database error when timeout is reached."""
+    manager_def = {"connection": {"host": "db-host"}}
+    engine = mocker.Mock()
+    engine.url = "postgresql://db-host"
+    mocker.patch.object(
+        main_module.Base.metadata,
+        "create_all",
+        side_effect=main_module.SQLAlchemyError("db down"),
+    )
+    sleep_mock = mocker.patch("rs_dpr_service.main.sleep")
+    mocker.patch("rs_dpr_service.main.get_engine", return_value=engine)
+    mocker.patch.object(main_module, "api", mocker.Mock(config={"manager": manager_def}))
+
+    with pytest.raises(main_module.SQLAlchemyError, match="db down"):
+        init_db(pause=5, timeout=0)
+
+    sleep_mock.assert_not_called()
+
+
+def test_get_processes_endpoint(client):
+    """Test the endpoint that lists all available DPR processes."""
+    response = client.get("/dpr/processes")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert "processes" in payload
+    assert "links" in payload
+    assert payload["links"][0]["rel"] == "self"
+    assert payload["links"][0]["title"] == "List of processes"
+    assert {process["id"] for process in payload["processes"]} == set(main_module.processor_types)
+
+
+def test_get_resource_endpoint_returns_404_for_unknown_resource(client):
+    """Test the endpoint response when the requested process does not exist."""
+    response = client.get("/dpr/processes/unknown-process")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Process 'unknown-process' not found"
+
+
+def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker, monkeypatch):
+    """Test the endpoint response for a known process resource."""
+    client.app.extra["process_manager"] = mocker.Mock()
+    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
+
+    response = client.get(
+        "/dpr/processes/mockup",
+        params={"jupyter_token": "token", "cluster_label": "dask-l0"},  # nosec B105
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["tasktable"]["name"] == "mockup"
+    assert payload["tasktable"]["version"] == 1.0
