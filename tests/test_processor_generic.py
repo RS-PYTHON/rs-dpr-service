@@ -15,6 +15,7 @@
 """Tests for rs_dpr_service.processors.generic_processor."""
 
 import asyncio
+import os
 import sys
 import types
 from contextlib import contextmanager
@@ -32,7 +33,7 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
 
     # ProcessorCaller imports s3fs in __init__, so provide the smallest possible stub.
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -46,16 +47,18 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
 
         @staticmethod
         def is_running():
+            """Return a stopped-loop state for this test scenario."""
             return False
 
         @staticmethod
         def run_until_complete(coro):
+            """Execute the awaited coroutine inline for the test."""
             return asyncio.run(coro)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     future = mocker.Mock()
@@ -67,16 +70,23 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
     async def run_inline(func, *args, **kwargs):
         return func(*args, **kwargs)
 
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.to_thread", side_effect=run_inline)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
-    setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
+    setup_dask_connection = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        return_value=dask_client,
+    )
 
     # execute() is async; drive the coroutine manually so we can keep control over the mocked loop.
     execute_coro = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     # The normal flow should go through Dask submission, complete the future, and mark the job successful.
@@ -98,7 +108,6 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
 def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_effect, message_fragment):
     """Test execute() when start_processor() fails to create the Dask client."""
     mocker.patch.dict(sys.modules, {"s3fs": types.ModuleType("s3fs")})
-    import os
 
     os.environ["DASK_GATEWAY_ADDRESS"] = "http://dask-gateway.test"
 
@@ -107,16 +116,18 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
 
         @staticmethod
         def is_running():
+            """Return a stopped-loop state for this test scenario."""
             return False
 
         @staticmethod
         def run_until_complete(coro):
+            """Execute the awaited coroutine inline for the test."""
             return asyncio.run(coro)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
@@ -124,7 +135,7 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
 
     execute_coro = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     assert result == ("application/json", {"failed": processor.job_logger.job_id})
@@ -139,7 +150,7 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
     monkeypatch.setenv("FOUND_VALUE", "resolved")
 
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -153,10 +164,12 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
 
         @staticmethod
         def is_running():
+            """Return a stopped-loop state for this test scenario."""
             return False
 
         @staticmethod
         def run_until_complete(coro):
+            """Execute the awaited coroutine inline for the test."""
             return asyncio.run(coro)
 
     async def run_inline(func, *args, **kwargs):
@@ -165,31 +178,32 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
     processor.use_mockup = True
 
-    future = mocker.Mock()
-    future.result.return_value = {"result": "ok"}
     dask_client = mocker.Mock()
-    dask_client.submit.return_value = future
+    dask_client.submit.return_value.result.return_value = {"result": "ok"}
 
     warning = mocker.patch("rs_dpr_service.processors.generic_processor.logger.warning")
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.to_thread", side_effect=run_inline)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
     mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
 
-    payload = {
-        "item": "${FOUND_VALUE}",
-        "nested": ["${FOUND_VALUE}", "${MISSING_VALUE}", 7],
-        "deep": {"path": "prefix-${FOUND_VALUE}"},
-    }
-
-    execute_coro = processor.execute(payload)
+    execute_coro = processor.execute(
+        {
+            "item": "${FOUND_VALUE}",
+            "nested": ["${FOUND_VALUE}", "${MISSING_VALUE}", 7],
+            "deep": {"path": "prefix-${FOUND_VALUE}"},
+        },
+    )
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     submitted_processor = dask_client.submit.call_args.args[0].__self__
@@ -214,6 +228,7 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
 
         @staticmethod
         def is_running():
+            """Return a running-loop state for this scheduling test."""
             return True
 
     scheduled = []
@@ -230,17 +245,20 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
-    create_task = mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.create_task", side_effect=fake_create_task)
+    create_task = mocker.patch(
+        "rs_dpr_service.processors.generic_processor.asyncio.create_task",
+        side_effect=fake_create_task,
+    )
     # If execute() takes the scheduling branch correctly, it should not reach the Dask setup at all.
     setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection")
 
     execute_coro = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     create_task.assert_called_once()
@@ -256,7 +274,7 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
 
     # ProcessorCaller imports s3fs in __init__, so keep the same lightweight stub.
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -270,10 +288,12 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
 
         @staticmethod
         def is_running():
+            """Return a stopped-loop state for this test scenario."""
             return False
 
         @staticmethod
         def run_until_complete(coro):
+            """Execute the awaited coroutine inline for the test."""
             return asyncio.run(coro)
 
     # Keep the async/thread boundary inline so we execute the local branch end-to-end.
@@ -283,7 +303,7 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     # Branch under test: LOCAL_MODE + local_cluster.enabled => dask_client = None.
@@ -296,7 +316,10 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
         return_value={"result": "local"},
     )
 
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.to_thread", side_effect=run_inline)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
@@ -304,7 +327,7 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
     payload = {"experimental_config": {"local_cluster": {"enabled": True}}}
     execute_coro = processor.execute(payload)
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     setup_dask_connection.assert_not_called()
@@ -322,30 +345,39 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
 
         @staticmethod
         def is_running():
+            """Return a stopped-loop state for this test scenario."""
             return False
 
         @staticmethod
         def run_until_complete(coro):
+            """Execute the awaited coroutine inline for the test."""
             return asyncio.run(coro)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     dask_client = mocker.Mock()
 
     # Keep Dask setup successful so the failure comes only from asyncio.to_thread().
-    setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
+    setup_dask_connection = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        return_value=dask_client,
+    )
 
     # Branch under test: the monitoring thread handoff raises and start_processor() marks the job failed.
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
-    mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.to_thread", side_effect=RuntimeError("thread boom"))
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.asyncio.to_thread",
+        side_effect=RuntimeError("thread boom"),
+    )
 
     execute_coro = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)
+        execute_coro.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     setup_dask_connection.assert_called_once_with()
@@ -359,7 +391,7 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
 def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
     """Test manage_dask_tasks() when task submission to Dask fails."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -371,7 +403,7 @@ def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     dask_client = mocker.Mock()
@@ -381,7 +413,10 @@ def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
 
     # Mock tracing/ip helpers so we stay focused on the submit failure branch.
     record_error = mocker.patch("rs_dpr_service.processors.generic_processor.record_error")
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
 
     processor.manage_dask_tasks(dask_client, {"input": "value"})
@@ -389,13 +424,15 @@ def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
     dask_client.submit.assert_called_once()
     record_error.assert_called_once()
     assert db_process_manager.update_job.call_args_list[-1].args[1]["status"] == JobStatus.failed.value
-    assert "Submitting task to dask cluster failed:" in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
+    assert (
+        "Submitting task to dask cluster failed:" in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
+    )
 
 
 def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker):
     """Test manage_dask_tasks() when the submitted Dask task result raises."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -407,7 +444,7 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     dask_client = mocker.Mock()
@@ -420,7 +457,10 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
 
     # Mock tracing/ip helpers so we stay focused on the task result failure branch.
     record_error = mocker.patch("rs_dpr_service.processors.generic_processor.record_error")
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
 
     processor.manage_dask_tasks(dask_client, {"input": "value"})
@@ -435,7 +475,7 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
 def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask_client(mocker):
     """Test manage_dask_tasks() when local execution raises without a Dask client."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     @contextmanager
@@ -447,7 +487,7 @@ def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
 
     # Branch under test: dask_client is None and local run_processor() raises in the first try block.
@@ -458,7 +498,10 @@ def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask
 
     # Mock span/ip helpers and assert the local error is logged then re-raised.
     logger_exception = mocker.patch("rs_dpr_service.processors.generic_processor.logger.exception")
-    mocker.patch("rs_dpr_service.processors.generic_processor.start_span", side_effect=lambda *args, **kwargs: fake_span())
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
 
     with pytest.raises(RuntimeError, match="local boom"):
@@ -471,13 +514,13 @@ def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask
 def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
     """Test get_tasktable() on the nominal path and close the Dask client."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
@@ -492,7 +535,11 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
     # Branch under test: setup succeeds, submit succeeds, result() is returned unchanged.
     mocker.patch("rs_dpr_service.processors.generic_processor.trace.get_current_span", return_value=current_span)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
-    setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
+    setup_dask_connection = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        return_value=dask_client,
+    )
 
     result = asyncio.run(processor.get_tasktable())
 
@@ -505,7 +552,7 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
 def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker):
     """Test get_tasktable() when mockup mode loads the fallback tasktable file."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     class FakeAsyncFile:
@@ -518,15 +565,16 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
             return False
 
         async def read(self):
+            """Return the mocked tasktable payload."""
             return '{"mockup": true}'
 
-    async def fake_open_file(*args, **kwargs):
+    async def fake_open_file(*_args, **_kwargs):
         return FakeAsyncFile()
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
@@ -543,7 +591,11 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
     mocker.patch("rs_dpr_service.processors.generic_processor.trace.get_current_span", return_value=current_span)
     mocker.patch("rs_dpr_service.processors.generic_processor.anyio.open_file", side_effect=fake_open_file)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
-    setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
+    setup_dask_connection = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        return_value=dask_client,
+    )
 
     result = asyncio.run(processor.get_tasktable())
 
@@ -556,13 +608,13 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
 def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
     """Test get_tasktable() when the Dask tasktable retrieval raises an exception."""
     fake_s3fs = types.ModuleType("s3fs")
-    fake_s3fs.S3FileSystem = type("S3FileSystem", (), {})
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
@@ -578,7 +630,11 @@ def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
     logger_exception = mocker.patch("rs_dpr_service.processors.generic_processor.logger.exception")
     mocker.patch("rs_dpr_service.processors.generic_processor.trace.get_current_span", return_value=current_span)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
-    setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
+    setup_dask_connection = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        return_value=dask_client,
+    )
 
     with pytest.raises(RuntimeError, match="tasktable boom"):
         asyncio.run(processor.get_tasktable())
