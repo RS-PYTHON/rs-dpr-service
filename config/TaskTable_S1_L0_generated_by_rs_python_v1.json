@@ -3,13 +3,14 @@
     "tasktable": {
         "name": "s1-l0",
         "version": 1.0,
-        "specification_version": "1.0_draftG",
-        "update_datetime": "2025-10-03T11:00:00Z",
+        "specification_version": "1.0_draftI",
+        "update_datetime": "2026-04-17T11:00:00Z",
         "configuration_path": {}
     },
     "external_variables": [
         "start_datetime",
-        "end_datetime"
+        "end_datetime",
+        "satellite"
     ],
     "units": [
         {
@@ -93,6 +94,7 @@
                             "product_type": "MPL_ORBSCT",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
+                            "satellite": "{external_variable.satellite}",
                             "dTa": 0,
                             "dTb": 0
                         }
@@ -114,6 +116,7 @@
                             "product_type": "MPL_ORBPRE",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
+                            "satellite": "{external_variable.satellite}",
                             "dTa": 345600,
                             "dTb": 0
                         }
@@ -153,6 +156,7 @@
                 "product_type",
                 "start_datetime",
                 "end_datetime",
+                "satellite",
                 "dTa",
                 "dTb"
             ],
@@ -175,7 +179,7 @@
                                 {
                                     "property": "platform"
                                 },
-                                "sentinel-1a"
+                                "{satellite}"
                             ]
                         },
                         {
