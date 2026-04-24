@@ -3,7 +3,8 @@
   "tasktable": {
     "name": "s3-olci-l2-fr",
     "version": "1.4.0",
-    "specification_version": "1.1a",
+    "specification_version": "1.0_draftJ",
+    "update_datetime": "2024-04-24T15:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
@@ -81,7 +82,7 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
@@ -89,8 +90,8 @@
               "product_type": "S03_ADF_OLPCP",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -105,7 +106,7 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
@@ -113,8 +114,8 @@
               "product_type": "S03_ADF_OLPPP",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -129,7 +130,7 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
@@ -137,8 +138,8 @@
               "product_type": "S03_ADF_OLWVP",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -153,7 +154,7 @@
       },
       "alternatives": [
         {
-          "order": "1",
+          "order": 1,
           "timeout_seconds": 180,
           "query": {
             "name": "LatestValIntersect",
@@ -161,8 +162,8 @@
               "product_type": "S03_ADF_OLVGP",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
-              "dTa": "0",
-              "dTb": "0"
+              "dTa": 0,
+              "dTb": 0
             }
           }
         }
@@ -182,8 +183,7 @@
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
-      },
-      "apply_eoqc": false
+      }
     }
   ],
   "queries": [
@@ -320,7 +320,7 @@
       "steps": [
         {
           "unit_name": "OL2",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "S03OLCEFR": "pipeline_input"
           },
