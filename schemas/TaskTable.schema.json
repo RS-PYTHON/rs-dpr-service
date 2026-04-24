@@ -1,0 +1,561 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://eopf.copernicus.eu/schemas/TaskTable.schema.json",
+    "$ref": "#/$defs/Root",
+    "$defs": {
+        "Root": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "$schema": {
+                    "type": "string"
+                },
+                "tasktable": {
+                    "$ref": "#/$defs/Tasktable"
+                },
+                "external_variables": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "start_datetime",
+                            "end_datetime",
+                            "satellite"
+                        ]
+                    },
+                    "uniqueItems": true
+                },
+                "units": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Unit"
+                    }
+                },
+                "io": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Io"
+                    }
+                },
+                "queries": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/QueryElement"
+                    }
+                },
+                "pipelines": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Pipeline"
+                    }
+                }
+            },
+            "required": [
+                "tasktable",
+                "external_variables",
+                "units",
+                "io",
+                "pipelines"
+            ]
+        },
+        "Io": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "type": {
+                    "type": "string",
+                    "enum": [
+                        "folder",
+                        "filename",
+                        "regex"
+                    ]
+                },
+                "store_type": {
+                    "type": "string",
+                    "enum": [
+                        "safe",
+                        "zarr",
+                        "cadu"
+                    ]
+                },
+                "store_params": {
+                    "$ref": "#/$defs/StoreParams"
+                },
+                "opening_mode": {
+                    "type": "string",
+                    "enum": [
+                        "CREATE",
+                        "CREATE_OVERWRITE",
+                        "UPDATE"
+                    ],
+                    "default": "CREATE"
+                },
+                "multiplicity": {
+                    "type": "string",
+                    "enum": [
+                        "one_per_input",
+                        "single"
+                    ],
+                    "default": "single"
+                },
+                "alternatives": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Alternative"
+                    }
+                }
+            },
+            "required": [
+                "name",
+                "type"
+            ],
+            "title": "Io"
+        },
+        "Alternative": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "order": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "timeout_seconds": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "query": {
+                    "$ref": "#/$defs/AlternativeQuery"
+                }
+            },
+            "required": [
+                "order",
+                "timeout_seconds",
+                "query"
+            ],
+            "title": "Alternative"
+        },
+        "AlternativeQuery": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "parameters": {
+                    "$ref": "#/$defs/Parameters"
+                }
+            },
+            "required": [
+                "name",
+                "parameters"
+            ],
+            "title": "AlternativeQuery"
+        },
+        "Parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "product_type": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "pattern": "^[^\\s]+$"
+                },
+                "start_datetime": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "end_datetime": {
+                    "type": "string",
+                    "maxLength": 128
+                },
+                "dTa": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "dTb": {
+                    "type": "number",
+                    "minimum": 0
+                },
+                "satellite": {
+                    "type": "string",
+                    "maxLength": 128
+                }
+            },
+            "title": "Parameters"
+        },
+        "StoreParams": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "consolidate": {
+                    "type": "boolean"
+                },
+                "regex": {
+                    "type": "string",
+                    "maxLength": 1024
+                },
+                "multiplicity": {
+                    "type": "string",
+                    "enum": [
+                        "more_than_one",
+                        "exactly_one"
+                    ]
+                }
+            },
+            "title": "StoreParams"
+        },
+        "Pipeline": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "description": {
+                    "type": "string",
+                    "maxLength": 256
+                },
+                "steps": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Step"
+                    }
+                }
+            },
+            "required": [
+                "name",
+                "description",
+                "steps"
+            ],
+            "title": "Pipeline"
+        },
+        "Step": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "unit_name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "step_id": {
+                    "type": "integer",
+                    "minimum": 1
+                },
+                "input_products": {
+                    "$ref": "#/$defs/InputProducts"
+                },
+                "output_products": {
+                    "$ref": "#/$defs/OutputProducts"
+                },
+                "parameters": {
+                    "type": "object"
+                }
+            },
+            "required": [
+                "unit_name",
+                "step_id",
+                "input_products",
+                "output_products"
+            ],
+            "title": "Step"
+        },
+        "InputProducts": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "anyOf": [
+                    {
+                        "const": "pipeline_input"
+                    },
+                    {
+                        "pattern": "^[^\\.]+\\.[^\\.]+$"
+                    }
+                ]
+            },
+            "title": "InputProducts"
+        },
+        "OutputProducts": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string",
+                "enum": [
+                    "pipeline_output",
+                    "pipeline_internal"
+                ]
+            },
+            "title": "OutputProducts"
+        },
+        "QueryElement": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "enum": [
+                            "product_type",
+                            "start_datetime",
+                            "end_datetime",
+                            "dTa",
+                            "dTb",
+                            "satellite"
+                        ]
+                    },
+                    "uniqueItems": true,
+                    "minItems": 0,
+                    "maxItems": 6
+                },
+                "stac": {
+                    "$ref": "#/$defs/Stac"
+                }
+            },
+            "required": [
+                "name",
+                "parameters",
+                "stac"
+            ],
+            "title": "QueryElement"
+        },
+        "Stac": {
+            "type": "object",
+            "title": "Stac"
+        },
+        "Tasktable": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "version": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "specification_version": {
+                    "type": "string",
+                    "maxLength": 16,
+                    "pattern": "^[^\\s]+$"
+                },
+                "update_datetime": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "configuration_path": {
+                    "$ref": "#/$defs/ConfigurationPath"
+                }
+            },
+            "required": [
+                "name",
+                "version",
+                "specification_version",
+                "update_datetime"
+            ],
+            "title": "Tasktable"
+        },
+        "ConfigurationPath": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "processor": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9_./]+$"
+                    }
+                },
+                "eoqc": {
+                    "type": "string",
+                    "pattern": "^[a-zA-Z0-9_./]+$"
+                }
+            },
+            "title": "ConfigurationPath"
+        },
+        "Unit": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "module": {
+                    "type": "string",
+                    "maxLength": 164,
+                    "pattern": "^[a-zA-Z0-9_./]+$"
+                },
+                "resources_min": {
+                    "$ref": "#/$defs/ResourcesMin"
+                },
+                "input_products": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Input"
+                    }
+                },
+                "input_adfs": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/Input"
+                    }
+                },
+                "output_products": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/$defs/OutputProduct"
+                    }
+                }
+            },
+            "required": [
+                "name",
+                "module",
+                "resources_min",
+                "input_products",
+                "output_products"
+            ],
+            "title": "Unit"
+        },
+        "Input": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "mode": {
+                    "$ref": "#/$defs/Mode"
+                },
+                "mandatory": {
+                    "type": "boolean"
+                }
+            },
+            "required": [
+                "name",
+                "mandatory"
+            ],
+            "title": "Input"
+        },
+        "OutputProduct": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "$ref": "#/$defs/NonEmptyIdentifier"
+                },
+                "mode": {
+                    "$ref": "#/$defs/Mode"
+                },
+                "mandatory": {
+                    "type": "boolean"
+                },
+                "final_product": {
+                    "type": "boolean",
+                    "default": true
+                },
+                "regex": {
+                    "type": "string",
+                    "maxLength": 1024
+                },
+                "apply_eoqc": {
+                    "type": "boolean",
+                    "default": false
+                }
+            },
+            "required": [
+                "name",
+                "mandatory"
+            ],
+            "title": "OutputProduct"
+        },
+        "ResourcesMin": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "dask": {
+                    "$ref": "#/$defs/Dask"
+                },
+                "disk": {
+                    "$ref": "#/$defs/Disk"
+                }
+            },
+            "required": [
+                "dask",
+                "disk"
+            ],
+            "title": "ResourcesMin"
+        },
+        "Dask": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "worker_cpu": {
+                    "$ref": "#/$defs/StrictlyPositiveNumber"
+                },
+                "worker_ram": {
+                    "$ref": "#/$defs/DigitalDataSize"
+                },
+                "worker_thread_count": {
+                    "$ref": "#/$defs/StrictlyPositiveInteger"
+                },
+                "worker_count": {
+                    "$ref": "#/$defs/StrictlyPositiveInteger"
+                }
+            },
+            "required": [
+                "worker_cpu",
+                "worker_ram",
+                "worker_thread_count",
+                "worker_count"
+            ],
+            "title": "Dask"
+        },
+        "Disk": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "size_per_worker": {
+                    "$ref": "#/$defs/DigitalDataSize"
+                },
+                "size_temporary_share": {
+                    "$ref": "#/$defs/DigitalDataSize"
+                }
+            },
+            "required": [
+                "size_per_worker"
+            ],
+            "title": "Disk"
+        },
+        "Mode": {
+            "type": "string",
+            "enum": [
+                "nrt",
+                "ntc",
+                "reprocessing",
+                "subs",
+                "always"
+            ],
+            "default": "always",
+            "title": "Mode"
+        },
+        "NonEmptyIdentifier": {
+            "type": "string",
+            "maxLength": 64,
+            "pattern": "^[^\\s]+$"
+        },
+        "DigitalDataSize": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]*\\s?(MB|GB|TB)$"
+        },
+        "StrictlyPositiveInteger": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+        },
+        "StrictlyPositiveNumber": {
+            "type": "number",
+            "exclusiveMinimum": 0
+        }
+    }
+}

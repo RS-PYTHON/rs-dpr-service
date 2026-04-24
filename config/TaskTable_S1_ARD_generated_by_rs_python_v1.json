@@ -2,9 +2,9 @@
   "$schema": "./../schemas/TaskTable.schema.json",
   "tasktable": {
     "name": "s1-ard",
-    "version": 1.0,
-    "specification_version": "1.0_draft_E",
-    "update_datetime": "2025-10-03T11:00:00Z",
+    "version": "1.0.0",
+    "specification_version": "1.0_draft_J",
+    "update_datetime": "2026-04-24T15:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
@@ -395,7 +395,7 @@
       "steps": [
         {
           "unit_name": "calibration",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "cal_input": "pipeline_input"
           },
@@ -405,7 +405,7 @@
         },
         {
           "unit_name": "reference_dem",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "cal_slcs": "calibration.cal_slcs"
           },
@@ -415,7 +415,7 @@
         },
         {
           "unit_name": "reference_geometry",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "cal_slcs": "calibration.cal_slcs",
             "reference_dem": "reference_dem.reference_dem"
@@ -426,7 +426,7 @@
         },
         {
           "unit_name": "coregistration",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "cal_slcs": "calibration.cal_slcs",
             "reference_dem": "reference_dem.reference_dem",
@@ -438,7 +438,7 @@
         },
         {
           "unit_name": "geocoding",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "cslcs": "coregistration.cslcs",
             "simulation_ref": "reference_geometry.simulation_ref"
@@ -449,7 +449,7 @@
         },
         {
           "unit_name": "mosaicking",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "gslcs": "geocoding.gslcs"
           },
