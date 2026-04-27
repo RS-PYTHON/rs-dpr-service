@@ -145,3 +145,94 @@ def test_setup_dask_connection_records_error_when_scheduler_info_fails(mocker, m
     context["dask_client"].scheduler_info.assert_called_once_with()
     context["gateway_cluster"].scale.assert_not_called()
     assert record_error.call_count == 2
+
+
+@pytest.mark.parametrize(
+    ("case_name", "auth_type", "clusters", "connect_result", "expected_message"),
+    [
+        ("unsupported_auth", "unsupported", [], object(), "Unsupported authentication type"),
+        ("missing_cluster", "jupyterhub", [], object(), "No dask cluster named"),
+        ("connect_returns_none", "jupyterhub", ["dask-l0"], None, "Failed to create the cluster"),
+    ],
+)
+def test_setup_dask_connection_raises_for_gateway_connection_errors(
+    mocker,
+    monkeypatch,
+    case_name,
+    auth_type,
+    clusters,
+    connect_result,
+    expected_message,
+):
+    """Test setup_dask_connection() raises clear errors for Dask Gateway connection failures."""
+    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
+    monkeypatch.setenv("DASK_GATEWAY__AUTH__TYPE", auth_type)
+
+    span = mocker.Mock()
+
+    @contextmanager
+    def fake_start_span(*args, **kwargs):
+        """Yield a fake tracing span around setup_dask_connection()."""
+        assert args == ("rs_dpr_service.dask.dask_cluster_handler", "setup_dask_connection")
+        assert not kwargs
+        yield span
+
+    gateway = mocker.Mock()
+    gateway.list_clusters.return_value = [
+        SimpleNamespace(name=f"{label}-instance", start_time=index, options={"cluster_name": label})
+        for index, label in enumerate(clusters)
+    ]
+    gateway.connect.return_value = connect_result
+    gateway_cls = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.Gateway", return_value=gateway)
+    client_cls = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.Client")
+    record_error = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.record_error")
+    mocker.patch("rs_dpr_service.dask.dask_cluster_handler.start_span", side_effect=fake_start_span)
+
+    handler = DaskClusterHandler(
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        local_mode_address="",
+    )
+
+    with pytest.raises(RuntimeError, match=expected_message):
+        handler.setup_dask_connection()
+
+    if case_name == "unsupported_auth":
+        gateway_cls.assert_not_called()
+        gateway.list_clusters.assert_not_called()
+    else:
+        gateway_cls.assert_called_once()
+        gateway.list_clusters.assert_called_once_with()
+    client_cls.assert_not_called()
+    record_error.assert_called_once_with(span, mocker.ANY)
+
+
+def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, monkeypatch):
+    """Test setup_dask_connection() raises when Dask Gateway auth env is missing."""
+    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
+    monkeypatch.delenv("DASK_GATEWAY__AUTH__TYPE", raising=False)
+
+    span = mocker.Mock()
+
+    @contextmanager
+    def fake_start_span(*args, **kwargs):
+        """Yield a fake tracing span around setup_dask_connection()."""
+        assert args == ("rs_dpr_service.dask.dask_cluster_handler", "setup_dask_connection")
+        assert not kwargs
+        yield span
+
+    gateway_cls = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.Gateway")
+    client_cls = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.Client")
+    record_error = mocker.patch("rs_dpr_service.dask.dask_cluster_handler.record_error")
+    mocker.patch("rs_dpr_service.dask.dask_cluster_handler.start_span", side_effect=fake_start_span)
+
+    handler = DaskClusterHandler(
+        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        local_mode_address="",
+    )
+
+    with pytest.raises(RuntimeError, match="Missing key"):
+        handler.setup_dask_connection()
+
+    gateway_cls.assert_not_called()
+    client_cls.assert_not_called()
+    record_error.assert_called_once_with(span, mocker.ANY)

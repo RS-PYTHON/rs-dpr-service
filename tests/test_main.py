@@ -19,7 +19,9 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
 import copy
+import json
 from datetime import datetime
+from unittest.mock import AsyncMock
 
 import pytest
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -288,7 +290,15 @@ def test_execute_process_endpoint_success(client, mocker):
     start_span_mock.return_value.__enter__.return_value = span
     start_span_mock.return_value.__exit__.return_value = False
     valid_body = {"jupyter_token": "jupyter", "cluster_label": "dask-l0"}  # nosec B105
-    mocker.patch("rs_dpr_service.main.validate_request", return_value=valid_body)
+
+    # Let client.post() call the real validate_request(), but provide a stable request body.
+    mocker.patch(
+        "starlette.requests.Request.body",
+        new=AsyncMock(return_value=json.dumps(valid_body).encode()),
+    )
+    # Mock the OpenAPI adapter/validator so only the external validation layer is bypassed.
+    openapi_request_mock = mocker.patch("rs_dpr_service.openapi_validation.StarletteOpenAPIRequest")
+    validate_openapi_mock = mocker.patch("rs_dpr_service.openapi_validation.OPENAPI.validate_request")
     mocker.patch("rs_dpr_service.main.validate_response")
     process_manager = mocker.Mock()
     process_manager.get_job.return_value = job_record("job-1", status="accepted")
@@ -317,6 +327,8 @@ def test_execute_process_endpoint_success(client, mocker):
 
     assert response.status_code == 201
     assert response.json() == format_job_data(process_manager.get_job.return_value)
+    openapi_request_mock.assert_called_once()
+    validate_openapi_mock.assert_called_once_with(openapi_request_mock.return_value)
     process_manager.get_job.assert_called_once_with("job-1")
     span.set_status.assert_called_once()
 
