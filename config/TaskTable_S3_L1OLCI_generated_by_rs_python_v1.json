@@ -1,10 +1,10 @@
 {
-  "$schema": "../../schemas/TaskTable_schema_1_draft_H.json",
+  "$schema": "./../schemas/TaskTable.schema.json",
   "tasktable": {
     "name": "s3-olci-l1-eo",
-    "version": 1.32,
-    "specification_version": "1.1a",
-    "update_datetime": "2024-03-26T18:00:00Z",
+    "version": "1.32",
+    "specification_version": "1.0_draftJ",
+    "update_datetime": "2024-04-24T15:00:00Z",
     "configuration_path": {}
   },
   "external_variables": [
@@ -835,7 +835,7 @@
       "steps": [
         {
           "unit_name": "OL1",
-          "order": 1,
+          "step_id": 1,
           "input_products": {
             "S03OLCL0_1": "pipeline_input",
             "S03OLCL0_2": "pipeline_input",

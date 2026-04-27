@@ -40,3 +40,10 @@ jobs:
     permissions:
       contents: write # for apache/skywalking-eyes/header
       pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
+  check-tasktables:
+    runs-on: ubuntu-latest
+    name: Check tasktables (json schema)
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate tasktables
+        run: pipx run check-jsonschema --schemafile schemas/TaskTable.schema.json config/TaskTable_*.json
