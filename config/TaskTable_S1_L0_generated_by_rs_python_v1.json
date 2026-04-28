@@ -2,9 +2,9 @@
     "$schema": "./../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "s1-l0",
-        "version": "1.0",
+        "version": "1.0.1",
         "specification_version": "1.0_draftJ",
-        "update_datetime": "2026-04-24T15:00:00Z",
+        "update_datetime": "2026-04-27T15:00:00Z",
         "configuration_path": {}
     },
     "external_variables": [
@@ -42,6 +42,11 @@
                 },
                 {
                     "name": "FRO",
+                    "mode": "always",
+                    "mandatory": false
+                },
+                {
+                    "name": "FPO",
                     "mode": "always",
                     "mandatory": false
                 }
@@ -104,6 +109,28 @@
         },
         {
             "name": "FRO",
+            "type": "filename",
+            "store_type": "safe",
+            "alternatives": [
+                {
+                    "order": 1,
+                    "timeout_seconds": 0,
+                    "query": {
+                        "name": "LatestValCover",
+                        "parameters": {
+                            "product_type": "MPL_ORBRES",
+                            "start_datetime": "{external_variable.start_datetime}",
+                            "end_datetime": "{external_variable.end_datetime}",
+                            "satellite": "{external_variable.satellite}",
+                            "dTa": 345600,
+                            "dTb": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "FPO",
             "type": "filename",
             "store_type": "safe",
             "alternatives": [
