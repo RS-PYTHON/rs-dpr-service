@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for rs_dpr_service.processors.eopf_processors."""
+"""Tests for EOPF processor configuration and tasktable loading."""
 
 import pytest
 
@@ -31,6 +31,7 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 @pytest.mark.parametrize(
     ("processor_cls", "tasktable_module", "tasktable_class", "use_mockup"),
     [
+        # Each class hardcodes the EOPF module/class names later used by the generic Dask flow.
         (MockupProcessor, "", "", True),
         (S1L0Processor, "l0.s1.s1_l0_processor", "S1L0Processor", False),
         (S3L0Processor, "l0.s3.s3_l0_processor", "S3L0Processor", False),
@@ -48,7 +49,7 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
     use_mockup,
 ):
     """Test each EOPF processor initializes the expected generic processor configuration."""
-    # GenericProcessor creates a cluster handler, so keep the Dask gateway env available.
+    # The constructors go through GenericProcessor, which immediately builds a DaskClusterHandler.
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
     db_process_manager = mocker.Mock()
@@ -84,10 +85,11 @@ async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
     expected_filename,
 ):
     """Test each EOPF processor get_tasktable() loads the expected tasktable file."""
-    # Instantiation still goes through GenericProcessor, so keep the Dask gateway env available.
+    # Instantiation still builds the shared Dask cluster handler, even though get_tasktable() is local here.
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
     expected_tasktable = {"filename": expected_filename}
+    # Mock the loader so the test verifies which tasktable filename the processor selects.
     load_tasktable = mocker.patch(
         "rs_dpr_service.processors.eopf_processors._load_tasktable",
         return_value=expected_tasktable,

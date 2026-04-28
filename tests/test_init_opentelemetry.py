@@ -14,9 +14,9 @@
 
 """Tests for rs_dpr_service.utils.init_opentelemetry."""
 
-from contextlib import contextmanager
 import sys
 import types
+from contextlib import contextmanager
 
 import pytest
 import requests
@@ -82,6 +82,7 @@ def test_requests_hook_adds_headers_and_body_attributes(mocker, monkeypatch):
 
     requests_hook(span, request, response)
 
+    # The hook sets several span attributes; assert_any_call checks each expected one was included.
     span.set_attribute.assert_any_call("_url", "https://example.test/data")
     span.set_attribute.assert_any_call("http.request.headers", '{\n  "X-Test": "yes",\n  "Content-Length": "12"\n}')
     span.set_attribute.assert_any_call("http.response.headers", '{\n  "X-Response": "ok"\n}')
@@ -113,6 +114,7 @@ def test_fastapi_hook_adds_scope_and_message_attributes(mocker, monkeypatch):
 
     fastapi_hook(span, scope, message)
 
+    # The ASGI hook enriches the same span with scope data and message payload details.
     span.set_attribute.assert_any_call("_path", "/dpr/processes")
     span.set_attribute.assert_any_call("http.scope.headers", '{\n  "x-test": "yes"\n}')
     span.set_attribute.assert_any_call("http.message.headers", '{\n  "x-message": "ok"\n}')

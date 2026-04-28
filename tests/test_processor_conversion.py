@@ -26,6 +26,7 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 def _set_conversion_env(monkeypatch):
     """Set the environment variables required by ConversionProcessor."""
+    # The processor validates S3 credentials before it reaches the Dask orchestration.
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
     monkeypatch.setenv("S3_ACCESSKEY", "access")
     monkeypatch.setenv("S3_SECRETKEY", "secret")
@@ -43,7 +44,7 @@ def _build_processor(mocker):
 
 def _drive_execute(processor, data):
     """Drive execute() manually so mocked event loops can run deterministically."""
-    # execute() is async; send(None) lets the fake loop run the nested orchestration inline.
+    # execute() is async; send(None) lets the fake loop run the nested processor coroutine inline.
     execute_coro = processor.execute(data)
     with pytest.raises(StopIteration) as exc:
         execute_coro.send(None)
@@ -89,11 +90,12 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Run the coroutine to completion in the test loop."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     async def run_inline(func, *args, **kwargs):
+        # The production code sends manage_dask_tasks() to a thread; run it inline for stable assertions.
         """Run asyncio.to_thread() work inline for deterministic assertions."""
         return func(*args, **kwargs)
 
@@ -167,6 +169,7 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         "open_side_effect",
     ),
     [
+        # These cases cover validation failures before any conversion job is submitted to Dask.
         ("missing_env", {}, "S3_SECRETKEY", None, True, None),
         ("s3_connection_error", {}, None, RuntimeError("S3 connection failed"), True, None),
         ("invalid_input_uri", {"input_safe_path": "file://product.SAFE"}, None, None, True, None),
@@ -198,6 +201,7 @@ def test_execute_marks_job_failed_when_conversion_validation_fails(
 
     processor = _build_processor(mocker)
     s3_fs = mocker.Mock()
+    # Some cases need path-specific existence checks; others can use a single boolean result.
     if isinstance(exists_result, dict):
         s3_fs.exists.side_effect = lambda path: exists_result.get(path, False)
     else:
@@ -230,11 +234,12 @@ def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker,
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Run the coroutine to completion in the test loop."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     async def run_inline(func, *args, **kwargs):
+        # This keeps the failure inside manage_dask_tasks() visible to the current test.
         """Run asyncio.to_thread() work inline for deterministic assertions."""
         return func(*args, **kwargs)
 
@@ -267,11 +272,12 @@ def test_execute_marks_job_failed_when_conversion_dask_processing_fails(mocker, 
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Run the coroutine to completion in the test loop."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     async def run_inline(func, *args, **kwargs):
+        # Avoid real threading so submit/result failures are asserted synchronously.
         """Run asyncio.to_thread() work inline for deterministic assertions."""
         return func(*args, **kwargs)
 

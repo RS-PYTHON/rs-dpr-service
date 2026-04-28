@@ -51,9 +51,9 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Execute the awaited coroutine inline for the test."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
@@ -84,9 +84,9 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
     )
 
     # execute() is async; drive the coroutine manually so we can keep control over the mocked loop.
-    execute_coro = processor.execute({"input": "value"})
+    execute_coroutine = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     # The normal flow should go through Dask submission, complete the future, and mark the job successful.
@@ -120,9 +120,9 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Execute the awaited coroutine inline for the test."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
@@ -133,9 +133,9 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
     mocker.patch.object(processor.cluster_handler, "setup_dask_connection", side_effect=side_effect)
 
-    execute_coro = processor.execute({"input": "value"})
+    execute_coroutine = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     assert result == ("application/json", {"failed": processor.job_logger.job_id})
@@ -168,9 +168,9 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Execute the awaited coroutine inline for the test."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     async def run_inline(func, *args, **kwargs):
         return func(*args, **kwargs)
@@ -195,7 +195,7 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
     mocker.patch.object(processor.cluster_handler, "setup_dask_connection", return_value=dask_client)
 
-    execute_coro = processor.execute(
+    execute_coroutine = processor.execute(
         {
             "item": "${FOUND_VALUE}",
             "nested": ["${FOUND_VALUE}", "${MISSING_VALUE}", 7],
@@ -203,7 +203,7 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
         },
     )
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     submitted_processor = dask_client.submit.call_args.args[0].__self__
@@ -233,13 +233,13 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
 
     scheduled = []
 
-    def fake_create_task(coro):
-        scheduled.append(coro)
+    def fake_create_task(start_processor_coroutine):
+        scheduled.append(start_processor_coroutine)
         # In this branch execute() should only schedule start_processor().
         # We intentionally do not run the coroutine here because this test targets
         # the scheduling path itself, not the full orchestration that follows.
         # Close it explicitly to avoid an un-awaited coroutine warning in the test.
-        coro.close()
+        start_processor_coroutine.close()
         return mocker.Mock()
 
     db_process_manager = mocker.Mock()
@@ -256,9 +256,9 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
     # If execute() takes the scheduling branch correctly, it should not reach the Dask setup at all.
     setup_dask_connection = mocker.patch.object(processor.cluster_handler, "setup_dask_connection")
 
-    execute_coro = processor.execute({"input": "value"})
+    execute_coroutine = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     create_task.assert_called_once()
@@ -292,9 +292,9 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Execute the awaited coroutine inline for the test."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     # Keep the async/thread boundary inline so we execute the local branch end-to-end.
     async def run_inline(func, *args, **kwargs):
@@ -325,9 +325,9 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
 
     payload = {"experimental_config": {"local_cluster": {"enabled": True}}}
-    execute_coro = processor.execute(payload)
+    execute_coroutine = processor.execute(payload)
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     setup_dask_connection.assert_not_called()
@@ -349,9 +349,9 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
             return False
 
         @staticmethod
-        def run_until_complete(coro):
+        def run_until_complete(start_processor_coroutine):
             """Execute the awaited coroutine inline for the test."""
-            return asyncio.run(coro)
+            return asyncio.run(start_processor_coroutine)
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
@@ -375,9 +375,9 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
         side_effect=RuntimeError("thread boom"),
     )
 
-    execute_coro = processor.execute({"input": "value"})
+    execute_coroutine = processor.execute({"input": "value"})
     with pytest.raises(StopIteration) as exc:
-        execute_coro.send(None)  # pylint: disable=no-member
+        execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
     setup_dask_connection.assert_called_once_with()

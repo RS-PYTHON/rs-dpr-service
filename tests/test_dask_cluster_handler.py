@@ -100,17 +100,25 @@ def test_setup_dask_connection_connects_to_matching_gateway_cluster(mocker, monk
 
     result = handler.setup_dask_connection()
 
-    # The public method should cover Gateway lookup, Client setup, module upload, env propagation, and status update.
+    # Gateway lookup: create the Gateway and connect to the newest cluster matching the requested label.
     gateway_cls.assert_called_once()
     assert gateway_cls.call_args.kwargs["address"] == "http://dask-gateway.test"
     gateway.connect.assert_called_once_with("cluster-instance")
+
+    # Client setup: wrap the connected GatewayCluster and forward worker logs to the service.
     client_cls.assert_called_once_with(gateway_cluster)
     dask_client.forward_logging.assert_called_once_with()
+
+    # Worker preparation: upload this service code and propagate required environment values.
     context["upload_this_module"].assert_called_once_with(dask_client)
     dask_client.run.assert_called_once_with(set_dask_env, mocker.ANY)
+
+    # Worker check: existing workers mean the temporary scale-up branch is not used.
     dask_client.get_versions.assert_called_once_with(check=True)
     dask_client.scheduler_info.assert_called_once_with()
     gateway_cluster.scale.assert_not_called()
+
+    # Successful setup updates the trace span and stores the connected cluster on the handler.
     span.set_status.assert_called_once_with(StatusCode.OK, str(dask_client))
     assert handler.cluster is gateway_cluster
     assert handler.cluster_info.cluster_instance == "cluster-instance"
@@ -196,12 +204,15 @@ def test_setup_dask_connection_raises_for_gateway_connection_errors(
     with pytest.raises(RuntimeError, match=expected_message):
         handler.setup_dask_connection()
 
+    # Unsupported auth fails before Gateway is created; cluster lookup failures happen after Gateway creation.
     if case_name == "unsupported_auth":
         gateway_cls.assert_not_called()
         gateway.list_clusters.assert_not_called()
     else:
         gateway_cls.assert_called_once()
         gateway.list_clusters.assert_called_once_with()
+
+    # None of these gateway failures should reach Dask Client creation.
     client_cls.assert_not_called()
     record_error.assert_called_once_with(span, mocker.ANY)
 
@@ -233,6 +244,7 @@ def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, m
     with pytest.raises(RuntimeError, match="Missing key"):
         handler.setup_dask_connection()
 
+    # Missing auth configuration fails before the Gateway or Dask Client can be created.
     gateway_cls.assert_not_called()
     client_cls.assert_not_called()
     record_error.assert_called_once_with(span, mocker.ANY)

@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Unit tests for rs_dpr_service.safe_to_zarr."""
+"""Tests for the rs_dpr_service.safe_to_zarr conversion entrypoint."""
 
 import importlib
 import json
@@ -31,13 +31,16 @@ def install_fake_eopf_dependencies(monkeypatch, mocker):
     any_path = mocker.Mock(side_effect=lambda path, **kwargs: {"path": path, "kwargs": kwargs})
     convert = mocker.Mock()
 
+    # safe_to_zarr imports these modules at import time, so they must exist before run_module/import_module.
     fake_eopf = types.SimpleNamespace(__version__="1.2.3")
     fake_common = types.ModuleType("eopf.common")
+    # Keep the two observable EOPF calls as mocks: path construction and conversion execution.
     fake_file_utils = types.SimpleNamespace(AnyPath=any_path)
     fake_config = types.SimpleNamespace(EOConfiguration=lambda: eo_config)
     fake_store = types.ModuleType("eopf.store")
     fake_convert = types.SimpleNamespace(convert=convert)
 
+    # Populate the full import tree used by rs_dpr_service.safe_to_zarr.
     for name, module in {
         "eopf": fake_eopf,
         "eopf.common": fake_common,
@@ -69,10 +72,12 @@ def run_safe_to_zarr_as_main(monkeypatch, argv):
 
 def test_main_without_args_exits(monkeypatch, mocker):
     """Exit with usage message when JSON config is missing."""
+    # Import-time EOPF dependencies are stubbed so the script can be exercised in isolation.
     install_fake_eopf_dependencies(monkeypatch, mocker)
 
     stdout = StringIO()
     stderr = StringIO()
+    # Missing config is reported as CLI usage on stderr and exits before conversion starts.
     with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit) as exc:
         run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py"])
 
@@ -83,10 +88,12 @@ def test_main_without_args_exits(monkeypatch, mocker):
 
 def test_main_with_invalid_json_exits(monkeypatch, mocker):
     """Exit with an error when the JSON payload cannot be decoded."""
+    # The script imports EOPF before validating argv, so keep those imports mocked here too.
     install_fake_eopf_dependencies(monkeypatch, mocker)
 
     stdout = StringIO()
     stderr = StringIO()
+    # Invalid JSON should fail before any conversion call is attempted.
     with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit) as exc:
         run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", "{not-json}"])
 
@@ -97,6 +104,7 @@ def test_main_with_invalid_json_exits(monkeypatch, mocker):
 
 def test_main_success(monkeypatch, mocker):
     """Convert SAFE to Zarr and print the success payload."""
+    # Keep EOConfiguration, AnyPath, and convert observable without importing real EOPF.
     eo_config, any_path, convert = install_fake_eopf_dependencies(monkeypatch, mocker)
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
     monkeypatch.setenv("S3_ACCESSKEY", "access")
@@ -106,6 +114,7 @@ def test_main_success(monkeypatch, mocker):
 
     stdout = StringIO()
     stderr = StringIO()
+    # Successful execution writes only the JSON result to stdout.
     with redirect_stdout(stdout), redirect_stderr(stderr):
         run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg)])
 
@@ -120,6 +129,7 @@ def test_main_success(monkeypatch, mocker):
             "region_name": "eu-west-1",
         },
     }
+    # AnyPath receives the S3 credentials assembled from the environment.
     safe = {"path": cfg["safe_uri"], "kwargs": expected_s3_cfg}
     zarr = {"path": cfg["zarr_uri"], "kwargs": expected_s3_cfg}
     assert any_path.call_args_list == [
@@ -139,6 +149,7 @@ def test_main_success(monkeypatch, mocker):
 
 def test_main_conversion_failure_exits(monkeypatch, mocker):
     """Exit with an error when the conversion raises an exception."""
+    # Force only the conversion step to fail; argument parsing and path setup stay real.
     _, _, convert = install_fake_eopf_dependencies(monkeypatch, mocker)
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
     monkeypatch.setenv("S3_ACCESSKEY", "access")
@@ -149,6 +160,7 @@ def test_main_conversion_failure_exits(monkeypatch, mocker):
 
     stdout = StringIO()
     stderr = StringIO()
+    # Conversion errors are reported on stderr and translated into process exit code 1.
     with redirect_stdout(stdout), redirect_stderr(stderr), pytest.raises(SystemExit) as exc:
         run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg)])
 
