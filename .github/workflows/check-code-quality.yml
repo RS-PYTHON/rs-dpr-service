@@ -33,6 +33,7 @@ jobs:
         caller-ref: ${{ github.ref }}
         caller-ref_name: ${{ github.ref_name }}
         python-version: 3.11.7
+        cov-dirs: rs_dpr_service
     secrets:
       SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

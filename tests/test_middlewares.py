@@ -21,14 +21,13 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 import json
 from collections.abc import Callable
 
-import pytest
-from fastapi import Depends, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
 from starlette import status
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from starlette.middleware.cors import CORSMiddleware
 
-from rs_dpr_service.main import ClusterInfo, build_cluster_info
 from rs_dpr_service.utils import middlewares
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.middlewares import (
@@ -313,40 +312,132 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
         HandleExceptionsMiddleware.is_bad_request = old_bad_request
 
 
-def test_build_cluster_info_all_fields():
-    """Test the default behaviour for all parameters set."""
-    data = {"jupyter_token": "jupyter", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}  # nosec B105
+def test_handle_exceptions_middleware_success_response_not_logged(client, mocker):
+    """Test that successful responses are returned unchanged and not logged."""
+    app = client.app
+    spy_log_error = mocker.spy(middlewares.logger, "error")
+    endpoint_path = "/test_ok_endpoint"
 
-    result = build_cluster_info(data)
+    @app.get(endpoint_path)
+    def test_ok_endpoint():
+        return JSONResponse(status_code=status.HTTP_200_OK, content={"message": "ok"})
 
-    assert isinstance(result, ClusterInfo)
-    assert result.jupyter_token == "jupyter"  # nosec B105
-    assert result.cluster_label == "dask-l0"  # nosec B105
-    assert result.cluster_instance == "instance-1"  # nosec B105
+    response = client.get(endpoint_path)
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {"message": "ok"}
+    spy_log_error.assert_not_called()
+
+    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
 
 
-def test_build_cluster_info_without_cluster_instance():
-    """Test if the optional parameter is set to default value."""
-    data = {
-        "jupyter_token": "jupyter",  # nosec B105
-        "cluster_label": "dask-l0",  # nosec B105
+def test_handle_exceptions_middleware_returns_original_response_if_stream_read_fails(client, mocker):
+    """Test that the middleware returns the original response when the stream cannot be read."""
+    app = client.app
+    spy_log_error = mocker.spy(middlewares.logger, "error")
+    endpoint_path = "/test_stream_read_failure"
+    dict_content = {"custom field": "message from stream read failure"}
+
+    @app.get(endpoint_path)
+    def test_stream_read_failure():
+        return JSONResponse(status_code=status.HTTP_418_IM_A_TEAPOT, content=dict_content)
+
+    with mocker.patch(
+        "rs_dpr_service.utils.middlewares.read_streaming_response",
+        side_effect=RuntimeError("stream read failed"),
+    ):
+        response = client.get(endpoint_path)
+
+    assert response.status_code == status.HTTP_418_IM_A_TEAPOT
+    assert response.json() == dict_content
+    spy_log_error.assert_called_once()
+    assert "stream read failed" in str(spy_log_error.call_args[0][0])
+
+    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
+
+
+def test_handle_exceptions_middleware_reformats_almost_valid_rfc7807_payload(client, mocker):
+    """Test that the middleware reformats payloads that look like RFC7807 but are not exactly valid."""
+    app = client.app
+    spy_log_error = mocker.spy(middlewares.logger, "error")
+    endpoint_path = "/test_almost_valid_rfc7807"
+    response_content = {
+        "type": "https://developer.mozilla.org/en/docs/Web/HTTP/Reference/Status/418",
+        "status": "418",
+        "detail": "message from almost valid rfc7807",
     }
+    expected_content = rfc7807_response(status.HTTP_418_IM_A_TEAPOT, detail=json.dumps(response_content))
 
-    result = build_cluster_info(data)
+    @app.get(endpoint_path)
+    def test_almost_valid_rfc7807():
+        return JSONResponse(status_code=status.HTTP_418_IM_A_TEAPOT, content=response_content)
 
-    assert result.jupyter_token == "jupyter"  # nosec B105
-    assert result.cluster_label == "dask-l0"  # nosec B105
-    assert result.cluster_instance == ""
+    response = client.get(endpoint_path)
+
+    assert response.status_code == status.HTTP_418_IM_A_TEAPOT
+    assert response.json() == expected_content
+    spy_log_error.assert_called_once()
+
+    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
 
 
-def test_build_cluster_info_missing_jupyter_token():
-    """Test if an error is raised when required parameters are not supplied."""
-    data = {
-        "cluster_label": "dask-l0",
-    }
+def test_handle_exceptions_middleware_stac_mode_handles_errors_and_exceptions(mocker):
+    """Test additional HandleExceptionsMiddleware branches when RFC7807 formatting is disabled."""
+    app = FastAPI()
+    app.add_middleware(HandleExceptionsMiddleware, rfc7807=False)
+    HandleExceptionsMiddleware.disable_default_exception_handler(app)
+    spy_log_error = mocker.spy(middlewares.logger, "error")
 
-    with pytest.raises(StarletteHTTPException) as exc:
-        build_cluster_info(data)
+    valid_stac_error = StacErrorResponse(code="I'MATeapot", description="message from valid stac error")
+    custom_content = {"custom field": "message from custom stac content"}
 
-    assert exc.value.status_code == 400
-    assert "Missing required fields" in exc.value.detail
+    @app.get("/test_valid_stac_error")
+    def test_valid_stac_error():
+        return JSONResponse(status_code=status.HTTP_418_IM_A_TEAPOT, content=valid_stac_error)
+
+    @app.get("/test_custom_stac_error")
+    def test_custom_stac_error():
+        return JSONResponse(status_code=status.HTTP_418_IM_A_TEAPOT, content=custom_content)
+
+    @app.get("/test_raised_stac_exception")
+    def test_raised_stac_exception():
+        raise ValueError("message from raised stac exception")
+
+    with TestClient(app) as test_client:
+        response = test_client.get("/test_valid_stac_error")
+        assert response.status_code == status.HTTP_418_IM_A_TEAPOT
+        assert response.json() == valid_stac_error
+
+        response = test_client.get("/test_custom_stac_error")
+        assert response.status_code == status.HTTP_418_IM_A_TEAPOT
+        assert response.json() == StacErrorResponse(
+            code="I'MATeapot",
+            description=json.dumps(custom_content),
+        )
+
+        response = test_client.get("/test_raised_stac_exception")
+        assert response.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+        assert response.json() == StacErrorResponse(
+            code="ValueError",
+            description="message from raised stac exception",
+        )
+
+    assert spy_log_error.call_count == 3
+
+
+def test_health_middleware_shortcuts_probe_endpoints():
+    """Test that health and ping probe endpoints return immediately."""
+    app = FastAPI()
+    app.add_middleware(HealthMiddleware)
+
+    @app.get("/regular")
+    def regular_endpoint():
+        return {"message": "regular"}
+
+    with TestClient(app) as client:
+        assert client.get("/health").status_code == status.HTTP_200_OK
+        assert client.get("/health").json() == {"healthy": True}
+        assert client.get("/ping").status_code == status.HTTP_200_OK
+        assert client.get("/ping").json() == {"message": "PONG"}
+        assert client.get("/regular").status_code == status.HTTP_200_OK
+        assert client.get("/regular").json() == {"message": "regular"}
