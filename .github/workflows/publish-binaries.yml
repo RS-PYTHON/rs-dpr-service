@@ -130,6 +130,7 @@ jobs:
         with:
           dockerfile: ./.github/Dockerfile
           build_context_path: ./build_context_path
+          image_suffix: _py3.11.7-2026.1.2
           image_tags: ${{ needs.set-env.outputs.docker_tags }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
