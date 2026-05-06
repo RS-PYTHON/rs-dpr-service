@@ -57,8 +57,8 @@ jobs:
     needs: build-wheel
     outputs:
       branch_name: ${{ steps.set-binary-env.outputs.branch_name }}
-      docker_tags: ${{ steps.set-binary-env.outputs.docker_tags }}
-      docker_final_tags: ${{ steps.set-binary-env.outputs.docker_final_tags }}
+      docker_tags: latest
+      docker_final_tags: ''
       debug_mode: ${{ steps.set-binary-env.outputs.debug_mode }}
     steps:
       - id: set-binary-env
