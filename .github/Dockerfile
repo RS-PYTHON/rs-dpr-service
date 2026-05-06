@@ -47,8 +47,6 @@ RUN cd /tmp/whl && pip install --no-cache-dir \
 
 # Final stage. Don't use alpine, it's too different from the build stage.
 FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm
-ARG DASK_TAG_CPM=2026.1.2
-ARG DASK_GATEWAY_TAG=2025.4.0
 
 COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
@@ -65,15 +63,6 @@ RUN restore-apt.sh && apt update && apt upgrade -y && \
 
 # Copy the whole /usr/local dir (that contains the python installation) from the build stage
 COPY --from=builder /usr/local /usr/local
-
-# Install a CPM-specific Dask client environment without changing the default DPR environment.
-RUN python -m venv /opt/venv/dask-cpm && \
-    /opt/venv/dask-cpm/bin/pip install --no-cache-dir -U pip && \
-    /opt/venv/dask-cpm/bin/pip install --no-cache-dir \
-        "dask[complete]==${DASK_TAG_CPM}" \
-        "distributed==${DASK_TAG_CPM}" \
-        "dask-gateway==${DASK_GATEWAY_TAG}" && \
-    layer-cleanup.sh
 
 # Install opentelemetry instrumentation packages for dependencies
 RUN opentelemetry-bootstrap -a install && layer-cleanup.sh
