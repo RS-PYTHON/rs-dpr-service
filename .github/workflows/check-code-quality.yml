@@ -25,21 +25,24 @@ on:
   workflow_dispatch:
 
 jobs:
+
   check-code-quality:
     name: _
-    uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@develop
+    uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@feat-rspy1044/multiple-dask-versions
     with:
-        caller-repository: ${{ github.repository }}
-        caller-ref: ${{ github.ref }}
-        caller-ref_name: ${{ github.ref_name }}
-        python-version: 3.11.7
-        cov-dirs: rs_dpr_service
+      caller-repository: ${{ github.repository }}
+      caller-ref: ${{ github.ref }}
+      caller-ref_name: ${{ github.ref_name }}
+      python-version: 3.11.7
+      cov-dirs: rs_dpr_service
+      post-checkout-commands: "echo GITHUB_JOB: $GITHUB_JOB; ls /tmp ."
     secrets:
       SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     permissions:
       contents: write # for apache/skywalking-eyes/header
       pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
+
   check-tasktables:
     runs-on: ubuntu-latest
     name: Check tasktables (json schema)
