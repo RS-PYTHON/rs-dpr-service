@@ -24,6 +24,7 @@ Will run inside EOPF Dask cluster worker
 import json
 import os
 import sys
+from tempfile import TemporaryDirectory
 
 import eopf  # type: ignore
 from eopf.common.file_utils import AnyPath  # type: ignore
@@ -59,8 +60,31 @@ def main():
     }
     try:
         safe = AnyPath(safe_uri, **s3_cfg)
-        zarr = AnyPath(zarr_uri, **s3_cfg)
-        convert(safe, zarr)
+        zarr_dir = AnyPath(zarr_uri, **s3_cfg)
+        zarr_output_uri = ""
+
+        with TemporaryDirectory(prefix="safe-to-zarr-") as tmp_dir:
+            # Keep both input SAFE and intermediate Zarr on the worker local disk during conversion.
+            tmp_path = AnyPath(tmp_dir)
+            local_safe = tmp_path / safe.basename
+            local_output_dir = tmp_path / "zarr-output"
+            local_output_dir.mkdir()
+
+            # Copy the SAFE product from S3 before conversion to avoid direct remote reads.
+            safe.filesystem.get(safe.path, local_safe.path, recursive=True)
+            _, product_name = convert(local_safe, local_output_dir)
+
+            # EOPF returns the product name without extension, but writes a .zarr directory.
+            local_zarr = local_output_dir / f"{product_name}.zarr"
+            if not local_zarr.exists():
+                raise FileNotFoundError(f"Converted Zarr product not found: {local_zarr.path}")
+
+            zarr = zarr_dir / f"{product_name}.zarr"
+            zarr_output_uri = f"{zarr_uri.rstrip('/')}/{product_name}.zarr"
+            # Replace any previous output and upload the generated Zarr back to S3.
+            if zarr.exists():
+                zarr.rm(recursive=True)
+            zarr.filesystem.put(local_zarr.path, zarr.path, recursive=True)
 
         print(
             json.dumps(
@@ -68,7 +92,7 @@ def main():
                     "message": "Conversion finished",
                     "eopf_version": eopf.__version__,
                     "safe_uri": safe_uri,
-                    "zarr_uri": zarr_uri,
+                    "zarr_uri": zarr_output_uri,
                 },
             ),
         )

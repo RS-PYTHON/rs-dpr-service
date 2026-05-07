@@ -130,13 +130,10 @@ class ConversionProcessor(GenericProcessor):
             # extract input parameter values
             safe_uri = data.get("input_safe_path")
             out_dir = data.get("output_zarr_dir_path", "").rstrip("/")
-            basename = str(safe_uri).rsplit("/", 1)[-1].split(".", 1)[0]
-            zarr_uri = f"{out_dir}/{basename}.zarr"
-
             # submit the task
             cfg = {
                 "safe_uri": safe_uri,
-                "zarr_uri": zarr_uri,
+                "zarr_uri": out_dir,
                 "safe_s3_config": data.get("safe_s3_config", {}),
                 "zarr_s3_config": data.get("zarr_s3_config", {}),
             }
