@@ -33,6 +33,9 @@ outputs:
   github-ref:
     description: Github branch that will be used in this workflow (current or temp branch)
     value: ${{ steps.configure.outputs.github-ref }}
+  github-ref_name:
+    description: Github branch that will be used in this workflow (current or temp branch)
+    value: ${{ steps.configure.outputs.github-ref_name }}
   python-version:
     description: Python version
     value: ${{ inputs.python-version }}
@@ -81,6 +84,7 @@ runs:
           temp_branch=true
           temp_branch_name="${BRANCH_NAME}___TEMP-${{ github.run_id }}/${DEP_NAME}"
           github_ref="refs/heads/${temp_branch_name}"
+          github_ref_name="${temp_branch_name}"
 
           git checkout -b $temp_branch_name
           git add pyproject.toml poetry.lock
@@ -93,10 +97,12 @@ runs:
         else
           temp_branch=false
           github_ref="${{ github.ref }}"
+          github_ref_name="${{ github.ref_name }}"
         fi
 
         # Save values
         echo "temp-branch=$temp_branch" >> "$GITHUB_OUTPUT"
         echo "github-ref=$github_ref" >> "$GITHUB_OUTPUT"
+        echo "github-ref_name=$github_ref_name" >> "$GITHUB_OUTPUT"
         echo "poetry-version=$poetry_version" >> "$GITHUB_OUTPUT"
       shell: bash
