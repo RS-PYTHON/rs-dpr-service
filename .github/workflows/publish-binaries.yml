@@ -28,7 +28,7 @@ on:
         required: false
 
 env:
-  PYTHON_VERSION_DPR: 3.11.7
+  PYTHON_VERSION_DPR: 3.13.12
   DOCKER_REGISTRY: ghcr.io
 
 jobs:
@@ -57,8 +57,8 @@ jobs:
     needs: build-wheel
     outputs:
       branch_name: ${{ steps.set-binary-env.outputs.branch_name }}
-      docker_tags: ${{ steps.set-binary-env.outputs.docker_tags }}
-      docker_final_tags: ${{ steps.set-binary-env.outputs.docker_final_tags }}
+      docker_tags: latest
+      docker_final_tags: ''
       debug_mode: ${{ steps.set-binary-env.outputs.debug_mode }}
     steps:
       - id: set-binary-env
@@ -130,6 +130,7 @@ jobs:
         with:
           dockerfile: ./.github/Dockerfile
           build_context_path: ./build_context_path
+          image_suffix: _py3.13.12-2026.1.2
           image_tags: ${{ needs.set-env.outputs.docker_tags }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}

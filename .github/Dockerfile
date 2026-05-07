@@ -17,7 +17,7 @@
 # ghcr.io/rs-python/rs-dpr-service
 #
 
-ARG PYTHON_VERSION_DPR=3.11.7
+ARG PYTHON_VERSION_DPR=3.13.12
 
 FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm AS builder
 
