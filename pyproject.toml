@@ -69,8 +69,8 @@ opentelemetry-exporter-otlp = "^1.41.0"
 tornado = "^6.5" # fix trivy vulnerability
 s3fs = "^2025.7.0"
 
-# The dask version will be overriden when building binaries from the ci/cd
-dask = {extras = ["distributed"], version = "*"}
+# The dask version can be overriden when building binaries from the ci/cd
+dask = {extras = ["distributed"], version = "2026.1.2"}
 
 [tool.poetry.group.dev]
 optional = true
