@@ -25,170 +25,139 @@ on:
   workflow_dispatch:
 
 jobs:
-
-  get-matrix:
-    runs-on: ubuntu-latest
-    outputs:
-      matrix: ${{ steps.matrix.outputs.matrix }}
-    steps:
-      - uses: actions/checkout@v6
-      - id: matrix
-        uses: ./.github/actions/my-matrix
-      - run: |
-          set -x
-          echo matrix: "${{ steps.matrix.outputs.matrix }}"
-
-  test-matrix:
-    runs-on: ubuntu-latest
-    name: Test matrix
-    needs: get-matrix
-    permissions:
-      contents: write # for the git push
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.get-matrix.outputs.matrix) }}
-
-    steps:
-      - run: |
-          set -x
-          echo "${{ matrix.dep_name }}"
-          echo "${{ matrix.python_version }}"
-          echo "${{ matrix.dask_version }}"
-          echo "${{ matrix.temp_branch }}"
-          echo "${{ matrix.github_ref }}"
-          echo "${{ matrix.github_ref_name }}"
-          echo "${{ matrix.poetry_version }}"
-          ls /crash
-
-
   configure-deps:
     runs-on: ubuntu-latest
     name: Configure dependency versions
-    if: false
     permissions:
       contents: write # for the git push
-    strategy:
-      fail-fast: false
-      matrix:
-        dep-name:
-          - py3.11.7-2024.5.2
-          - py3.11.7-2026.1.2
-          - py3.13.12-2026.1.2
-        include:
-          - dep-name: py3.11.7-2024.5.2
-            python-version: 3.11.7
-            dask-version: 2024.5.2
-          - dep-name: py3.11.7-2026.1.2
-            python-version: 3.11.7
-            dask-version: 2026.1.2
-          - dep-name: py3.13.12-2026.1.2
-            python-version: 3.13.12
-            dask-version: 2026.1.2
-
+    outputs:
+      matrix: ${{ steps.configure-deps.outputs.matrix }}
     steps:
       - uses: actions/checkout@v6
       - id: configure-deps
         uses: ./.github/actions/configure-deps
-        with:
-          dep-name: ${{ matrix.dep-name }}
-          python-version: ${{ matrix.python-version }}
-          dask-version: ${{ matrix.dask-version }}
 
-      - uses: cloudposse/github-action-matrix-outputs-write@81ea135d4c4f90a5220bb38304380073c571dbb8
-        with:
-          matrix-step-name: configure-deps
-          matrix-key: ${{ matrix.dep-name }}
-          outputs: |
-            deps: ${{ toJson(steps.configure-deps.outputs) }}
-
-  # We want to call the "check code quality" reusable workflow after having configured the dependency versions,
-  # but in github actions it's not possible to call a reusable workflow from a step, so we have to read the
-  # previous outputs and reformat them into a new matrix configuration, it's a real hassle...
-  read-configured-deps:
-    runs-on: ubuntu-latest
-    name: Read configured dependencies
-    needs: [configure-deps]
-    if: always() # even if crashed or cancelled
-    outputs:
-      configured-deps: ${{ steps.configure.outputs.configured-deps }}
-    steps:
-      - id: read-matrix
-        uses: cloudposse/github-action-matrix-outputs-read@ddb62566e896c85614f5eeec2daa43d6d1dc6cb0
-        with:
-            matrix-step-name: configure-deps
-      - id: configure
-        run: |
-
-          # It's something like {'deps': {'dep-name1': {'key1': 'value1', 'key2': 'value2'}, 'dep-name2': ...
-          print("str input config:\n%s" % '${{ steps.read-matrix.outputs.result }}')
-
-          # And we want to convert this into a github matrix configuration as the one from the previous job
-          import json
-          deps = ${{ steps.read-matrix.outputs.result }}["deps"]
-          print("json input config:\n%s" % json.dumps(deps, indent=2))
-
-          matrix = {
-            "dep-name": sorted(list(deps.keys())),
-            "include": [
-              {"dep-name": dep_name, **values}
-              for dep_name, values in deps.items()
-            ]
-          }
-          print("json output config:\n%s" % json.dumps(matrix, indent=2))
-
-          # Save output
-          import os
-          with open(os.environ["GITHUB_OUTPUT"], "a") as opened:
-            opened.write(f"configured-deps={json.dumps(matrix)}")
-        shell: python
-
-  check-code-quality:
-    name: Check code quality
-    needs: read-configured-deps
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.read-configured-deps.outputs.configured-deps) }}
-    uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@feat-rspy1044/multiple-dask-versions
-    with:
-      caller-repository: ${{ github.repository }}
-      caller-ref: ${{ matrix.github-ref }}
-      caller-ref_name: ${{ matrix.github-ref_name }}
-      python-version: ${{ matrix.python-version }}
-      cov-dirs: rs_dpr_service
-      artifact-prefix: "${{ matrix.dep-name }}_"
-    secrets:
-      SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
-      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    permissions:
-      contents: write # for apache/skywalking-eyes/header
-      pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
-
-  clean-temp-branches:
-    runs-on: ubuntu-latest
-    name: Clean temporary branches
-    needs: [read-configured-deps, check-code-quality]
-    if: always() # even if crashed or cancelled
+  update-lock:
+    name: Update lock files
+    needs: configure-deps
     permissions:
       contents: write # for the git push
-    steps:
-      - uses: actions/checkout@v6
-      - run: |
-          # It's something like {..., "include": [{..., "temp-branch": "true|false", "github-ref": <branch-name>}]}
-          print("str config:\n%s" % '${{ needs.read-configured-deps.outputs.configured-deps }}')
+    uses: ./.github/workflows/temp-branches.yml
+    with:
+      action: update-lock
+      matrix: ${{ needs.configure-deps.outputs.matrix }}
 
-          import json
-          config = ${{ needs.read-configured-deps.outputs.configured-deps }}
-          print("json config:\n%s" % json.dumps(config, indent=2))
+  clean-temp-branches:
+    name: Clean temporary branches
+    needs: configure-deps
+    if: always() # even if crashed or cancelled
+    permissions:
+      contents: write # for the git branch delete
+    uses: ./.github/workflows/temp-branches.yml
+    with:
+      action: clean
+      matrix: ${{ needs.configure-deps.outputs.matrix }}
 
-          import subprocess
-          for branch in config["include"]:
-            branch_name=branch["github-ref"]
-            if branch["temp-branch"] == "true":
-              print(f"Delete branch: {branch_name!r}")
-              subprocess.run(["git", "push", "-d", "origin", branch_name])
-            else:
-              print(f"Don't delete branch: {branch_name!r}")
-        shell: python
+
+
+  #         pip install --only-binary=:all: poetry==$poetry_version
+  #         poetry lock
+
+  #     - uses: cloudposse/github-action-matrix-outputs-write@81ea135d4c4f90a5220bb38304380073c571dbb8
+  #       with:
+  #         matrix-step-name: configure-deps
+  #         matrix-key: ${{ matrix.dep-name }}
+  #         # outputs: |
+  #         #   deps: ${{ toJson(steps.configure-deps.outputs) }}
+
+  # # We want to call the "check code quality" reusable workflow after having configured the dependency versions,
+  # # but in github actions it's not possible to call a reusable workflow from a step, so we have to read the
+  # # previous outputs and reformat them into a new matrix configuration, it's a real hassle...
+  # read-configured-deps:
+  #   runs-on: ubuntu-latest
+  #   name: Read configured dependencies
+  #   needs: [configure-deps]
+  #   if: always() # even if crashed or cancelled
+  #   outputs:
+  #     configured-deps: ${{ steps.configure.outputs.configured-deps }}
+  #   steps:
+  #     - id: read-matrix
+  #       uses: cloudposse/github-action-matrix-outputs-read@ddb62566e896c85614f5eeec2daa43d6d1dc6cb0
+  #       with:
+  #           matrix-step-name: configure-deps
+  #     - id: configure
+  #       run: |
+
+  #         # It's something like {'deps': {'dep-name1': {'key1': 'value1', 'key2': 'value2'}, 'dep-name2': ...
+  #         print("str input config:\n%s" % '${{ steps.read-matrix.outputs.result }}')
+
+  #         # And we want to convert this into a github matrix configuration as the one from the previous job
+  #         import json
+  #         deps = ${{ steps.read-matrix.outputs.result }}["deps"]
+  #         print("json input config:\n%s" % json.dumps(deps, indent=2))
+
+  #         matrix = {
+  #           "dep-name": sorted(list(deps.keys())),
+  #           "include": [
+  #             {"dep-name": dep_name, **values}
+  #             for dep_name, values in deps.items()
+  #           ]
+  #         }
+  #         print("json output config:\n%s" % json.dumps(matrix, indent=2))
+
+  #         # Save output
+  #         import os
+  #         with open(os.environ["GITHUB_OUTPUT"], "a") as opened:
+  #           opened.write(f"configured-deps={json.dumps(matrix)}")
+  #       shell: python
+
+  # check-code-quality:
+  #   name: Check code quality
+  #   needs: read-configured-deps
+  #   strategy:
+  #     fail-fast: false
+  #     matrix: ${{ fromJson(needs.read-configured-deps.outputs.configured-deps) }}
+  #   uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@feat-rspy1044/multiple-dask-versions
+  #   with:
+  #     caller-repository: ${{ github.repository }}
+  #     caller-ref: ${{ matrix.github-ref }}
+  #     caller-ref_name: ${{ matrix.github-ref_name }}
+  #     python-version: ${{ matrix.python-version }}
+  #     cov-dirs: rs_dpr_service
+  #     artifact-prefix: "${{ matrix.dep-name }}_"
+  #   secrets:
+  #     SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
+  #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+  #   permissions:
+  #     contents: write # for apache/skywalking-eyes/header
+  #     pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
+
+  # clean-temp-branches:
+  #   runs-on: ubuntu-latest
+  #   name: Clean temporary branches
+  #   needs: [read-configured-deps, check-code-quality]
+  #   if: always() # even if crashed or cancelled
+  #   permissions:
+  #     contents: write # for the git push
+  #   steps:
+  #     - uses: actions/checkout@v6
+  #     - run: |
+  #         # It's something like {..., "include": [{..., "temp-branch": "true|false", "github-ref": <branch-name>}]}
+  #         print("str config:\n%s" % '${{ needs.read-configured-deps.outputs.configured-deps }}')
+
+  #         import json
+  #         config = ${{ needs.read-configured-deps.outputs.configured-deps }}
+  #         print("json config:\n%s" % json.dumps(config, indent=2))
+
+  #         import subprocess
+  #         for branch in config["include"]:
+  #           branch_name=branch["github-ref"]
+  #           if branch["temp-branch"] == "true":
+  #             print(f"Delete branch: {branch_name!r}")
+  #             subprocess.run(["git", "push", "-d", "origin", branch_name])
+  #           else:
+  #             print(f"Don't delete branch: {branch_name!r}")
+  #       shell: python
 
   check-tasktables:
     runs-on: ubuntu-latest
