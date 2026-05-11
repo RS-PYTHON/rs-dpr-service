@@ -17,9 +17,6 @@ name: Handle temporary branches
 on:
   workflow_call: # reusable workflow
     inputs:
-      action:
-        description: What to do ?
-        type: string # update-lock or clean
       matrix:
         description: Github matrix configuration coming from .github/actions/configure-deps/action.yml
         type: string
@@ -27,6 +24,8 @@ on:
 jobs:
   _:
     runs-on: ubuntu-latest
+    env:
+      MATRIX: ${{ inputs.matrix }}
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
     steps:
@@ -36,31 +35,39 @@ jobs:
         with:
           ref: ${{ matrix.github_ref }}
 
-      - name: Update lock files
-        if: ${{ (inputs.action == 'update-lock') && (matrix.temp_branch == 'true') }}
-        run: |
-          set -x
-          echo "${{ matrix.dep_name }}"
-          echo "${{ matrix.python_version }}"
-          echo "${{ matrix.dask_version }}"
-          echo "${{ matrix.temp_branch }}"
-          echo "${{ matrix.github_ref }}"
-          echo "${{ matrix.github_ref_name }}"
-          echo "${{ matrix.poetry_version }}"
-          ls /crash
+      - if: ${{ matrix.temp_branch == 'true' }}
+        uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+        with:
+          python-version: ${{ matrix.python_version }}
+          poetry-version: ${{ matrix.poetry_version }}
 
-      - name: Clean temporary branches
-        if: ${{ (inputs.action == 'clean') && (matrix.temp_branch == 'true') }}
+      - name: Update lock files
+        if: ${{ matrix.temp_branch == 'true' }}
         env:
+          DEP_NAME: ${{ matrix.dep_name }}
           TEMP_BRANCH_NAME: ${{ matrix.github_ref }}
         run: |
-          set -x;
+          set -x
+          echo $MATRIX
 
           # Check that the branch name contains the TEMP substring
-          # so we make sure we don't erase a valid branch
-          if [[ ! "$TEMP_BRANCH_NAME" =~ TOTO ]]; then
+          if [[ ! "$TEMP_BRANCH_NAME" =~ TEMP ]]; then
             >&2 echo "Wrong temporary branch name: '$TEMP_BRANCH_NAME'"
             exit 2
           fi
 
-          git push -d origin $TEMP_BRANCH_NAME
+          # Check environment
+          python -V
+          poetry -V
+          grep -e python -e dask pyproject.toml
+
+          # Update the poetry.lock file
+          poetry lock
+          git diff poetry.lock
+
+          # Add it to the current temp branch
+          git add poetry.lock
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Update poetry.lock for $DEP_NAME"
+          git push

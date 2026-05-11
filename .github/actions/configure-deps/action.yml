@@ -108,8 +108,8 @@ runs:
             git add pyproject.toml
             git config user.name "github-actions"
             git config user.email "github-actions@github.com"
-            git commit -m "Update dependencies for ${dep_name}"
-            # git push --set-upstream origin $temp_branch_name
+            git commit -m "Update dependencies for $dep_name"
+            git push --set-upstream origin $temp_branch_name
 
           # If the lock file didn't change, keep the current branch or pull request
           else

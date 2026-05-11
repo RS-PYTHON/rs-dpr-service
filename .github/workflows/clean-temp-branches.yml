@@ -1,0 +1,49 @@
+# Copyright 2023-2026 Airbus, CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Clean temporary branches
+
+on:
+  workflow_call: # reusable workflow
+    inputs:
+      matrix:
+        description: Github matrix configuration coming from .github/actions/configure-deps/action.yml
+        type: string
+
+jobs:
+  _:
+    runs-on: ubuntu-latest
+    env:
+      MATRIX: ${{ inputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - name: Clean temporary branches
+        run: |
+          set -x;
+          echo $MATRIX
+
+          # For each set of versions
+          for dep in $(jq -c ".include[]" <<< $MATRIX); do
+            temp_branch=$(jq -r '."temp_branch"' <<< $dep)
+            github_ref=$(jq -r '."github_ref"' <<< $dep)
+
+            [[ $temp_branch != true ]] && continue
+
+            # Check that the branch name contains the TEMP substring
+            if [[ ! "$github_ref" =~ TEMP ]]; then
+              >&2 echo "Wrong temporary branch name: '$github_ref'"
+              exit 2
+            fi
+            git push -d origin $github_ref
+          done
