@@ -17,9 +17,11 @@
 # ghcr.io/rs-python/rs-dpr-service
 #
 
-ARG PYTHON_VERSION_DPR=3.11.7
+# NOTE: the python and dask versions depend on the processor
+ARG PYTHON_VERSION=xxx
+ARG DASK_VERSION=xxx
 
-FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm AS builder
+FROM ghcr.io/rs-python/python:${PYTHON_VERSION}-slim-bookworm AS builder
 
 COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
@@ -41,12 +43,15 @@ ADD ./*.whl /rs-dpr-service/whl
 # Install the wheel packages in the right order (dependencies first).
 # This also installs all the sub-dependencies e.g. fastapi etc ...
 # https://home.rs-python.eu/local-pypi is used for additional dependencies, see: https://github.com/RS-PYTHON/local-pypi
+# We install dask with the right version before rs-dpr-service.
+ARG DASK_VERSION
 RUN cd /tmp/whl && pip install --no-cache-dir \
     --extra-index-url=https://home.rs-python.eu/local-pypi/ \
+    dask==${DASK_VERSION} \
     rs_dpr_service-*.whl && layer-cleanup.sh
 
 # Final stage. Don't use alpine, it's too different from the build stage.
-FROM ghcr.io/rs-python/python:${PYTHON_VERSION_DPR}-slim-bookworm
+FROM ghcr.io/rs-python/python:${PYTHON_VERSION}-slim-bookworm
 
 COPY ./layer-cleanup.sh ./restore-apt.sh /usr/local/bin/
 RUN chmod 755 /usr/local/bin/layer-cleanup.sh /usr/local/bin/restore-apt.sh
