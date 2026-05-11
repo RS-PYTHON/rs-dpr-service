@@ -1,0 +1,80 @@
+# Copyright 2023-2026 Airbus, CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: my-matrix
+description: my-matrix
+
+outputs:
+  matrix:
+    description: matrix
+    value: ${{ steps.matrix.outputs.matrix }}
+
+runs:
+  using: "composite"
+  steps:
+    - id: matrix
+      name: matrix
+      run: |
+        set -x;
+
+        deps='[
+          {
+            "dep_name": "py3.11.7-2024.5.2",
+            "python_version": "3.11.7",
+            "dask_version": "2024.5.2"
+          },
+          {
+            "dep_name": "py3.11.7-2026.1.2",
+            "python_version": "3.11.7",
+            "dask_version": "2026.1.2"
+          },
+          {
+            "dep_name": "py3.13.12-2026.1.2",
+            "python_version": "3.13.12",
+            "dask_version": "2026.1.2"
+          }
+        ]'
+
+        dep_names="[]"
+        completed_deps="[]"
+
+        for dep in $(jq -c '.[]' <<< $deps); do
+
+          dep_name=$(jq '."dep_name"' <<< $dep)
+          python_version=$(jq '."python_version"' <<< $dep)
+          dask_version=$(jq '."dask_version"' <<< $dep)
+
+          dep_names=$(jq ". += [$dep_name]" <<< $dep_names)
+
+          temp_branch=true
+          github_ref=myref
+          github_ref_name=myrefname
+          poetry_version=2.2.3
+
+          new_values="{
+            \"temp_branch\": \"$temp_branch\",
+            \"github_ref\": \"$github_ref\",
+            \"github_ref_name\": \"$github_ref_name\",
+            \"poetry_version\": \"$poetry_version\",
+          }"
+          completed_dep=$(jq ". += $new_values" <<< "$dep")
+          completed_deps=$(jq ". += [$completed_dep"] <<< "$completed_deps")
+        done
+
+        matrix="{
+          \"dep_name\": $dep_names,
+          \"include\": $completed_deps
+        }"
+        echo "matrix=$(jq -c . <<< $matrix)" >> $GITHUB_OUTPUT
+      shell: bash
