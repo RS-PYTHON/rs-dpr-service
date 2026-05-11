@@ -50,7 +50,7 @@ jobs:
   clean-temp-branches:
     name: Clean temporary branches
     needs: configure-deps
-  #   if: always() # even if crashed or cancelled
+    if: always() # even if crashed or cancelled
     permissions:
       contents: write # for the git branch delete
     uses: ./.github/workflows/temp-branches.yml

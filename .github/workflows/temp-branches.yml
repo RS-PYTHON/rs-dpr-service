@@ -25,19 +25,19 @@ on:
         type: string
 
 jobs:
-  update-lock:
+  _:
     runs-on: ubuntu-latest
-    if: ${{ inputs.action == 'update-lock' }}
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
     steps:
+
       - if: ${{ matrix.temp_branch == 'true' }}
         uses: actions/checkout@v6
         with:
           ref: ${{ matrix.github_ref }}
 
       - name: Update lock files
-        if: ${{ matrix.temp_branch == 'true' }}
+        if: ${{ (inputs.action == 'update-lock') && (matrix.temp_branch == 'true') }}
         run: |
           set -x
           echo "${{ matrix.dep_name }}"
@@ -49,17 +49,18 @@ jobs:
           echo "${{ matrix.poetry_version }}"
           ls /crash
 
-  clean:
-    runs-on: ubuntu-latest
-    if: ${{ inputs.action == 'clean' }}
-    strategy:
-      matrix: ${{ fromJson(inputs.matrix) }}
-    steps:
-      - if: ${{ matrix.temp_branch == 'true' }}
-        uses: actions/checkout@v6
-
       - name: Clean temporary branches
-        if: ${{ matrix.temp_branch == 'true' }}
+        if: ${{ (inputs.action == 'clean') && (matrix.temp_branch == 'true') }}
         env:
-          BRANCH_NAME: ${{ matrix.github_ref }}
-        run: set -x; echo git push -d origin $BRANCH_NAME
+          TEMP_BRANCH_NAME: ${{ matrix.github_ref }}
+        run: |
+          set -x;
+
+          # Check that the branch name contains the TEMP substring
+          # so we make sure we don't erase a valid branch
+          if [[ ! "$TEMP_BRANCH_NAME" =~ TOTO ]]; then
+            >&2 echo "Wrong temporary branch name: '$TEMP_BRANCH_NAME'"
+            exit 2
+          fi
+
+          git push -d origin $TEMP_BRANCH_NAME
