@@ -1,0 +1,65 @@
+# Copyright 2023-2026 Airbus, CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Handle temporary branches
+
+on:
+  workflow_call: # reusable workflow
+    inputs:
+      action:
+        description: What to do ?
+        type: string # update-lock or clean
+      matrix:
+        description: Github matrix configuration coming from .github/actions/configure-deps/action.yml
+        type: string
+
+jobs:
+  update-lock:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.action == 'update-lock' }}
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+    steps:
+      - if: ${{ matrix.temp_branch == 'true' }}
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.github_ref }}
+
+      - name: Update lock files
+        if: ${{ matrix.temp_branch == 'true' }}
+        run: |
+          set -x
+          echo "${{ matrix.dep_name }}"
+          echo "${{ matrix.python_version }}"
+          echo "${{ matrix.dask_version }}"
+          echo "${{ matrix.temp_branch }}"
+          echo "${{ matrix.github_ref }}"
+          echo "${{ matrix.github_ref_name }}"
+          echo "${{ matrix.poetry_version }}"
+          ls /crash
+
+  clean:
+    runs-on: ubuntu-latest
+    if: ${{ inputs.action == 'clean' }}
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+    steps:
+      - if: ${{ matrix.temp_branch == 'true' }}
+        uses: actions/checkout@v6
+
+      - name: Clean temporary branches
+        if: ${{ matrix.temp_branch == 'true' }}
+        env:
+          BRANCH_NAME: ${{ matrix.github_ref }}
+        run: set -x; echo git push -d origin $BRANCH_NAME
