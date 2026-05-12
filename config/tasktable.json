@@ -179,7 +179,7 @@
             "steps": [
                 {
                     "unit_name": "single_unit",
-                    "order": 1,
+                    "step_id": 1,
                     "input_products": {
                         "S1CADUS": "pipeline_input"
                     },
