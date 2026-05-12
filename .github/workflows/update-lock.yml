@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Handle temporary branches
+name: Update poetry.lock files
 
 on:
   workflow_call: # reusable workflow
@@ -25,7 +25,9 @@ jobs:
   _:
     runs-on: ubuntu-latest
     env:
-      MATRIX: ${{ inputs.matrix }}
+      PYTHON_VERSION: ${{ matrix.python_version }}
+      POETRY_VERSION: ${{ matrix.poetry_version }}
+      DASK_VERSION: ${{ matrix.dask_version }}
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
     steps:
@@ -38,17 +40,17 @@ jobs:
       - if: ${{ matrix.temp_branch == 'true' }}
         uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
         with:
-          python-version: ${{ matrix.python_version }}
-          poetry-version: ${{ matrix.poetry_version }}
+          python-version: ${{ env.PYTHON_VERSION }}
+          poetry-version: ${{ env.POETRY_VERSION }}
 
-      - name: Update lock files
+      - name: Update lock file
         if: ${{ matrix.temp_branch == 'true' }}
         env:
           DEP_NAME: ${{ matrix.dep_name }}
           TEMP_BRANCH_NAME: ${{ matrix.github_ref }}
         run: |
           set -x
-          echo $MATRIX
+          echo "${{ toJson(matrix) }}"
 
           # Check that the branch name contains the TEMP substring
           if [[ ! "$TEMP_BRANCH_NAME" =~ TEMP ]]; then
@@ -56,16 +58,21 @@ jobs:
             exit 2
           fi
 
-          # Check environment
-          python -V
-          poetry -V
-          grep -e python -e dask pyproject.toml
-
           # Update the poetry.lock file
           poetry lock
           git diff poetry.lock
 
-          # Add it to the current temp branch
+          # Check environment
+          poetry -V
+          grep -e python -e dask pyproject.toml
+          if [[ $(python -V | awk '{ print $2 }') != $PYTHON_VERSION ]]; then
+            echo "Wrong python version !" && exit 2
+          fi
+          if [[ $(poetry show dask | awk '/version/ { print $3 }') != $DASK_VERSION ]]; then
+            echo "Wrong dask version !" && exit 2
+          fi
+
+          # Add poetry.lock to the current temp branch
           git add poetry.lock
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"

@@ -14,7 +14,7 @@
 
 #
 # Target Docker image name:
-# ghcr.io/rs-python/rs-dpr-service
+# ghcr.io/rs-python/rs-dpr-service_py<python-version>-<dask-version>
 #
 
 # NOTE: the python and dask versions depend on the processor

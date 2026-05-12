@@ -15,13 +15,13 @@
 name: Check code quality
 
 on:
-  # push:
-  #   branches: [develop, main] # pushes on the 'develop' or 'main' branches
-  #   tags: ['**'] # new git tags (including hierarchical tags like v1.0/beta)
-  # pull_request:
-  #   types: [opened, synchronize, reopened]
-  #   # run this worflow only for code/test related changes (avoid it for documentation)
-  #   paths: ['**.json', '**.lock', '**.py', '**.raw', '**.sh', '**.toml', '**.yaml', '**.yml']
+  push:
+    branches: [develop, main] # pushes on the 'develop' or 'main' branches
+    tags: ['**'] # new git tags (including hierarchical tags like v1.0/beta)
+  pull_request:
+    types: [opened, synchronize, reopened]
+    # run this worflow only for code/test related changes (avoid it for documentation)
+    paths: ['**.json', '**.lock', '**.py', '**.raw', '**.sh', '**.toml', '**.yaml', '**.yml']
   workflow_dispatch:
 
 jobs:
@@ -53,7 +53,7 @@ jobs:
     needs: [configure-deps, update-lock]
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
     uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@feat-rspy1044/multiple-dask-versions
     with:
       caller-repository: ${{ github.repository }}

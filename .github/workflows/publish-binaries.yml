@@ -49,11 +49,11 @@ jobs:
           set -x
 
           # pyproject.toml contains the line: 'python = "==xxx"'
-          # We change the python version.
+          # We change the python version to "*"
           sed -i "/^python[ \t=]/s/.*/python = \"*\"/g" pyproject.toml
 
           # pyproject.toml contains the line: 'dask = {extras = ["xxx"], version = "yyy"}'
-          # We change the dask version.
+          # We change the dask version to "*"
           sed -i "/^dask[ \t=]/s/version[^,}]*/version = \"*\"/g" pyproject.toml
 
           # The poetry.lock file should not be used when building the wheel
@@ -64,7 +64,7 @@ jobs:
 
       - id: build-wheel
         env:
-          PYTHON_VERSION: 3 # generic python 3
+          PYTHON_VERSION: 3 # generic python v3, we don't need a specific version
         uses: RS-PYTHON/actions/.github/actions/build-wheel@develop
         with:
           package_directory: .
@@ -99,7 +99,7 @@ jobs:
         with:
           create-temp-branches: false
 
-  publish-docker-image:
+  publish-docker-images:
     name: "Build and publish Docker image"
     runs-on: ubuntu-latest
     if: github.actor != 'dependabot[bot]'
@@ -111,7 +111,7 @@ jobs:
       pushed_images: ${{ steps.publish-docker.outputs.docker_images }}
     strategy:
       fail-fast: false
-      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }}
+      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
     steps:
       - uses: actions/checkout@v6
       - name: Download .whl dependency
@@ -164,7 +164,7 @@ jobs:
         with:
           dockerfile: ./.github/Dockerfile
           build_context_path: ./build_context_path
-          image_suffix: ${{ matrix.dep_name }}
+          image_suffix: _${{ matrix.dep_name }}
           image_tags: ${{ needs.set-env.outputs.docker_tags }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -173,12 +173,66 @@ jobs:
             PYTHON_VERSION=${{ matrix.python_version }}
             DASK_VERSION=${{ matrix.dask_version }}
 
+      - name: Check package versions in the docker image
+        env:
+          ALL_DOCKER_IMAGES: ${{ steps.publish-docker.outputs.docker_images }}
+          PYTHON_VERSION: ${{ matrix.python_version }}
+          DASK_VERSION: ${{ matrix.dask_version }}
+        run: |
+          set -x
+
+          # NOTE: all docker images are identical but with different tags
+          # so we could test only the first one...
+          for image in ${ALL_DOCKER_IMAGES//,/ }; do
+            docker_cmd="docker run --rm --entrypoint sh $image -c"
+            show_python=$($docker_cmd "python -V")
+            show_dask=$($docker_cmd "pip show dask")
+
+            if [[ $(echo "$show_python" | awk '{ print $2 }') != $PYTHON_VERSION ]]; then
+              echo "Wrong python version !" && exit 2
+            fi
+            if [[ $(echo "$show_dask" | awk '/Version/ { print $2 }') != $DASK_VERSION ]]; then
+              echo "Wrong dask version !" && exit 2
+            fi
+          done
+
+      - uses: cloudposse/github-action-matrix-outputs-write@81ea135d4c4f90a5220bb38304380073c571dbb8
+        with:
+          matrix-step-name: publish-docker-images
+          matrix-key: ${{ matrix.dep_name }}
+          outputs: |
+            docker_images: ${{ steps.publish-docker.outputs.docker_images }}
+
+  get-pushed-images:
+    name: Get pushed Docker image names
+    needs: [set-env, publish-docker-images]
+    if: github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    outputs:
+      pushed_images: ${{ steps.read.outputs.pushed_images }}
+    steps:
+      - id: read-matrix-outputs
+        if: ${{ needs.set-env.outputs.docker_final_tags != '' }} # only if a temp Docker tag has been set
+        uses: cloudposse/github-action-matrix-outputs-read@ddb62566e896c85614f5eeec2daa43d6d1dc6cb0
+        with:
+            matrix-step-name: publish-docker-images
+      - id: read
+        if: ${{ needs.set-env.outputs.docker_final_tags != '' }}
+        run: |
+          set -x
+          # Docker images that have been pushed
+          # e.g. {"docker_images": {"pyxxx-yyy": "<image1>", "pyxxx-zzz": "<image2>" }}
+          json_images='${{ steps.read-matrix-outputs.outputs.result }}' # use simple quotes, not double quotes !
+          pushed_images=$(echo "$json_images" | jq -r .docker_images[] | paste -sd,) # separate values with ','
+
+          echo pushed_images="$pushed_images" >> "$GITHUB_OUTPUT"
+
   # Test rs-demo with the new Docker image
   test-demo:
     name: Test rs-demo
     if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
-    needs: [set-env, publish-docker-image]
+    needs: [set-env, publish-docker-images, get-pushed-images]
     permissions:
      packages: write # needed for 'docker push'
     steps:
@@ -212,7 +266,7 @@ jobs:
         if: ${{ needs.set-env.outputs.docker_final_tags != '' }}
         uses: RS-PYTHON/actions/.github/actions/tag-push-docker@develop
         with:
-          old_docker_images: ${{ needs.publish-docker-image.outputs.pushed_images }}
+          old_docker_images: ${{ needs.get-pushed-images.outputs.pushed_images }}
           new_tags: ${{ needs.set-env.outputs.docker_final_tags }}
 
   publish-wheels-pypi:

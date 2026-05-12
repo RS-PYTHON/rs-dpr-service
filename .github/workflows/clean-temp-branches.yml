@@ -31,7 +31,7 @@ jobs:
       - name: Clean temporary branches
         run: |
           set -x;
-          echo $MATRIX
+          echo $MATRIX | jq . # pretty-print the matrix
 
           # For each set of versions
           for dep in $(jq -c ".include[]" <<< $MATRIX); do

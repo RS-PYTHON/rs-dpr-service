@@ -21,7 +21,7 @@ inputs:
 outputs:
   matrix:
     description: >
-      Matrix to be used from ci/cd workflows, something like:
+      Matrix to be used by ci/cd workflows, something like:
       {
         "dep_name": ["py3.11.7-2024.5.2", "py3.13.12-2026.1.2", ...],
         "include": [
@@ -124,15 +124,12 @@ runs:
             git commit -m "Update dependencies for $dep_name"
             git push --set-upstream origin $temp_branch_name
 
-          # If the lock file didn't change, keep the current branch or pull request
+          # If the pyproject file didn't change, keep the current branch or pull request
           else
             temp_branch=false
             github_ref="${{ github.ref }}"
             github_ref_name="${{ github.ref_name }}"
           fi
-
-          # Add dep_name to json array
-          dep_names=$(jq ". += [\"$dep_name\"]" <<< $dep_names)
 
           # Add fields to the current set of versions
           new_fields="{
