@@ -32,6 +32,9 @@ jobs:
       matrix: ${{ fromJson(inputs.matrix) }}
     steps:
 
+      - name: Print environment
+        run: set -x; echo "${{ toJson(matrix) }}"
+
       - if: ${{ matrix.temp_branch == 'true' }}
         uses: actions/checkout@v6
         with:
@@ -50,7 +53,6 @@ jobs:
           TEMP_BRANCH_NAME: ${{ matrix.github_ref }}
         run: |
           set -x
-          echo "${{ toJson(matrix) }}"
 
           # Check that the branch name contains the TEMP substring
           if [[ ! "$TEMP_BRANCH_NAME" =~ TEMP ]]; then
