@@ -55,24 +55,18 @@ runs:
       run: |
         set -x
 
-        # Here we hardcode the dependency versions we want to use in the ci/cds
-        deps='[
-          {
-            "dep_name": "py3.11.7-2024.5.2",
-            "python_version": "3.11.7",
-            "dask_version": "2024.5.2"
-          },
-          {
-            "dep_name": "py3.11.7-2026.1.2",
-            "python_version": "3.11.7",
-            "dask_version": "2026.1.2"
-          },
-          {
-            "dep_name": "py3.13.12-2026.1.2",
-            "python_version": "3.13.12",
-            "dask_version": "2026.1.2"
-          }
-        ]'
+        # We download the json file that contains the sets of dependency versions needed by the different processors.
+        # Its content should be something like:
+        # {"deps": [
+        # {"dep_name": "py3.11.7-2024.5.2", "python_version": "3.11.7", "dask_version": "2024.5.2" },
+        # {"dep_name": "py3.11.7-2026.1.2", ...
+        # ...
+
+        # We test to download from the rs-workflow-env repo, first with the same branch name, then with 'develop'
+        deps_file=dask-eopf-versions.json
+        url="https://raw.githubusercontent.com/RS-PYTHON/rs-workflow-env/refs/heads/WHAT_BRANCH/docker/eopf/resources/${deps_file}"
+        wget --max-redirect=0 "${url/WHAT_BRANCH/"$BRANCH_NAME"}" || wget --max-redirect=0 "${url/WHAT_BRANCH/develop}"
+        cat $deps_file
 
         dep_names="[]" # only the 'dep_name' fields
         completed_deps="[]" # fields completed with temp_branch, github_ref, ...
@@ -83,7 +77,7 @@ runs:
         [[ $(grep -E "$match" poetry.lock) =~ $match ]] && poetry_version=${BASH_REMATCH[1]}
 
         # For each set of versions
-        for dep in $(jq -c '.[]' <<< $deps); do
+        for dep in $(jq -c '.deps[]' $deps_file); do
           dep_name=$(jq -r '."dep_name"' <<< $dep)
           python_version=$(jq -r '."python_version"' <<< $dep)
           dask_version=$(jq -r '."dask_version"' <<< $dep)
