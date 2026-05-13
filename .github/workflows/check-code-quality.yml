@@ -35,9 +35,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - id: configure-deps
-        uses: ./.github/actions/configure-deps
-        with:
-          create-temp-branches: true
+        name: Configure dependency versions
+        env:
+          # Current branch name (or source branch for a pull request)
+          BRANCH_NAME: ${{ case(github.event_name == 'pull_request', github.event.pull_request.head.ref, github.ref_name) }}
+          CREATE_TEMP_BRANCHES: true
+        run: set -x; .github/workflows/configure-deps.sh
 
   update-lock:
     name: Update lock files

@@ -100,16 +100,16 @@ for dep in $(jq -c '.deps[]' $deps_file); do
     completed_deps=$(jq ". += [$completed_dep"] <<< "$completed_deps")
 done
 
-# Save the ci/cd matrix
+# Save the json that will be used as a github actions matrix by the ci/cd
 matrix="{
     \"dep_name\": $dep_names,
     \"include\": $completed_deps
 }"
 
-# The output matrix should be something like:
+# The output matrix is something like:
 # "dep_name": ["py3.11.7-2024.5.2", "py3.13.12-2026.1.2", ...],
 # "include": [
-#   {"dep_name": "py3.11.7-2024.5.2", "python_version": "...", "dask_version": "...", "temp_branch": "...", "github_ref": "xxx", "github_ref_name": "yyy", "poetry_version": "zzz" },
+#   {"dep_name": "py3.11.7-2024.5.2", "python_version": "...", "dask_version": "...", "temp_branch": "...", "github_ref": "...", "github_ref_name": "...", "poetry_version": "..." },
 #   {"dep_name": "py3.13.12-2026.1.2", "python_version": "...", ...
 #   ...
 
