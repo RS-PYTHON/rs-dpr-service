@@ -144,10 +144,10 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
     s3_fs.open.assert_called_once()
     s3_fs.rm.assert_called_once()
     dask_client.submit.assert_called_once()
-    # The conversion processor derives the output Zarr URI from the SAFE basename.
+    # The converter subprocess derives the output Zarr URI from the converted product name.
     assert dask_client.submit.call_args.args[1] == {
         "safe_uri": "s3://safe-bucket/product.SAFE",
-        "zarr_uri": "s3://zarr-bucket/out/product.zarr",
+        "zarr_uri": "s3://zarr-bucket/out",
         "safe_s3_config": {"safe": "config"},
         "zarr_s3_config": {"zarr": "config"},
     }

@@ -28,7 +28,32 @@ import pytest
 def install_fake_eopf_dependencies(monkeypatch, mocker):
     """Install mocked EOPF dependencies in sys.modules."""
     eo_config: dict[str, bool] = {}
-    any_path = mocker.Mock(side_effect=lambda path, **kwargs: {"path": path, "kwargs": kwargs})
+
+    class FakeAnyPath:
+        """Minimal AnyPath fake for the safe_to_zarr local staging flow."""
+
+        # The implementation uses AnyPath as a path-like object and accesses the filesystem through it.
+        filesystem = mocker.Mock()
+
+        def __init__(self, path, **kwargs):
+            self.path = str(path)
+            self.kwargs = kwargs
+            self.basename = self.path.rstrip("/").rsplit("/", maxsplit=1)[-1]
+
+        def __truediv__(self, child):
+            return FakeAnyPath(f"{self.path.rstrip('/')}/{child}")
+
+        def mkdir(self):
+            """Create a fake directory."""
+
+        def exists(self):
+            """Return True for fake converted paths."""
+            return True
+
+        def rm(self, recursive=False):
+            """Remove a fake path."""
+
+    any_path = mocker.Mock(side_effect=FakeAnyPath)
     convert = mocker.Mock()
 
     # safe_to_zarr imports these modules at import time, so they must exist before run_module/import_module.
@@ -111,6 +136,8 @@ def test_main_success(monkeypatch, mocker):
     monkeypatch.setenv("S3_SECRETKEY", "secret")
     monkeypatch.setenv("S3_ENDPOINT", "https://example.com")
     monkeypatch.setenv("S3_REGION", "eu-west-1")
+    # safe_to_zarr appends the converted product name returned by EOPF to the output directory.
+    convert.return_value = (None, "converted")
 
     stdout = StringIO()
     stderr = StringIO()
@@ -129,21 +156,22 @@ def test_main_success(monkeypatch, mocker):
             "region_name": "eu-west-1",
         },
     }
-    # AnyPath receives the S3 credentials assembled from the environment.
-    safe = {"path": cfg["safe_uri"], "kwargs": expected_s3_cfg}
-    zarr = {"path": cfg["zarr_uri"], "kwargs": expected_s3_cfg}
-    assert any_path.call_args_list == [
+    # Remote AnyPath instances receive the S3 credentials assembled from the environment.
+    assert any_path.call_args_list[:2] == [
         mocker.call(cfg["safe_uri"], **expected_s3_cfg),
         mocker.call(cfg["zarr_uri"], **expected_s3_cfg),
     ]
-    convert.assert_called_once_with(safe, zarr)
+    convert.assert_called_once()
+    local_safe, local_output_dir = convert.call_args.args
+    assert local_safe.path.endswith("/input.SAFE")
+    assert local_output_dir.path.endswith("/zarr-output")
 
     result = json.loads(stdout.getvalue())
     assert result == {
         "message": "Conversion finished",
         "eopf_version": "1.2.3",
         "safe_uri": cfg["safe_uri"],
-        "zarr_uri": cfg["zarr_uri"],
+        "zarr_uri": f"{cfg['zarr_uri']}/converted.zarr",
     }
 
 
