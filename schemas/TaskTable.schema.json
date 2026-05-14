@@ -20,6 +20,8 @@
                         "enum": [
                             "start_datetime",
                             "end_datetime",
+                            "reference_date",
+                            "instrument_mode",
                             "satellite"
                         ]
                     },
@@ -160,7 +162,7 @@
             "properties": {
                 "product_type": {
                     "type": "string",
-                    "maxLength": 16,
+                    "maxLength": 128,
                     "pattern": "^[^\\s]+$"
                 },
                 "start_datetime": {
