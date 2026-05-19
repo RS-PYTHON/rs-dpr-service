@@ -35,13 +35,11 @@ jobs:
       - name: Print environment
         run: set -x; echo "${{ toJson(matrix) }}"
 
-      - if: ${{ matrix.temp_branch == 'true' }}
-        uses: actions/checkout@v6
+      - uses: actions/checkout@v6
         with:
           ref: ${{ matrix.github_ref }}
 
-      - if: ${{ matrix.temp_branch == 'true' }}
-        uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+      - uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           poetry-version: ${{ env.POETRY_VERSION }}
@@ -64,7 +62,16 @@ jobs:
           poetry lock
           git diff poetry.lock
 
-          # Check environment
+          # Add poetry.lock to the current temp branch
+          git add poetry.lock
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Update poetry.lock for $DEP_NAME"
+          git push
+
+      - name: Check environment
+        run: |
+          set -x
           poetry -V
           grep -e python -e dask pyproject.toml
           if [[ $(python -V | awk '{ print $2 }') != $PYTHON_VERSION ]]; then
@@ -73,10 +80,3 @@ jobs:
           if [[ $(poetry show dask | awk '/version/ { print $3 }') != $DASK_VERSION ]]; then
             echo "Wrong dask version !" && exit 2
           fi
-
-          # Add poetry.lock to the current temp branch
-          git add poetry.lock
-          git config user.name "github-actions"
-          git config user.email "github-actions@github.com"
-          git commit -m "Update poetry.lock for $DEP_NAME"
-          git push
