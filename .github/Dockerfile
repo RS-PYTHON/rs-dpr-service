@@ -47,7 +47,7 @@ ADD ./*.whl /rs-dpr-service/whl
 ARG DASK_VERSION
 RUN cd /tmp/whl && pip install --no-cache-dir \
     --extra-index-url=https://home.rs-python.eu/local-pypi/ \
-    dask==${DASK_VERSION} \
+    dask=="${DASK_VERSION}" \
     rs_dpr_service-*.whl && layer-cleanup.sh
 
 # Final stage. Don't use alpine, it's too different from the build stage.
