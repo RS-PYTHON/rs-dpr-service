@@ -405,6 +405,7 @@ def test_processor_caller_run_processor_returns_mockup_finalize_value(mocker):
     caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
     caller.init = mocker.Mock()
+
     # Simulate parse_eopf_log() having populated the value consumed by finalize().
     caller.trigger = mocker.Mock(
         side_effect=lambda: setattr(caller, "mockup_return_value", [{"status": "successful"}]),
