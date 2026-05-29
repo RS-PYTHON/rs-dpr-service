@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
-    uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@feat-rspy1044/multiple-dask-versions
+    uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@develop
     with:
       caller-repository: ${{ github.repository }}
       caller-ref: ${{ matrix.github_ref }}
