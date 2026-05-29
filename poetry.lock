@@ -222,7 +222,6 @@ files = [
 
 [package.dependencies]
 frozenlist = ">=1.1.0"
-typing-extensions = {version = ">=4.2", markers = "python_version < \"3.13\""}
 
 [[package]]
 name = "annotated-doc"
@@ -262,7 +261,6 @@ files = [
 
 [package.dependencies]
 idna = ">=2.8"
-typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 
 [package.extras]
 trio = ["trio (>=0.32.0)"]
@@ -656,25 +654,6 @@ files = [
 colorama = {version = "*", markers = "platform_system == \"Windows\""}
 
 [[package]]
-name = "click-plugins"
-version = "1.1.1.2"
-description = "An extension module for click to enable registering CLI commands via setuptools entry-points."
-optional = false
-python-versions = "*"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "click_plugins-1.1.1.2-py2.py3-none-any.whl", hash = "sha256:008d65743833ffc1f5417bf0e78e8d2c23aab04d9745ba817bd3e71b0feb6aa6"},
-    {file = "click_plugins-1.1.1.2.tar.gz", hash = "sha256:d7af3984a99d243c131aa1a828331e7630f4a88a9741fd05c927b204bcf92261"},
-]
-
-[package.dependencies]
-click = ">=4.0"
-
-[package.extras]
-dev = ["coveralls", "pytest (>=3.6)", "pytest-cov", "wheel"]
-
-[[package]]
 name = "cligj"
 version = "0.7.2"
 description = "Click params for commmand line interfaces to GeoJSON"
@@ -903,44 +882,11 @@ ssh = ["bcrypt (>=3.1.5)"]
 
 [[package]]
 name = "dask"
-version = "2024.5.2"
-description = "Parallel PyData with Task Scheduling"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "dask-2024.5.2-py3-none-any.whl", hash = "sha256:acc2cfe41d9e0151c216ac40396dbe34df13bc3d8c51dfece190349e4f2243af"},
-    {file = "dask-2024.5.2.tar.gz", hash = "sha256:5c9722c44d0195e78b6e54197aa3302e6fcaaac2310fd3014560bcb86253dcb3"},
-]
-
-[package.dependencies]
-click = ">=8.1"
-cloudpickle = ">=1.5.0"
-distributed = {version = "2024.5.2", optional = true, markers = "extra == \"distributed\""}
-fsspec = ">=2021.9.0"
-importlib-metadata = {version = ">=4.13.0", markers = "python_version < \"3.12\""}
-packaging = ">=20.0"
-partd = ">=1.2.0"
-pyyaml = ">=5.3.1"
-toolz = ">=0.10.0"
-
-[package.extras]
-array = ["numpy (>=1.21)"]
-complete = ["dask[array,dataframe,diagnostics,distributed]", "lz4 (>=4.3.2)", "pyarrow (>=7.0)", "pyarrow-hotfix"]
-dataframe = ["dask-expr (>=1.1,<1.2)", "dask[array]", "pandas (>=1.3)"]
-diagnostics = ["bokeh (>=2.4.2)", "jinja2 (>=2.10.3)"]
-distributed = ["distributed (==2024.5.2)"]
-test = ["pandas[test]", "pre-commit", "pytest", "pytest-cov", "pytest-rerunfailures", "pytest-timeout", "pytest-xdist"]
-
-[[package]]
-name = "dask"
 version = "2026.1.2"
 description = "Parallel PyData with Task Scheduling"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "python_version == \"3.13\""
 files = [
     {file = "dask-2026.1.2-py3-none-any.whl", hash = "sha256:46a0cf3b8d87f78a3d2e6b145aea4418a6d6d606fe6a16c79bd8ca2bb862bc91"},
     {file = "dask-2026.1.2.tar.gz", hash = "sha256:1136683de2750d98ea792670f7434e6c1cfce90cab2cc2f2495a9e60fd25a4fc"},
@@ -962,36 +908,6 @@ complete = ["dask[array,dataframe,diagnostics,distributed]", "lz4 (>=4.3.2)", "p
 dataframe = ["dask[array]", "pandas (>=2.0)", "pyarrow (>=16.0)"]
 diagnostics = ["bokeh (>=3.1.0)", "jinja2 (>=2.10.3)"]
 distributed = ["distributed (>=2026.1.2,<2026.1.3)"]
-test = ["pandas[test]", "pre-commit", "pytest", "pytest-cov", "pytest-mock", "pytest-rerunfailures", "pytest-timeout", "pytest-xdist"]
-
-[[package]]
-name = "dask"
-version = "2026.3.0"
-description = "Parallel PyData with Task Scheduling"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "python_version != \"3.11\" and python_version < \"3.13\" or python_version >= \"3.14\""
-files = [
-    {file = "dask-2026.3.0-py3-none-any.whl", hash = "sha256:be614b9242b0b38288060fb2d7696125946469c98a1c30e174883fd199e0428d"},
-    {file = "dask-2026.3.0.tar.gz", hash = "sha256:f7d96c8274e8a900d217c1ff6ea8d1bbf0b4c2c21e74a409644498d925eb8f85"},
-]
-
-[package.dependencies]
-click = ">=8.1"
-cloudpickle = ">=3.0.0"
-fsspec = ">=2021.9.0"
-packaging = ">=20.0"
-partd = ">=1.4.0"
-pyyaml = ">=5.3.1"
-toolz = ">=0.12.0"
-
-[package.extras]
-array = ["numpy (>=1.24)"]
-complete = ["dask[array,dataframe,diagnostics,distributed]", "lz4 (>=4.3.2)", "pyarrow (>=16.0)"]
-dataframe = ["dask[array]", "pandas (>=2.0)", "pyarrow (>=16.0)"]
-diagnostics = ["bokeh (>=3.1.0)", "jinja2 (>=2.10.3)"]
-distributed = ["distributed (>=2026.3.0,<2026.3.1)"]
 test = ["pandas[test]", "pre-commit", "pytest", "pytest-cov", "pytest-mock", "pytest-rerunfailures", "pytest-timeout", "pytest-xdist"]
 
 [[package]]
@@ -1070,42 +986,11 @@ files = [
 
 [[package]]
 name = "distributed"
-version = "2024.5.2"
-description = "Distributed scheduler for Dask"
-optional = false
-python-versions = ">=3.9"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "distributed-2024.5.2-py3-none-any.whl", hash = "sha256:c0fd59d5c34179d9c9b5dc5acb42a00a06d163107b79f66c2dc73e9479a92286"},
-    {file = "distributed-2024.5.2.tar.gz", hash = "sha256:4cee41093e98340d04d9254012c7d521065f64b3f33546dd0b02b00becb41e21"},
-]
-
-[package.dependencies]
-click = ">=8.0"
-cloudpickle = ">=1.5.0"
-dask = "2024.5.2"
-jinja2 = ">=2.10.3"
-locket = ">=1.0.0"
-msgpack = ">=1.0.0"
-packaging = ">=20.0"
-psutil = ">=5.7.2"
-pyyaml = ">=5.3.1"
-sortedcontainers = ">=2.0.5"
-tblib = ">=1.6.0"
-toolz = ">=0.10.0"
-tornado = ">=6.0.4"
-urllib3 = ">=1.24.3"
-zict = ">=3.0.0"
-
-[[package]]
-name = "distributed"
 version = "2026.1.2"
 description = "Distributed scheduler for Dask"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
-markers = "python_version == \"3.13\""
 files = [
     {file = "distributed-2026.1.2-py3-none-any.whl", hash = "sha256:30ccb5587351f50304f6f6e219ea91bc09d88401125779caa8be5253e9d3ecf2"},
     {file = "distributed-2026.1.2.tar.gz", hash = "sha256:8333fa7a34151ed3b4cf1a03136fe1f1799eca706a5e47bdb63022c8795d853b"},
@@ -1115,36 +1000,6 @@ files = [
 click = ">=8.0"
 cloudpickle = ">=3.0.0"
 dask = ">=2026.1.2,<2026.1.3"
-jinja2 = ">=2.10.3"
-locket = ">=1.0.0"
-msgpack = ">=1.0.2"
-packaging = ">=20.0"
-psutil = ">=5.8.0"
-pyyaml = ">=5.4.1"
-sortedcontainers = ">=2.0.5"
-tblib = ">=1.6.0,<3.2.0 || >3.2.0,<3.2.1 || >3.2.1"
-toolz = ">=0.12.0"
-tornado = ">=6.2.0"
-urllib3 = ">=1.26.5"
-zict = ">=3.0.0"
-
-[[package]]
-name = "distributed"
-version = "2026.3.0"
-description = "Distributed scheduler for Dask"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "python_version != \"3.11\" and python_version < \"3.13\" or python_version >= \"3.14\""
-files = [
-    {file = "distributed-2026.3.0-py3-none-any.whl", hash = "sha256:52518f4b3e6795e87b442e8f57788ba1ddc750c62d0835669c85927280d38f07"},
-    {file = "distributed-2026.3.0.tar.gz", hash = "sha256:4a8fc6102fededfbaae45288501276da2297a054d74eb6589f01b087c7f95c26"},
-]
-
-[package.dependencies]
-click = ">=8.0"
-cloudpickle = ">=3.0.0"
-dask = ">=2026.3.0,<2026.3.1"
 jinja2 = ">=2.10.3"
 locket = ">=1.0.0"
 msgpack = ">=1.0.2"
@@ -1749,31 +1604,6 @@ files = [
 
 [package.extras]
 all = ["mypy (>=1.11.2)", "pytest (>=8.3.2)", "ruff (>=0.6.2)"]
-
-[[package]]
-name = "importlib-metadata"
-version = "9.0.0"
-description = "Read metadata from Python packages"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "importlib_metadata-9.0.0-py3-none-any.whl", hash = "sha256:2d21d1cc5a017bd0559e36150c21c830ab1dc304dedd1b7ea85d20f45ef3edd7"},
-    {file = "importlib_metadata-9.0.0.tar.gz", hash = "sha256:a4f57ab599e6a2e3016d7595cfd72eb4661a5106e787a95bcc90c7105b831efc"},
-]
-
-[package.dependencies]
-zipp = ">=3.20"
-
-[package.extras]
-check = ["pytest-checkdocs (>=2.14)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\""]
-cover = ["pytest-cov"]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-enabler = ["pytest-enabler (>=3.4)"]
-perf = ["ipython"]
-test = ["packaging", "pyfakefs", "pytest (>=6,!=8.1.*)", "pytest-perf (>=0.9.2)"]
-type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
 
 [[package]]
 name = "iniconfig"
@@ -2612,10 +2442,7 @@ files = [
 librt = {version = ">=0.8.0", markers = "platform_python_implementation != \"PyPy\""}
 mypy_extensions = ">=1.0.0"
 pathspec = ">=1.0.0"
-typing_extensions = [
-    {version = ">=4.6.0", markers = "python_version < \"3.15\""},
-    {version = ">=4.14.0", markers = "python_version >= \"3.15\""},
-]
+typing_extensions = {version = ">=4.6.0", markers = "python_version < \"3.15\""}
 
 [package.extras]
 dmypy = ["psutil (>=4.0)"]
@@ -2911,11 +2738,7 @@ files = [
 
 [package.dependencies]
 googleapis-common-protos = ">=1.57,<2.0"
-grpcio = [
-    {version = ">=1.63.2,<2.0.0", markers = "python_version < \"3.13\""},
-    {version = ">=1.66.2,<2.0.0", markers = "python_version == \"3.13\""},
-    {version = ">=1.75.1,<2.0.0", markers = "python_version >= \"3.14\""},
-]
+grpcio = {version = ">=1.66.2,<2.0.0", markers = "python_version == \"3.13\""}
 opentelemetry-api = ">=1.15,<2.0"
 opentelemetry-exporter-otlp-proto-common = "1.42.1"
 opentelemetry-proto = "1.42.1"
@@ -3655,10 +3478,7 @@ files = [
 [package.dependencies]
 astroid = ">=4.0.2,<=4.1.dev0"
 colorama = {version = ">=0.4.5", markers = "sys_platform == \"win32\""}
-dill = [
-    {version = ">=0.3.6", markers = "python_version >= \"3.11\""},
-    {version = ">=0.3.7", markers = "python_version >= \"3.12\""},
-]
+dill = {version = ">=0.3.7", markers = "python_version >= \"3.12\""}
 isort = ">=5,<5.13 || >5.13,<9"
 mccabe = ">=0.6,<0.8"
 platformdirs = ">=2.2"
@@ -3753,20 +3573,20 @@ certifi = "*"
 
 [[package]]
 name = "pytest"
-version = "8.4.2"
+version = "9.0.3"
 description = "pytest: simple powerful testing with Python"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["dev"]
 files = [
-    {file = "pytest-8.4.2-py3-none-any.whl", hash = "sha256:872f880de3fc3a5bdc88a11b39c9710c3497a547cfa9320bc3c5e62fbf272e79"},
-    {file = "pytest-8.4.2.tar.gz", hash = "sha256:86c0d0b93306b961d58d62a4db4879f27fe25513d4b969df351abdddb3c30e01"},
+    {file = "pytest-9.0.3-py3-none-any.whl", hash = "sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9"},
+    {file = "pytest-9.0.3.tar.gz", hash = "sha256:b86ada508af81d19edeb213c681b1d48246c1a91d304c6c81a427674c17eb91c"},
 ]
 
 [package.dependencies]
 colorama = {version = ">=0.4", markers = "sys_platform == \"win32\""}
-iniconfig = ">=1"
-packaging = ">=20"
+iniconfig = ">=1.0.1"
+packaging = ">=22"
 pluggy = ">=1.5,<2"
 pygments = ">=2.7.2"
 
@@ -3787,7 +3607,6 @@ files = [
 
 [package.dependencies]
 pytest = ">=8.2,<10"
-typing-extensions = {version = ">=4.12", markers = "python_version < \"3.13\""}
 
 [package.extras]
 docs = ["sphinx (>=5.3)", "sphinx-rtd-theme (>=1)"]
@@ -4013,83 +3832,11 @@ files = [
 
 [[package]]
 name = "rasterio"
-version = "1.4.4"
-description = "Fast and direct raster I/O for use with Numpy and SciPy"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "rasterio-1.4.4-cp310-cp310-macosx_14_0_arm64.whl", hash = "sha256:35401e84d4d0b239bd62b33d4ee68d7bb13b47c3b41078f4aad7ad7964e61c73"},
-    {file = "rasterio-1.4.4-cp310-cp310-macosx_15_0_x86_64.whl", hash = "sha256:1f17fc9608b6b6666894a04e0118d3329e831a6347bc3650584d247a9d476fdd"},
-    {file = "rasterio-1.4.4-cp310-cp310-manylinux_2_28_aarch64.whl", hash = "sha256:1f0edb8cb30ff8f5be341583f69c115b7c36ad52bbbe7582345d32af115bc6b3"},
-    {file = "rasterio-1.4.4-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:5197da0e3dd09907bdb343717a49e8fb5229ffdbff0e583b874959ec41fa9558"},
-    {file = "rasterio-1.4.4-cp310-cp310-win_amd64.whl", hash = "sha256:15109134c7b4770e6aeb8d45dc52c2603824805ba734323268a44f5a81756a7a"},
-    {file = "rasterio-1.4.4-cp311-cp311-macosx_14_0_arm64.whl", hash = "sha256:b8eea428b5f0c78a963f6003a19b60777df83a0aba8c28231d65431e32ac160e"},
-    {file = "rasterio-1.4.4-cp311-cp311-macosx_15_0_x86_64.whl", hash = "sha256:1cc0ea5aa0d22f5f349aa221674481de689b7b3a99607ce6bb58a29e5be54d17"},
-    {file = "rasterio-1.4.4-cp311-cp311-manylinux_2_28_aarch64.whl", hash = "sha256:7eb25b23666b29dadfc49a59206cead62c99190584b61771bba0e95f7da06801"},
-    {file = "rasterio-1.4.4-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:e24b7b8c2df801dde2a1dffb44c58902bd76b5cab740dc11de4ff9963992a71a"},
-    {file = "rasterio-1.4.4-cp311-cp311-win_amd64.whl", hash = "sha256:0718630f607be2f5742d8e4b34b434746fd788a192d77eefc9bb924399fea802"},
-    {file = "rasterio-1.4.4-cp311-cp311-win_arm64.whl", hash = "sha256:0308ff4762ae9eb40a991f12d758626b59af4376b13675480391dd7295d17bbf"},
-    {file = "rasterio-1.4.4-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:f3c4f0cbd188f893011f2a0a6dc2852b3892799b3a0d79eddf92f2b115ec7ed7"},
-    {file = "rasterio-1.4.4-cp312-cp312-macosx_15_0_x86_64.whl", hash = "sha256:6fce26090b9f509eab337228420145947c491a13628965410f25bc3e6e05cf75"},
-    {file = "rasterio-1.4.4-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:c1c722da390dc264aeccdc0dc200ca37923875d910ca4cd5bec0fec351bb818e"},
-    {file = "rasterio-1.4.4-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:98b6dfb8282b2a54b9d75c3dc8d2520a69bbc66916c7d43de8e0bbf6e0240ca1"},
-    {file = "rasterio-1.4.4-cp312-cp312-win_amd64.whl", hash = "sha256:9513f4c7a6d93b45098f8dff2421fa9516604e3bfbf35aa144484a88d36a321f"},
-    {file = "rasterio-1.4.4-cp312-cp312-win_arm64.whl", hash = "sha256:60b49a482e0f12f12ce9d2cc3090add02f89f3d422e85f2cffaa9207adb83c04"},
-    {file = "rasterio-1.4.4-cp313-cp313-macosx_14_0_arm64.whl", hash = "sha256:df26c96aa81ffbd0b33189680859211eadf9950123c21579f84de73bb0f91d81"},
-    {file = "rasterio-1.4.4-cp313-cp313-macosx_15_0_x86_64.whl", hash = "sha256:b3af0ecc922a80f3755516629f7948e37bade9077b5f5c12a3869a5e7f01619b"},
-    {file = "rasterio-1.4.4-cp313-cp313-manylinux_2_28_aarch64.whl", hash = "sha256:7ce3b0f9a22e95a27790087908753973644d7c3877d495ec9bd6e04a25233ca4"},
-    {file = "rasterio-1.4.4-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:c072450caa96428b1218b030500bb908fd6f09bc013a88969ff81a124b6a112a"},
-    {file = "rasterio-1.4.4-cp313-cp313-win_amd64.whl", hash = "sha256:16ee92ef10c0ba89f45f9c2b40fca9f971f357385f04ee9b716fb09cbd9ce20c"},
-    {file = "rasterio-1.4.4-cp313-cp313-win_arm64.whl", hash = "sha256:65c10afe64b5e488185aaff0b659e08eda22c89285b54a3e433b80e6c6621770"},
-    {file = "rasterio-1.4.4-cp313-cp313t-macosx_14_0_arm64.whl", hash = "sha256:18c2c1130e789dc2771d0aa5ec4b56d5b8a0097c648ccb94882d5ff3ab55c928"},
-    {file = "rasterio-1.4.4-cp313-cp313t-macosx_15_0_x86_64.whl", hash = "sha256:2d1654b7ffa6f3dde42c5fd27159ae45148c11e352de26f12fe7313a3236aeed"},
-    {file = "rasterio-1.4.4-cp313-cp313t-manylinux_2_28_aarch64.whl", hash = "sha256:c4022cbddb659856e120603b12233cec8913ae760fff220657ce888c3c6b9f9d"},
-    {file = "rasterio-1.4.4-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:96b88880551a07b7a3b50439483cefbd9af91a09e19ff2b736815994e5671314"},
-    {file = "rasterio-1.4.4-cp313-cp313t-win_amd64.whl", hash = "sha256:def75d486d0ab8f306f918a913c425ed57159495518c54efe8e18d5164d37d90"},
-    {file = "rasterio-1.4.4-cp313-cp313t-win_arm64.whl", hash = "sha256:770b7e86f6c565e6f9cf30f6fa4479a5a2bab4e10ff44fe7acfd518ca4a71d1b"},
-    {file = "rasterio-1.4.4-cp314-cp314-macosx_14_0_arm64.whl", hash = "sha256:019693f14a83ae9225cb57c16e466901d0e6284962dcf13a9f4bb1175b979011"},
-    {file = "rasterio-1.4.4-cp314-cp314-macosx_15_0_x86_64.whl", hash = "sha256:87d7c3e97e3b40c9041d1602e2dcb4fc2d88abe6c645fccb4939dec297a91cf8"},
-    {file = "rasterio-1.4.4-cp314-cp314-manylinux_2_28_aarch64.whl", hash = "sha256:a2401e4c43a31c7382154d4042b60a63b9bca5886802983c5c9362cdc5b09548"},
-    {file = "rasterio-1.4.4-cp314-cp314-manylinux_2_28_x86_64.whl", hash = "sha256:6c4287d8934d953f7870b8e2a1df1096fbf47eba39ad0f777a31ea500f4e5010"},
-    {file = "rasterio-1.4.4-cp314-cp314-win_amd64.whl", hash = "sha256:c3ba1871549221140661227dd4fa1f9a472ded4a6d2f2c2e367b0648bb15b99d"},
-    {file = "rasterio-1.4.4-cp314-cp314-win_arm64.whl", hash = "sha256:7c9d7dc824cb8d222808be153643cd4e65ea3e1f66019ada1ccd630221edfe30"},
-    {file = "rasterio-1.4.4-cp314-cp314t-macosx_14_0_arm64.whl", hash = "sha256:98e17bded830a59992d9f8f8d9f227ce1c4be0694930afcc4360358f5cb1a5db"},
-    {file = "rasterio-1.4.4-cp314-cp314t-macosx_15_0_x86_64.whl", hash = "sha256:56134ca203f952855e60774b06672033cf65057eb9810fcc5c1a75f1921053a3"},
-    {file = "rasterio-1.4.4-cp314-cp314t-manylinux_2_28_aarch64.whl", hash = "sha256:52edde65515b33fe4314c8a44a9ee2fc00b550deed6d56e1a8d085d42bbca3e6"},
-    {file = "rasterio-1.4.4-cp314-cp314t-manylinux_2_28_x86_64.whl", hash = "sha256:d61d3f2c171c64050bd75e54a5d964ff7f165b3f5d2b92c9ee09b9716aa1b8bf"},
-    {file = "rasterio-1.4.4-cp314-cp314t-win_amd64.whl", hash = "sha256:40137fe512c0d6e96c0167a0ae4e56d82c488f244163c45494b7392e51c844de"},
-    {file = "rasterio-1.4.4-cp314-cp314t-win_arm64.whl", hash = "sha256:29ec3a794454b5bb255c9c0374cc380030a8a1e295c81eee7feb036802d2a9e3"},
-    {file = "rasterio-1.4.4.tar.gz", hash = "sha256:c95424e2c7f009b8f7df1095d645c52895cd332c0c2e1b4c2e073ea28b930320"},
-]
-
-[package.dependencies]
-affine = "*"
-attrs = "*"
-certifi = "*"
-click = ">=4.0,<8.2.dev0 || >=8.3.dev0"
-click-plugins = "*"
-cligj = ">=0.5"
-numpy = ">=1.24"
-pyparsing = "*"
-
-[package.extras]
-all = ["boto3 (>=1.2.4)", "fsspec", "ghp-import", "hypothesis", "ipython (>=2.0)", "matplotlib", "numpydoc", "packaging", "pytest (>=2.8.2)", "pytest-cov (>=2.2.0)", "shapely", "sphinx", "sphinx-click", "sphinx-rtd-theme"]
-docs = ["ghp-import", "numpydoc", "sphinx", "sphinx-click", "sphinx-rtd-theme"]
-ipython = ["ipython (>=2.0)"]
-plot = ["matplotlib"]
-s3 = ["boto3 (>=1.2.4)"]
-test = ["boto3 (>=1.2.4)", "fsspec", "hypothesis", "packaging", "pytest (>=2.8.2)", "pytest-cov (>=2.2.0)", "shapely"]
-
-[[package]]
-name = "rasterio"
 version = "1.5.0"
 description = "Fast and direct raster I/O for use with NumPy"
 optional = false
 python-versions = ">=3.12"
 groups = ["main"]
-markers = "python_version != \"3.11\""
 files = [
     {file = "rasterio-1.5.0-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:420656074897a460f5ef46f657b3061d2e004f9d99e613914b0671643e69d92c"},
     {file = "rasterio-1.5.0-cp312-cp312-macosx_15_0_x86_64.whl", hash = "sha256:c5c3597a783857e760550e8f26365d928b0377ac5ffc3e12ba447ac65ca5406d"},
@@ -4156,7 +3903,6 @@ files = [
 [package.dependencies]
 attrs = ">=22.2.0"
 rpds-py = ">=0.7.0"
-typing-extensions = {version = ">=4.4.0", markers = "python_version < \"3.13\""}
 
 [[package]]
 name = "regex"
@@ -4799,7 +4545,6 @@ files = [
 
 [package.dependencies]
 anyio = ">=3.6.2,<5"
-typing-extensions = {version = ">=4.10.0", markers = "python_version < \"3.13\""}
 
 [package.extras]
 full = ["httpx (>=0.27.0,<0.29.0)", "itsdangerous", "jinja2", "python-multipart (>=0.0.18)", "pyyaml"]
@@ -5293,28 +5038,7 @@ files = [
     {file = "zict-3.0.0.tar.gz", hash = "sha256:e321e263b6a97aafc0790c3cfb3c04656b7066e6738c37fffcca95d803c9fba5"},
 ]
 
-[[package]]
-name = "zipp"
-version = "4.1.0"
-description = "Backport of pathlib-compatible object wrapper for zip files"
-optional = false
-python-versions = ">=3.10"
-groups = ["main"]
-markers = "python_version == \"3.11\""
-files = [
-    {file = "zipp-4.1.0-py3-none-any.whl", hash = "sha256:25ad4e16390cd314347dd8f1de67a2ac538ae658ed4ab9db16029c07c188e97f"},
-    {file = "zipp-4.1.0.tar.gz", hash = "sha256:4cb57381f544315db7688e976e922a2b18cdb513d21cc194eb42232ba2a3e602"},
-]
-
-[package.extras]
-check = ["pytest-checkdocs (>=2.14)", "pytest-ruff (>=0.2.1) ; sys_platform != \"cygwin\""]
-cover = ["pytest-cov"]
-doc = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.linker (>=1.9)", "sphinx (>=3.5)", "sphinx-lint"]
-enabler = ["pytest-enabler (>=3.4)"]
-test = ["big-O", "jaraco.functools", "jaraco.itertools", "jaraco.test", "more_itertools", "pytest (>=6,!=8.1.*)", "pytest-ignore-flaky"]
-type = ["pytest-mypy (>=1.0.1) ; platform_python_implementation != \"PyPy\""]
-
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.11,<4"
-content-hash = "dda30b66d80805eefe409623bae352474b258006efcf3fe5d91c35d596351152"
+python-versions = "==3.13.12"
+content-hash = "54d95c28dda070e206861c725776d4d9550e53181b2437344f8b7e56eb55d287"

@@ -1,0 +1,82 @@
+# Copyright 2023-2026 Airbus, CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
+name: Update poetry.lock files
+
+on:
+  workflow_call: # reusable workflow
+    inputs:
+      matrix:
+        description: Github matrix configuration coming from .github/actions/configure-deps/action.yml
+        type: string
+
+jobs:
+  _:
+    runs-on: ubuntu-latest
+    env:
+      PYTHON_VERSION: ${{ matrix.python_version }}
+      POETRY_VERSION: ${{ matrix.poetry_version }}
+      DASK_VERSION: ${{ matrix.dask_version }}
+    strategy:
+      matrix: ${{ fromJson(inputs.matrix) }}
+    steps:
+
+      - name: Print environment
+        run: set -x; echo "${{ toJson(matrix) }}"
+
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.github_ref }}
+
+      - uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          poetry-version: ${{ env.POETRY_VERSION }}
+
+      - name: Update lock file
+        if: ${{ matrix.temp_branch == 'true' }}
+        env:
+          DEP_NAME: ${{ matrix.dep_name }}
+          TEMP_BRANCH_NAME: ${{ matrix.github_ref }}
+        run: |
+          set -x
+
+          # Check that the branch name contains the TEMP substring
+          if [[ ! "$TEMP_BRANCH_NAME" =~ TEMP ]]; then
+            >&2 echo "Wrong temporary branch name: '$TEMP_BRANCH_NAME'"
+            exit 2
+          fi
+
+          # Update the poetry.lock file
+          poetry lock
+          git diff poetry.lock
+
+          # Add poetry.lock to the current temp branch
+          git add poetry.lock
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git commit -m "Update poetry.lock for $DEP_NAME"
+          git push
+
+      - name: Check environment
+        run: |
+          set -x
+          poetry -V
+          grep -e python -e dask pyproject.toml
+          if [[ $(python -V | awk '{ print $2 }') != $PYTHON_VERSION ]]; then
+            echo "Wrong python version !" && exit 2
+          fi
+          if [[ $(poetry show dask | awk '/version/ { print $3 }') != $DASK_VERSION ]]; then
+            echo "Wrong dask version !" && exit 2
+          fi

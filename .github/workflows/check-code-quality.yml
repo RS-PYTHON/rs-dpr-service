@@ -25,21 +25,63 @@ on:
   workflow_dispatch:
 
 jobs:
+  configure-deps:
+    runs-on: ubuntu-latest
+    name: Configure dependency versions
+    permissions:
+      contents: write # for the git push
+    outputs:
+      matrix: ${{ steps.configure-deps.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v6
+      - id: configure-deps
+        name: Configure dependency versions
+        env:
+          # Current branch name (or source branch for a pull request)
+          BRANCH_NAME: ${{ case(github.event_name == 'pull_request', github.event.pull_request.head.ref, github.ref_name) }}
+          CREATE_TEMP_BRANCHES: true
+        run: set -x; .github/workflows/configure-deps.sh
+
+  update-lock:
+    name: Update lock files
+    needs: configure-deps
+    permissions:
+      contents: write # for the git push
+    uses: ./.github/workflows/update-lock.yml
+    with:
+      matrix: ${{ needs.configure-deps.outputs.matrix }}
+
   check-code-quality:
-    name: _
+    name: Check code quality
+    needs: [configure-deps, update-lock]
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
     uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@develop
     with:
-        caller-repository: ${{ github.repository }}
-        caller-ref: ${{ github.ref }}
-        caller-ref_name: ${{ github.ref_name }}
-        python-version: 3.11.7
-        cov-dirs: rs_dpr_service
+      caller-repository: ${{ github.repository }}
+      caller-ref: ${{ matrix.github_ref }}
+      caller-ref_name: ${{ matrix.github_ref_name }}
+      python-version: ${{ matrix.python_version }}
+      cov-dirs: rs_dpr_service
+      artifact-prefix: "${{ matrix.dep_name }}_"
     secrets:
       SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
     permissions:
       contents: write # for apache/skywalking-eyes/header
       pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
+
+  clean-temp-branches:
+    name: Clean temporary branches
+    needs: [configure-deps, check-code-quality]
+    if: always() # even if crashed or cancelled
+    permissions:
+      contents: write # for the git branch delete
+    uses: ./.github/workflows/clean-temp-branches.yml
+    with:
+      matrix: ${{ needs.configure-deps.outputs.matrix }}
+
   check-tasktables:
     runs-on: ubuntu-latest
     name: Check tasktables (json schema)
