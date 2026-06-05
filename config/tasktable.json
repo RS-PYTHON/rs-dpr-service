@@ -35,12 +35,12 @@
             ],
             "input_adfs": [
                 {
-                    "name": "OSF",
+                    "name": "osf",
                     "mode": "always",
                     "mandatory": false
                 },
                 {
-                    "name": "FRO",
+                    "name": "fro",
                     "mode": "always",
                     "mandatory": false
                 }
@@ -62,7 +62,7 @@
             "store_type": "cadu"
         },
         {
-            "name": "OSF",
+            "name": "osf",
             "type": "filename",
             "store_type": "safe",
             "alternatives": [
@@ -83,7 +83,7 @@
             ]
         },
         {
-            "name": "FRO",
+            "name": "fro",
             "type": "filename",
             "store_type": "safe",
             "alternatives": [
