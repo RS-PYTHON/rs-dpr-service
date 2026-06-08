@@ -280,8 +280,15 @@ class ProcessorCaller:
             "PREFECT_BUCKET_FOLDER",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            # Only in local mode
             "LOCAL_DASK_USERNAME",
             "LOCAL_DASK_PASSWORD",
+            # Vars from ~/.s3cfg, when debugging a processor locally in local mode
+            "access_key",
+            "bucket_location",
+            "host_base",
+            "host_bucket",
+            "secret_key",
         ]
 
         # Copy our environment variables
@@ -364,7 +371,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        # init_traces(None, SERVICE_NAME, logger)
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
