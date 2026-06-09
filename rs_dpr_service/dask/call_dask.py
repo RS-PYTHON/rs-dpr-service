@@ -159,6 +159,22 @@ class ClusterInfo:
     cluster_instance: str | None = ""
 
 
+def _update_pythonpath(original_env: dict) -> dict:
+    """Update PYTHONPATH to be able to import rs_dpr_service"""
+
+    # Find the ZIP that this code lives in
+    module_path = Path(__file__).resolve()
+    zip_path = Path(str(module_path).split(".zip", maxsplit=1)[0] + ".zip")
+    if not zip_path.is_file():
+        raise RuntimeError(f"Cannot locate rs_dpr_service.zip at {zip_path}")
+
+    # Prepare an env that lets Python import from inside the ZIP
+    env = original_env.copy()
+    # prepend the zip onto PYTHONPATH (so zipimport will kick in)
+    env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
+    return env
+
+
 def convert_safe_to_zarr(cfg):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
@@ -169,16 +185,7 @@ def convert_safe_to_zarr(cfg):
     # Serialize the config
     cfg_str = json.dumps(cfg)
 
-    # Find the ZIP that this code lives in
-    module_path = Path(__file__).resolve()
-    zip_path = Path(str(module_path).split(".zip", maxsplit=1)[0] + ".zip")
-    if not zip_path.is_file():
-        raise RuntimeError(f"Cannot locate rs_dpr_service.zip at {zip_path}")
-
-    # Prepare an env that lets Python import from inside the ZIP
-    env = os.environ.copy()
-    # prepend the zip onto PYTHONPATH (so zipimport will kick in)
-    env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
+    env = _update_pythonpath(os.environ)
 
     # Run the converter as a module
     cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str]
@@ -371,7 +378,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        # init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME, logger)
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
@@ -464,9 +471,6 @@ class ProcessorCaller:
         self.customize_payload_file(payload_file)
 
         self.command = [
-            "opentelemetry-instrument",
-            "--service_name",
-            f"dpr.{self.processor_name}",
             "eopf_otel",
             "trigger",
             "local",
@@ -731,13 +735,14 @@ class ProcessorCaller:
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
     def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
+        """Trigger eopf-cpm execution in a subprocess"""
         with subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
             cwd=self.working_dir,
-            env=env,
+            env=_update_pythonpath(env),
         ) as proc:
 
             span.set_attribute("subprocess.pid", proc.pid)
@@ -808,6 +813,9 @@ class ProcessorCaller:
 
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
+
+        # Add root span name for the eopf subprocess
+        env["EOPF_SPAN_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 
