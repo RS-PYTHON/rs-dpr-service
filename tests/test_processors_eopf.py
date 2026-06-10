@@ -35,7 +35,7 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
         (MockupProcessor, "", "", True),
         (S1L0Processor, "l0.s1.s1_l0_processor", "S1L0Processor", False),
         (S3L0Processor, "l0.s3.s3_l0_processor", "S3L0Processor", False),
-        (S1ARDProcessor, "s1_l12_rp.computing.ard_processing_units", "Calibration", False),
+        (S1ARDProcessor, "s1_ard.computing.ard_processing_units", "Calibration", False),
         (S3L1OLCIProcessor, "s3olci.s3_ol1.ol1_processor", "OL1Processor", False),
         (S3L2OLCIProcessor, "s3olci.s3_ol2.ol2_processor", "OL2Processor", False),
     ],

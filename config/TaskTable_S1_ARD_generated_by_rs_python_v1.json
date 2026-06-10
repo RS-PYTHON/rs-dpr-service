@@ -14,7 +14,7 @@
   "units": [
     {
       "name": "calibration",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,
@@ -55,7 +55,7 @@
     },
     {
       "name": "reference_dem",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,
@@ -96,7 +96,7 @@
     },
     {
       "name": "reference_geometry",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,
@@ -137,7 +137,7 @@
     },
     {
       "name": "coregistration",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,
@@ -183,7 +183,7 @@
     },
     {
       "name": "geocoding",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,
@@ -224,7 +224,7 @@
     },
     {
       "name": "mosaicking",
-      "module": "s1_l12_rp.computing.ard_processing_units",
+      "module": "s1_ard.computing.ard_processing_units",
       "resources_min": {
         "dask": {
           "worker_cpu": 4,

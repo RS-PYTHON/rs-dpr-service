@@ -105,7 +105,7 @@ class S1ARDProcessor(GenericProcessor):
             db_process_manager=db_process_manager,
             cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_S1ARD_ADDRESS",
-            tasktable_module="s1_l12_rp.computing.ard_processing_units",
+            tasktable_module="s1_ard.computing.ard_processing_units",
             # NOTE: not implemented for now... and maybe we should be able to return the
             # tasktable for each different processing: Calibration, ReferenceDEM, ReferenceGeometry, ...
             tasktable_class="Calibration",

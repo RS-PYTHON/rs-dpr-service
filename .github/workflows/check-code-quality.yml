@@ -88,4 +88,10 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Validate tasktables
-        run: pipx run check-jsonschema --schemafile schemas/TaskTable.schema.json config/TaskTable_*.json
+        run: |
+          for file in config/TaskTable_*.json; do
+            schema=$(jq -r '."$schema"' "$file")
+            schema=$(realpath "$(dirname "$file")/$schema")
+            echo "Validating $file with schema $schema"
+            pipx run check-jsonschema --schemafile "$schema" "$file"
+          done
