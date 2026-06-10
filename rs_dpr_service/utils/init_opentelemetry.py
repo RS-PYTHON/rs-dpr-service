@@ -14,11 +14,10 @@
 
 """OpenTelemetry utility"""
 
-# pylint: disable=no-name-in-module
-
 import json
 import os
 from collections.abc import Iterator
+from threading import Lock
 from typing import Any
 
 import fastapi
@@ -42,6 +41,7 @@ from opentelemetry.util._decorator import _agnosticcontextmanager
 from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import env_bool
 
+lock = Lock()
 initialized = False
 
 default_logger = Logging.default(__name__)
@@ -171,7 +171,7 @@ def botocore_request_hook(span, _service_name, _operation_name, api_params: dict
     span.set_attribute("_path", f"s3://{bucket}/{key}")
 
 
-def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  # pylint: disable=too-many-branches
+def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):
     """
     Init instrumentation of OpenTelemetry traces.
 
@@ -180,10 +180,11 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  #
         service_name (str): service name
         logger: non-default logger to user
     """
-    global initialized
-    if initialized:
-        return
-    initialized = True
+    with lock:
+        global initialized
+        if initialized:
+            return
+        initialized = True
 
     logger = logger or default_logger
 
