@@ -159,22 +159,6 @@ class ClusterInfo:
     cluster_instance: str | None = ""
 
 
-def _update_pythonpath(original_env: dict) -> dict:
-    """Update PYTHONPATH to be able to import rs_dpr_service"""
-
-    # Find the ZIP that this code lives in
-    module_path = Path(__file__).resolve()
-    zip_path = Path(str(module_path).split(".zip", maxsplit=1)[0] + ".zip")
-    if not zip_path.is_file():
-        raise RuntimeError(f"Cannot locate rs_dpr_service.zip at {zip_path}")
-
-    # Prepare an env that lets Python import from inside the ZIP
-    env = original_env.copy()
-    # prepend the zip onto PYTHONPATH (so zipimport will kick in)
-    env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
-    return env
-
-
 def convert_safe_to_zarr(cfg):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
@@ -185,7 +169,16 @@ def convert_safe_to_zarr(cfg):
     # Serialize the config
     cfg_str = json.dumps(cfg)
 
-    env = _update_pythonpath(os.environ)
+    # Find the ZIP that this code lives in
+    module_path = Path(__file__).resolve()
+    zip_path = Path(str(module_path).split(".zip", maxsplit=1)[0] + ".zip")
+    if not zip_path.is_file():
+        raise RuntimeError(f"Cannot locate rs_dpr_service.zip at {zip_path}")
+
+    # Prepare an env that lets Python import from inside the ZIP
+    env = os.environ.copy()
+    # prepend the zip onto PYTHONPATH (so zipimport will kick in)
+    env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
 
     # Run the converter as a module
     cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str]
@@ -742,7 +735,7 @@ class ProcessorCaller:
             stderr=subprocess.STDOUT,
             text=True,
             cwd=self.working_dir,
-            env=_update_pythonpath(env),
+            env=env,
         ) as proc:
 
             span.set_attribute("subprocess.pid", proc.pid)

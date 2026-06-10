@@ -16,28 +16,21 @@
 
 # pylint: disable=no-name-in-module
 
-import inspect
 import json
 import os
-import pkgutil
-import sys
 from collections.abc import Iterator
 from typing import Any
 
 import fastapi
-import opentelemetry.instrumentation
 import requests
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation import auto_instrumentation
-from opentelemetry.instrumentation.asyncio import AsyncioInstrumentor
 from opentelemetry.instrumentation.botocore import (
     AiobotocoreInstrumentor,
     BotocoreInstrumentor,
 )
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-from opentelemetry.instrumentation.httpx import HTTPXClientInstrumentor
-from opentelemetry.instrumentation.instrumentor import BaseInstrumentor  # type: ignore
 from opentelemetry.instrumentation.requests import RequestsInstrumentor
 from opentelemetry.sdk.resources import Resource  # type: ignore
 from opentelemetry.sdk.trace import TracerProvider
@@ -171,16 +164,11 @@ def fastapi_hook(span: Span, scope: dict[str, Any], message=None):
         span.set_attribute("http.message.body", parse_data(message.get("body")))
 
 
-def botocore_request_hook(span, service_name, operation_name, api_params: dict):
+def botocore_request_hook(span, _service_name, _operation_name, api_params: dict):
     """Callback function invoked by BotocoreInstrumentor and AiobotocoreInstrumentor"""
-    span.set_attribute("_service_name", service_name)
-    span.set_attribute("_operation_name", operation_name)
-    span.set_attribute("_api_params", parse_data(api_params))
-
-
-def botocore_response_hook(span, service_name, operation_name, result):
-    """Callback function invoked by BotocoreInstrumentor and AiobotocoreInstrumentor"""
-    span.set_attribute("_result", parse_data(result))
+    bucket = api_params.get("Bucket", "")
+    key = api_params.get("Key", "")
+    span.set_attribute("_path", f"s3://{bucket}/{key}")
 
 
 def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  # pylint: disable=too-many-branches
@@ -192,9 +180,6 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  #
         service_name (str): service name
         logger: non-default logger to user
     """
-
-    # See: https://github.com/softwarebloat/python-tracing-demo/tree/main
-
     global initialized
     if initialized:
         return
@@ -210,14 +195,8 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  #
             logger.warning("'TEMPO_ENDPOINT' variable is missing, cannot initialize OpenTelemetry")
             return
 
-        # TODO: to avoid errors in local mode:
-        # Transient error StatusCode.UNAVAILABLE encountered while exporting metrics to localhost:4317, retrying in ..s.
-        #
-        # The below line does not work either but at least we have less error messages.
-        # See: https://pforge-exchange2.astrium.eads.net/jira/browse/RSPY-221?focusedId=162092&
-        # page=com.atlassian.jira.plugin.system.issuetabpanels%3Acomment-tabpanel#comment-162092
-        #
-        # Now we have a single line error, which is less worst:
+        # Set the tempo endpoint for all opentelemetry instrumentors.
+        # NOTE: in local mode we have this error that we can ignore:
         # Failed to export metrics to tempo:4317, error code: StatusCode.UNIMPLEMENTED
         os.environ["OTEL_EXPORTER_OTLP_ENDPOINT"] = tempo_endpoint
 
@@ -229,7 +208,10 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  #
     # Use this tracer everywhere in opentelemetry
     trace.set_tracer_provider(otel_tracer)
 
+    #
     # Specific opentelemetry instrumentation with custom hooks
+    #
+
     if app:
         if trace_requests_headers() or trace_requests_body():
             FastAPIInstrumentor.instrument_app(
@@ -250,16 +232,8 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str, logger=None):  #
             response_hook=requests_hook,
         )
 
-    BotocoreInstrumentor().instrument(
-        tracer_provider=otel_tracer,
-        request_hook=botocore_request_hook,
-        response_hook=botocore_response_hook,
-    )
-    AiobotocoreInstrumentor().instrument(
-        tracer_provider=otel_tracer,
-        request_hook=botocore_request_hook,
-        response_hook=botocore_response_hook,
-    )
+    BotocoreInstrumentor().instrument(tracer_provider=otel_tracer, request_hook=botocore_request_hook)
+    AiobotocoreInstrumentor().instrument(tracer_provider=otel_tracer, request_hook=botocore_request_hook)
 
     # Instrument all other dependencies under opentelemetry.instrumentation.*
     # NOTE 1: we need 'poetry run opentelemetry-bootstrap -a install' to install these.
