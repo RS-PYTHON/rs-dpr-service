@@ -14,7 +14,7 @@
   ],
   "units": [
     {
-      "name": "OL1",
+      "name": "OL1Processor",
       "module": "s3olci.s3_ol1.ol1_processor",
       "resources_min": {
         "dask": {
