@@ -834,7 +834,7 @@
       "description": "Full Sentinel-3 OLCI L1 EO processing",
       "steps": [
         {
-          "unit_name": "OL1",
+          "unit_name": "OL1Processor",
           "step_id": 1,
           "input_products": {
             "S03OLCL0_1": "pipeline_input",
