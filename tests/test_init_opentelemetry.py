@@ -12,10 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for rs_dpr_service.utils.init_opentelemetry."""
+"""Unit tests for OpenTelemetry."""
 
-import sys
-import types
 from contextlib import contextmanager
 
 import pytest
@@ -232,4 +230,4 @@ def test_instrumentation(mocker, monkeypatch):
     mocker.patch("opentelemetry.instrumentation.fastapi.FastAPIInstrumentor.instrument_app")
     mocker.patch("opentelemetry.instrumentation.instrumentor.BaseInstrumentor.instrument")
 
-    init_traces(app=mocker.Mock(), service_name="rs.dpr.service")
+    init_traces(app=mocker.Mock(), service_name="pytest")
