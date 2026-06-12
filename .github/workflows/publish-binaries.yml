@@ -146,7 +146,7 @@ jobs:
               chmod u+x ./git_debug_image.sh ./restore-apt.sh; \
               ./git_debug_image.sh $BRANCH_NAME; \
               rm -f ./git_debug_image.sh ./restore-apt.sh
-          WORKDIR /home/user/rs-server
+          WORKDIR /home/user/rs-dpr-service
           EOF
             )
             # Use awk instead of sed for multiline replace, see: https://stackoverflow.com/a/10107668
