@@ -244,7 +244,7 @@ def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(moc
     result = caller.get_tasktable("fake.module", "FakeProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     import_module.assert_called_once_with("fake.module")
     assert result == {"tasks": [{"name": "task-1"}]}
 
@@ -272,7 +272,7 @@ def test_processor_caller_get_tasktable_returns_empty_tasktable_for_mockup(mocke
     result = caller.get_tasktable("fake.module", "MockupProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     sleep.assert_called_once_with(1)
     import_module.assert_not_called()
     assert result == {}
@@ -317,7 +317,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
 
     result = caller.run_processor()
 
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
@@ -357,7 +357,7 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
         caller.run_processor()
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     # finalize() must still run in the exception branch to preserve cleanup behavior.
@@ -394,7 +394,7 @@ def test_processor_caller_run_processor_initializes_mockup_payload(mocker, monke
     assert caller.command == ["python3", "DPR_processor_mock.py", "-p", str(payload_path)]
     assert caller.working_dir == "/src/DPR"
     assert caller.log_path == "./mockup.log"
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
     assert result == {"mockup": "ok"}

@@ -346,7 +346,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
 
             if self.use_mockup:
@@ -371,7 +371,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
@@ -807,8 +807,8 @@ class ProcessorCaller:
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
 
-        # Add root span name for the eopf subprocess
-        env["EOPF_SPAN_NAME"] = f"dpr.{self.processor_name}"
+        # Set the opentelemetry service name
+        env["OTEL_SERVICE_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 
