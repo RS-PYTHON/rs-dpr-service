@@ -280,8 +280,15 @@ class ProcessorCaller:
             "PREFECT_BUCKET_FOLDER",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            # Only in local mode
             "LOCAL_DASK_USERNAME",
             "LOCAL_DASK_PASSWORD",
+            # Vars from ~/.s3cfg, when debugging a processor locally in local mode
+            "access_key",
+            "bucket_location",
+            "host_base",
+            "host_bucket",
+            "secret_key",
         ]
 
         # Copy our environment variables
@@ -339,7 +346,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
 
             if self.use_mockup:
@@ -364,7 +371,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
@@ -457,9 +464,6 @@ class ProcessorCaller:
         self.customize_payload_file(payload_file)
 
         self.command = [
-            "opentelemetry-instrument",
-            "--service_name",
-            f"dpr.{self.processor_name}",
             "eopf_otel",
             "trigger",
             "local",
@@ -792,6 +796,7 @@ class ProcessorCaller:
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
     def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
+        """Trigger eopf-cpm execution in a subprocess"""
         with subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
@@ -869,6 +874,9 @@ class ProcessorCaller:
 
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
+
+        # Set the opentelemetry service name
+        env["OTEL_SERVICE_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 
