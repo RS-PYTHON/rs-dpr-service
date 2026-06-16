@@ -206,7 +206,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_FROAX",
+              "product_type": "ADF_FROAX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -221,7 +221,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_FPOAX",
+              "product_type": "ADF_FPOAX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -236,7 +236,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_OSFAX",
+              "product_type": "ADF_OSFAX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -251,7 +251,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S00_ADF_IERSB",
+              "product_type": "ADF_IERSB",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -276,7 +276,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_OSFAX",
+              "product_type": "ADF_OSFAX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -301,7 +301,7 @@
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
-              "product_type": "S00_ADF_ECMWF",
+              "product_type": "ADF_ECMWF",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -326,7 +326,7 @@
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
-              "product_type": "S00_ADF_ECMWA",
+              "product_type": "ADF_ECMWA",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -351,7 +351,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLINS",
+              "product_type": "ADF_OLINS",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -376,7 +376,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLCAL",
+              "product_type": "ADF_OLCAL",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -401,7 +401,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLPRG",
+              "product_type": "ADF_OLPRG",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -426,7 +426,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLLUT",
+              "product_type": "ADF_OLLUT",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -451,7 +451,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S00_ADF_GETAS",
+              "product_type": "ADF_GETAS",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -476,7 +476,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S00_ADF_WATER",
+              "product_type": "ADF_WATER",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -501,7 +501,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLEOP",
+              "product_type": "ADF_OLEOP",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
