@@ -280,8 +280,15 @@ class ProcessorCaller:
             "PREFECT_BUCKET_FOLDER",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            # Only in local mode
             "LOCAL_DASK_USERNAME",
             "LOCAL_DASK_PASSWORD",
+            # Vars from ~/.s3cfg, when debugging a processor locally in local mode
+            "access_key",
+            "bucket_location",
+            "host_base",
+            "host_bucket",
+            "secret_key",
         ]
 
         # Copy our environment variables
@@ -339,7 +346,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
 
             if self.use_mockup:
@@ -364,7 +371,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME, logger)
+        init_traces(None, SERVICE_NAME)
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
@@ -457,9 +464,6 @@ class ProcessorCaller:
         self.customize_payload_file(payload_file)
 
         self.command = [
-            "opentelemetry-instrument",
-            "--service_name",
-            f"dpr.{self.processor_name}",
             "eopf_otel",
             "trigger",
             "local",
@@ -497,6 +501,11 @@ class ProcessorCaller:
             with open(self.log_path, "w", encoding="utf-8") as log_file:
                 log_file.write(message)
 
+            # Get secret configuration file (optional)
+            secret_conf_files = self.payload_contents.get("secret")
+            if secret_conf_files:
+                self.write_secret_conf_files(secret_conf_files, payload_contents, payload_file)
+
             # Get logging configuration file
             # log_conf_file = self.payload_contents.get("logging")
 
@@ -511,6 +520,69 @@ class ProcessorCaller:
         #         log_conf_contents["disable_existing_loggers"] = False
         #     with open(log_conf_file, "w+", encoding="utf-8") as opened:
         #         opened.write(yaml.safe_dump(log_conf_contents))
+
+    @staticmethod
+    def _collect_storage_options(payload_contents: dict) -> list[dict]:
+        io = payload_contents.get("I/O", payload_contents.get("io", {}))
+        result = []
+        for product in io.get("input_products", []):
+            if so := product.get("reader_params", product.get("store_params", {})).get("storage_options"):
+                result.append(so)
+        for product in io.get("output_products", []):
+            if so := product.get("writer_params", product.get("store_params", {})).get("storage_options"):
+                result.append(so)
+        for adf in io.get("adfs", []):
+            if so := adf.get("adf_params", adf.get("store_params", {})).get("storage_options"):
+                result.append(so)
+        return result
+
+    def write_secret_conf_files(self, secret_conf_files: list[str], payload_contents: dict, payload_file: str):
+        """
+        Write the external secret json config file(s) from the ones provided in the payload.
+        """
+        if len(secret_conf_files) > 1:
+            logger.error("A single secret json config file is expected for now")
+            return
+        secret_conf_file = osp.join(osp.dirname(payload_file), secret_conf_files[0])
+
+        all_storage_options = self._collect_storage_options(payload_contents)
+        if not all_storage_options:
+            logger.warning("No storage_options found in payload, skipping secret conf file writing")
+            return
+
+        unique_credentials = {
+            (
+                so.get("key"),
+                so.get("secret"),
+                so.get("client_kwargs", {}).get("endpoint_url"),
+                so.get("client_kwargs", {}).get("region_name"),
+            )
+            for so in all_storage_options
+        }
+
+        if len(unique_credentials) > 1:
+            logger.error(
+                "Multiple different credential sets found in payload storage_options, "
+                "cannot write a single secret conf file",
+            )
+            return
+
+        key, secret, endpoint_url, region_name = unique_credentials.pop()
+
+        with open(secret_conf_file, "w", encoding="utf-8") as f:
+            json.dump(
+                {
+                    "s3": {
+                        "key": key,
+                        "secret": secret,
+                        "client_kwargs": {"endpoint_url": endpoint_url, "region_name": region_name},
+                    },
+                },
+                f,
+                indent=2,
+            )
+
+        logger.info("Secret configuration file written: %s", secret_conf_file)
 
     def write_dask_context(self, payload_contents: dict):
         """
@@ -724,6 +796,7 @@ class ProcessorCaller:
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
     def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
+        """Trigger eopf-cpm execution in a subprocess"""
         with subprocess.Popen(
             self.command,
             stdout=subprocess.PIPE,
@@ -801,6 +874,9 @@ class ProcessorCaller:
 
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
+
+        # Set the opentelemetry service name
+        env["OTEL_SERVICE_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 

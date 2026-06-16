@@ -244,7 +244,7 @@ def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(moc
     result = caller.get_tasktable("fake.module", "FakeProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     import_module.assert_called_once_with("fake.module")
     assert result == {"tasks": [{"name": "task-1"}]}
 
@@ -272,7 +272,7 @@ def test_processor_caller_get_tasktable_returns_empty_tasktable_for_mockup(mocke
     result = caller.get_tasktable("fake.module", "MockupProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     sleep.assert_called_once_with(1)
     import_module.assert_not_called()
     assert result == {}
@@ -317,7 +317,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
 
     result = caller.run_processor()
 
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
@@ -357,7 +357,7 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
         caller.run_processor()
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     # finalize() must still run in the exception branch to preserve cleanup behavior.
@@ -394,7 +394,7 @@ def test_processor_caller_run_processor_initializes_mockup_payload(mocker, monke
     assert caller.command == ["python3", "DPR_processor_mock.py", "-p", str(payload_path)]
     assert caller.working_dir == "/src/DPR"
     assert caller.log_path == "./mockup.log"
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME, call_dask.logger)
+    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
     assert result == {"mockup": "ok"}
@@ -426,3 +426,168 @@ def test_processor_caller_run_processor_returns_mockup_finalize_value(mocker):
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     assert result == [{"status": "successful"}]
+
+
+# ---- _collect_storage_options ----
+
+
+def test_collect_storage_options_returns_empty_when_no_io_section():
+    """Returns an empty list when the payload has no I/O section."""
+    assert not call_dask.ProcessorCaller._collect_storage_options({})  # pylint: disable=protected-access
+
+
+def test_collect_storage_options_gathers_all_sections():
+    """Collects storage_options from input_products, output_products, and adfs."""
+    so_in = {"key": "k1", "secret": "s1"}  # nosec B105
+    so_out = {"key": "k2", "secret": "s2"}  # nosec B105
+    so_adf = {"key": "k3", "secret": "s3"}  # nosec B105
+    payload = {
+        "I/O": {
+            "input_products": [{"reader_params": {"storage_options": so_in}}],
+            "output_products": [{"writer_params": {"storage_options": so_out}}],
+            "adfs": [{"adf_params": {"storage_options": so_adf}}],
+        },
+    }
+    result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
+    assert result == [so_in, so_out, so_adf]
+
+
+def test_collect_storage_options_skips_items_without_storage_options():
+    """Items whose params dict has no storage_options key are excluded."""
+    payload: dict[str, object] = {
+        "I/O": {
+            "input_products": [{"reader_params": {}}],
+            "output_products": [{"writer_params": {}}],
+            "adfs": [{"adf_params": {}}],
+        },
+    }
+    assert not call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
+
+
+def test_collect_storage_options_falls_back_to_store_params():
+    """Uses store_params when reader_params / writer_params / adf_params are absent."""
+    so = {"key": "k"}
+    payload = {
+        "I/O": {
+            "input_products": [{"store_params": {"storage_options": so}}],
+            "output_products": [{"store_params": {"storage_options": so}}],
+            "adfs": [{"store_params": {"storage_options": so}}],
+        },
+    }
+    result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
+    assert result == [so, so, so]
+
+
+def test_collect_storage_options_uses_lowercase_io_key_fallback():
+    """Falls back to the 'io' key when 'I/O' is absent."""
+    so = {"key": "k"}
+    payload = {"io": {"input_products": [{"reader_params": {"storage_options": so}}]}}
+    result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
+    assert result == [so]
+
+
+# ---- write_secret_conf_files ----
+
+
+def test_write_secret_conf_files_errors_on_multiple_files(mocker, tmp_path):
+    """Logs an error and writes nothing when more than one secret file is requested."""
+    caller = _make_processor_caller(mocker)
+    error_log = mocker.patch("rs_dpr_service.dask.call_dask.logger.error")
+
+    caller.write_secret_conf_files(["a.json", "b.json"], {}, str(tmp_path / "payload.yaml"))
+
+    error_log.assert_called_once()
+    assert not list(tmp_path.iterdir())
+
+
+def test_write_secret_conf_files_warns_when_no_storage_options(mocker, tmp_path):
+    """Logs a warning and writes nothing when the payload contains no storage_options."""
+    caller = _make_processor_caller(mocker)
+    warn_log = mocker.patch("rs_dpr_service.dask.call_dask.logger.warning")
+
+    caller.write_secret_conf_files(["secrets.json"], {}, str(tmp_path / "payload.yaml"))
+
+    warn_log.assert_called_once()
+    assert not (tmp_path / "secrets.json").exists()
+
+
+def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_path):
+    """Logs an error and writes nothing when differing credentials are found across products."""
+    caller = _make_processor_caller(mocker)
+    payload = {
+        "I/O": {
+            "input_products": [
+                {
+                    "reader_params": {
+                        "storage_options": {
+                            "key": "k1",
+                            "secret": "s1",  # nosec B105
+                            "client_kwargs": {"endpoint_url": "u1", "region_name": "r1"},
+                        },
+                    },
+                },
+                {
+                    "reader_params": {
+                        "storage_options": {
+                            "key": "k2",
+                            "secret": "s2",  # nosec B105
+                            "client_kwargs": {"endpoint_url": "u2", "region_name": "r2"},
+                        },
+                    },
+                },
+            ],
+        },
+    }
+    error_log = mocker.patch("rs_dpr_service.dask.call_dask.logger.error")
+
+    caller.write_secret_conf_files(["secrets.json"], payload, str(tmp_path / "payload.yaml"))
+
+    error_log.assert_called_once()
+    assert not (tmp_path / "secrets.json").exists()
+
+
+def test_write_secret_conf_files_nominal(mocker, tmp_path):
+    """Writes secrets.json with the correct structure when all credentials are identical."""
+    caller = _make_processor_caller(mocker)
+    creds = {
+        "key": "mykey",
+        "secret": "mysecret",  # nosec B105
+        "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
+    }
+    payload = {
+        "I/O": {
+            "input_products": [{"reader_params": {"storage_options": creds}}],
+            "output_products": [{"writer_params": {"storage_options": creds}}],
+            "adfs": [{"adf_params": {"storage_options": creds}}],
+        },
+    }
+
+    caller.write_secret_conf_files(["secrets.json"], payload, str(tmp_path / "payload.yaml"))
+
+    secrets_path = tmp_path / "secrets.json"
+    assert secrets_path.exists()
+    assert json.loads(secrets_path.read_text(encoding="utf-8")) == {
+        "s3": {
+            "key": "mykey",
+            "secret": "mysecret",  # nosec B105
+            "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
+        },
+    }
+
+
+def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
+    """Secrets file is created in the payload directory, not the process cwd."""
+    caller = _make_processor_caller(mocker)
+    payload_dir = tmp_path / "subdir"
+    payload_dir.mkdir()
+    creds = {
+        "key": "k",
+        "secret": "s",  # nosec B105
+        "client_kwargs": {"endpoint_url": "u", "region_name": "r"},
+    }
+    payload = {"I/O": {"input_products": [{"reader_params": {"storage_options": creds}}]}}
+
+    caller.write_secret_conf_files(["secrets.json"], payload, str(payload_dir / "payload.yaml"))
+
+    assert (payload_dir / "secrets.json").exists()
+    assert not (tmp_path / "secrets.json").exists()

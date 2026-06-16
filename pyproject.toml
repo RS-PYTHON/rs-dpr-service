@@ -136,6 +136,7 @@ skips = ['*/*.py']
 
 [tool.bandit]
 skips = ['B603', 'B607', 'B404']
+assert_nosec = false
 
 
 [tool.poetry.requires-plugins]

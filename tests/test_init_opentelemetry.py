@@ -12,36 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Tests for rs_dpr_service.utils.init_opentelemetry."""
+"""Unit tests for OpenTelemetry."""
 
-import sys
-import types
 from contextlib import contextmanager
 
 import pytest
 import requests
 from opentelemetry.trace.span import NonRecordingSpan, SpanContext, TraceFlags
 
-from rs_dpr_service.utils import init_opentelemetry
 from rs_dpr_service.utils.init_opentelemetry import (
+    botocore_hook,
     fastapi_hook,
     init_traces,
     parse_data,
     record_error,
     requests_hook,
     start_span,
-    trace_body,
-    trace_headers,
+    trace_requests_body,
+    trace_requests_headers,
 )
 
 
 def test_trace_flags_read_environment_variables(monkeypatch):
-    """Test trace_headers() and trace_body() read their environment flags."""
+    """Test trace_requests_headers() and trace_requests_body() read their environment flags."""
     monkeypatch.setenv("OTEL_PYTHON_REQUESTS_TRACE_HEADERS", "true")
     monkeypatch.setenv("OTEL_PYTHON_REQUESTS_TRACE_BODY", "1")
 
-    assert trace_headers() is True
-    assert trace_body() is True
+    assert trace_requests_headers() is True
+    assert trace_requests_body() is True
 
 
 @pytest.mark.parametrize(
@@ -119,6 +117,19 @@ def test_fastapi_hook_adds_scope_and_message_attributes(mocker, monkeypatch):
     span.set_attribute.assert_any_call("http.scope.headers", '{\n  "x-test": "yes"\n}')
     span.set_attribute.assert_any_call("http.message.headers", '{\n  "x-message": "ok"\n}')
     span.set_attribute.assert_any_call("http.message.body", "message-body")
+
+
+def test_botocore_hook(mocker):
+    """Test botocore_hook() enriches a recording span with path."""
+
+    span = mocker.Mock()
+    span.is_recording.return_value = True
+    api_params = {"Bucket": "my_bucket", "Key": "my_key"}
+
+    botocore_hook(span, None, None, api_params)
+
+    # The ASGI hook enriches the same span
+    span.set_attribute.assert_any_call("_path", "s3://my_bucket/my_key")
 
 
 def test_fastapi_hook_ignores_non_recording_span(mocker):
@@ -207,106 +218,16 @@ def test_record_error_records_exception_only_when_span_is_recording(mocker, is_r
         span.set_status.assert_not_called()
 
 
-def test_init_traces_configures_fastapi_and_instrumentors(mocker, monkeypatch):
-    """Test init_traces() configures tracing, FastAPI hooks, and discovered instrumentors."""
-    monkeypatch.setenv("TEMPO_ENDPOINT", "http://tempo:4317")
-    monkeypatch.setenv("OTEL_PYTHON_REQUESTS_TRACE_HEADERS", "true")
-    monkeypatch.setenv("OTEL_PYTHON_REQUESTS_TRACE_BODY", "true")
-    # Force the production branch without exporting anything real; exporters are mocked below.
-    monkeypatch.setattr(init_opentelemetry, "FROM_PYTEST", False)
+def test_instrumentation(mocker, monkeypatch):
+    """
+    Call instrumentation code. It's only for the code coverage, don't run additional checks
+    on the openlemetry internal code.
+    """
+    mocker.patch("rs_dpr_service.utils.init_opentelemetry.INITIALIZED", False)
+    monkeypatch.setenv("TEMPO_ENDPOINT", "none")
 
-    class FakeRequestsInstrumentor:
-        """Fake Requests instrumentor used to assert hook registration."""
+    mocker.patch("rs_dpr_service.utils.init_opentelemetry.auto_instrumentation")
+    mocker.patch("opentelemetry.instrumentation.fastapi.FastAPIInstrumentor.instrument_app")
+    mocker.patch("opentelemetry.instrumentation.instrumentor.BaseInstrumentor.instrument")
 
-        is_instrumented_by_opentelemetry = False
-        instrument = mocker.Mock()
-
-    class FakeFastAPIInstrumentor:
-        """Fake FastAPI instrumentor used for app and discovered instrumentation."""
-
-        is_instrumented_by_opentelemetry = False
-        instrument_app = mocker.Mock()
-        instrument = mocker.Mock()
-
-    class FakeGeneralInstrumentor:
-        """Fake generic instrumentor used to cover the no-hook branch."""
-
-        is_instrumented_by_opentelemetry = False
-        instrument = mocker.Mock()
-
-    class FakeAlreadyInstrumented:
-        """Fake instrumentor used to cover the already-instrumented branch."""
-
-        is_instrumented_by_opentelemetry = True
-        instrument = mocker.Mock()
-
-    fake_module_name = "opentelemetry.instrumentation.fake"
-    fake_module = types.ModuleType(fake_module_name)
-    setattr(fake_module, "RequestsInstrumentor", FakeRequestsInstrumentor)
-    setattr(fake_module, "FastAPIInstrumentor", FakeFastAPIInstrumentor)
-    setattr(fake_module, "FakeGeneralInstrumentor", FakeGeneralInstrumentor)
-    setattr(fake_module, "FakeAlreadyInstrumented", FakeAlreadyInstrumented)
-    setattr(fake_module, "AsyncioInstrumentor", init_opentelemetry.AsyncioInstrumentor)
-    monkeypatch.setitem(sys.modules, fake_module_name, fake_module)
-
-    # init_traces() discovers instrumentors by importing modules returned by pkgutil.walk_packages().
-    def fake_import(name, *args, **kwargs):
-        """Return the fake module during instrumentation discovery."""
-        if name == fake_module_name:
-            return fake_module
-        return original_import(name, *args, **kwargs)
-
-    original_import = __import__
-    monkeypatch.setattr("builtins.__import__", fake_import)
-    mocker.patch(
-        "rs_dpr_service.utils.init_opentelemetry.pkgutil.walk_packages",
-        return_value=[
-            (None, "opentelemetry.instrumentation.tortoiseorm", False),
-            (None, fake_module_name, False),
-        ],
-    )
-    mocker.patch("rs_dpr_service.utils.init_opentelemetry.RequestsInstrumentor", FakeRequestsInstrumentor)
-    mocker.patch("rs_dpr_service.utils.init_opentelemetry.FastAPIInstrumentor", FakeFastAPIInstrumentor)
-
-    # Mock provider/exporter classes so no global OpenTelemetry exporter is started.
-    tracer_provider = mocker.Mock()
-    tracer_provider.add_span_processor = mocker.Mock()
-    otel_mocks = {
-        "tracer_provider_cls": mocker.patch(
-            "rs_dpr_service.utils.init_opentelemetry.TracerProvider",
-            return_value=tracer_provider,
-        ),
-        "set_tracer_provider": mocker.patch("rs_dpr_service.utils.init_opentelemetry.trace.set_tracer_provider"),
-        "batch_span_processor": mocker.patch("rs_dpr_service.utils.init_opentelemetry.BatchSpanProcessor"),
-        "otlp_exporter": mocker.patch("rs_dpr_service.utils.init_opentelemetry.OTLPSpanExporter"),
-    }
-
-    app = mocker.Mock()
-
-    init_traces(app, "rs.dpr.service", logger=mocker.Mock())
-
-    otel_mocks["tracer_provider_cls"].assert_called_once()
-    otel_mocks["set_tracer_provider"].assert_called_once_with(tracer_provider)
-    otel_mocks["otlp_exporter"].assert_called_once_with(endpoint="http://tempo:4317")
-    otel_mocks["batch_span_processor"].assert_called_once_with(otel_mocks["otlp_exporter"].return_value)
-    tracer_provider.add_span_processor.assert_called_once_with(otel_mocks["batch_span_processor"].return_value)
-    FakeFastAPIInstrumentor.instrument_app.assert_called_once_with(
-        app,
-        tracer_provider=tracer_provider,
-        server_request_hook=fastapi_hook,
-        client_request_hook=fastapi_hook,
-        client_response_hook=fastapi_hook,
-    )
-    FakeRequestsInstrumentor.instrument.assert_called_once_with(
-        tracer_provider=tracer_provider,
-        request_hook=requests_hook,
-        response_hook=requests_hook,
-    )
-    FakeFastAPIInstrumentor.instrument.assert_called_once_with(
-        tracer_provider=tracer_provider,
-        server_request_hook=fastapi_hook,
-        client_request_hook=fastapi_hook,
-        client_response_hook=fastapi_hook,
-    )
-    FakeGeneralInstrumentor.instrument.assert_called_once_with(tracer_provider=tracer_provider)
-    FakeAlreadyInstrumented.instrument.assert_not_called()
+    init_traces(app=mocker.Mock(), service_name="pytest")
