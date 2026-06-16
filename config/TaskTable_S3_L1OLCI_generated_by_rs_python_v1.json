@@ -206,7 +206,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "ADF_FROAX",
+              "product_type": "AX___FRO_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -221,7 +221,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "ADF_FPOAX",
+              "product_type": "AX___FPO_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -236,7 +236,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "ADF_OSFAX",
+              "product_type": "AX___OSF_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -251,7 +251,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "ADF_IERSB",
+              "product_type": "AX__OSF_IERSB",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -276,7 +276,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "ADF_OSFAX",
+              "product_type": "AX___OSF_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
