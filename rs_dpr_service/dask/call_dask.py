@@ -57,8 +57,6 @@ from rs_dpr_service.utils.init_opentelemetry import (
 )
 from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 
-SERVICE_NAME = "rs.dpr.dask"
-
 # Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -278,8 +276,11 @@ class ProcessorCaller:
             "S3_REGION",
             "PREFECT_BUCKET_NAME",
             "PREFECT_BUCKET_FOLDER",
+            # Opentelemetry
+            "OTEL_SERVICE_NAME",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            "TRACESTATE",
             # Only in local mode
             "LOCAL_DASK_USERNAME",
             "LOCAL_DASK_PASSWORD",
@@ -346,7 +347,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME)
+        init_traces()
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
 
             if self.use_mockup:
@@ -371,7 +372,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME)
+        init_traces()
         with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
@@ -785,7 +786,7 @@ class ProcessorCaller:
         # Trigger EOPF processing with trace context propagation, catch output
         # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
         # or cancel the subprocess.
-        with start_span(__name__, "eopf.subprocess") as span:
+        with start_span(__name__, f"dpr.{self.processor_name}") as span:
             span.set_attribute("subprocess.command", str(self.command))
             span.set_attribute("subprocess.working_dir", str(self.working_dir))
             span.set_attribute("subprocess.log_file", self.log_path)
@@ -874,9 +875,6 @@ class ProcessorCaller:
 
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
-
-        # Set the opentelemetry service name
-        env["OTEL_SERVICE_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 

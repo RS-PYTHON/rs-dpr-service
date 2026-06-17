@@ -164,7 +164,7 @@ def botocore_hook(span, _service_name, _operation_name, api_params: dict):
     span.set_attribute("_path", f"s3://{bucket}/{key}")
 
 
-def init_traces(app: fastapi.FastAPI | None, service_name: str):
+def init_traces(app: fastapi.FastAPI | None = None, service_name: str = ""):
     """
     Init instrumentation of OpenTelemetry traces.
 
@@ -179,7 +179,8 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str):
         INITIALIZED = True
 
     # Set the opentelemetry service name
-    os.environ["OTEL_SERVICE_NAME"] = service_name
+    if service_name:
+        os.environ["OTEL_SERVICE_NAME"] = service_name
 
     # Send openelemetry signals to tempo
     if not (tempo_endpoint := os.getenv("TEMPO_ENDPOINT")):
@@ -242,18 +243,15 @@ def start_span(
 
     # Create a child span
     else:
-        main_span_context = SpanContext(
+        span_context = SpanContext(
             trace_id=span_context.trace_id,
             span_id=span_context.span_id,
             is_remote=True,
             trace_flags=TraceFlags(TraceFlags.SAMPLED),
         )
-        main_span = NonRecordingSpan(main_span_context)
-        with trace.use_span(main_span):  # pylint: disable=not-context-manager
-            # Optionnaly, we could use the main span instead of creating
-            # a new one, to be discussed.
-            with tracer.start_as_current_span(name) as span:
-                yield span
+        main_context = trace.set_span_in_context(NonRecordingSpan(span_context))
+        with tracer.start_as_current_span(name, context=main_context) as span:
+            yield span
 
 
 def record_error(span: Span, e: Exception):
