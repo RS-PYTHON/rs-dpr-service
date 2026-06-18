@@ -29,94 +29,99 @@
       },
       "input_products": [
         {
-          "name": "S03OLCL0_1",
+          "name": "S3OLCIL0_1",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCL0_2",
+          "name": "S3OLCIL0_2",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCL0_3",
+          "name": "S3OLCIL0_3",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCRAC",
+          "name": "S3OLCRAC",
           "mode": "always",
           "mandatory": false
         },
         {
-          "name": "S03NATL0_1",
+          "name": "S3NATL0_1",
           "mode": "always",
           "mandatory": false
         },
         {
-          "name": "S03NATL0_2",
+          "name": "S3NATL0_2",
           "mode": "always",
           "mandatory": false
         },
         {
-          "name": "S03NATL0_3",
+          "name": "S3NATL0_3",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S3NAVL0_1",
           "mode": "always",
           "mandatory": false
         }
       ],
       "input_adfs": [
         {
-          "name": "Orbit_file",
+          "name": "FRO",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "Reference_Orbit_Scenario_file",
+          "name": "OSF",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_ECMWF",
+          "name": "ECMWF",
           "mode": "nrt",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_ECMWA",
+          "name": "ECMWA",
           "mode": "ntc",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLINS",
+          "name": "OLINS",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLCAL",
+          "name": "OLCAL",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLPRG",
+          "name": "OLPRG",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLLUT",
+          "name": "OLLUT",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_GETAS",
+          "name": "GETAS",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_WATER",
+          "name": "WATER",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLEOP",
+          "name": "OLEOP",
           "mode": "always",
           "mandatory": true
         }
@@ -137,7 +142,7 @@
   ],
   "io": [
     {
-      "name": "S03OLCL0_1",
+      "name": "S3OLCIL0_1",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -145,7 +150,7 @@
       }
     },
     {
-      "name": "S03OLCL0_2",
+      "name": "S3OLCIL0_2",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -153,7 +158,7 @@
       }
     },
     {
-      "name": "S03OLCL0_3",
+      "name": "S3OLCIL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -161,7 +166,7 @@
       }
     },
     {
-      "name": "S03OLCRAC",
+      "name": "S3OLCRAC",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -169,7 +174,7 @@
       }
     },
     {
-      "name": "S03NATL0_1",
+      "name": "S3NATL0_1",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -177,7 +182,7 @@
       }
     },
     {
-      "name": "S03NATL0_2",
+      "name": "S3NATL0_2",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -185,7 +190,7 @@
       }
     },
     {
-      "name": "S03NATL0_3",
+      "name": "S3NATL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -193,7 +198,15 @@
       }
     },
     {
-      "name": "Orbit_file",
+      "name": "S3NAVL0_1",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "FRO",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -263,7 +276,7 @@
       ]
     },
     {
-      "name": "Reference_Orbit_Scenario_file",
+      "name": "OSF",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -288,7 +301,7 @@
       ]
     },
     {
-      "name": "S00_ADF_ECMWF",
+      "name": "ECMWF",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -313,7 +326,7 @@
       ]
     },
     {
-      "name": "S00_ADF_ECMWA",
+      "name": "ECMWA",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -338,7 +351,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLINS",
+      "name": "OLINS",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -363,7 +376,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLCAL",
+      "name": "OLCAL",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -388,7 +401,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLPRG",
+      "name": "OLPRG",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -413,7 +426,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLLUT",
+      "name": "OLLUT",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -438,7 +451,7 @@
       ]
     },
     {
-      "name": "S00_ADF_GETAS",
+      "name": "GETAS",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -463,7 +476,7 @@
       ]
     },
     {
-      "name": "S00_ADF_WATER",
+      "name": "WATER",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -488,7 +501,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLEOP",
+      "name": "OLEOP",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -837,13 +850,14 @@
           "unit_name": "OL1Processor",
           "step_id": 1,
           "input_products": {
-            "S03OLCL0_1": "pipeline_input",
-            "S03OLCL0_2": "pipeline_input",
-            "S03OLCL0_3": "pipeline_input",
-            "S03OLCRAC": "pipeline_input",
-            "S03NATL0_1": "pipeline_input",
-            "S03NATL0_2": "pipeline_input",
-            "S03NATL0_3": "pipeline_input"
+            "S3OLCIL0_1": "pipeline_input",
+            "S3OLCIL0_2": "pipeline_input",
+            "S3OLCIL0_3": "pipeline_input",
+            "S3OLCRAC": "pipeline_input",
+            "S3NATL0_1": "pipeline_input",
+            "S3NATL0_2": "pipeline_input",
+            "S3NATL0_3": "pipeline_input",
+            "S3NAVL0_1":"pipeline_input"
           },
           "output_products": {
             "S03OLCEFR": "pipeline_output",
