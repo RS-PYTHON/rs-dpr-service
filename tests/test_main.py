@@ -262,7 +262,7 @@ def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mock
     assert response.status_code == 200
     payload = response.json()
     assert payload["tasktable"]["name"] == "mockup"
-    assert payload["tasktable"]["version"] == 1.0
+    assert payload["tasktable"]["version"] == "1.0"
 
 
 def test_execute_process_returns_404_for_unknown_resource(client, mocker):
