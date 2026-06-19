@@ -171,7 +171,7 @@ def test_handle_exceptions_middleware(client, mocker, rfc7807: bool = True):
         spy_log_error.reset_mock()
 
         # Remove the mocked endpoint
-        app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
+        app.router.routes = list(filter(lambda route: getattr(route, "path", "") != endpoint_path, app.router.routes))
 
     ###############
     # Test case 1 #
@@ -328,7 +328,7 @@ def test_handle_exceptions_middleware_success_response_not_logged(client, mocker
     assert response.json() == {"message": "ok"}
     spy_log_error.assert_not_called()
 
-    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
+    app.router.routes = list(filter(lambda route: getattr(route, "path", "") != endpoint_path, app.router.routes))
 
 
 def test_handle_exceptions_middleware_returns_original_response_if_stream_read_fails(client, mocker):
@@ -353,7 +353,7 @@ def test_handle_exceptions_middleware_returns_original_response_if_stream_read_f
     spy_log_error.assert_called_once()
     assert "stream read failed" in str(spy_log_error.call_args[0][0])
 
-    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
+    app.router.routes = list(filter(lambda route: getattr(route, "path", "") != endpoint_path, app.router.routes))
 
 
 def test_handle_exceptions_middleware_reformats_almost_valid_rfc7807_payload(client, mocker):
@@ -378,7 +378,7 @@ def test_handle_exceptions_middleware_reformats_almost_valid_rfc7807_payload(cli
     assert response.json() == expected_content
     spy_log_error.assert_called_once()
 
-    app.router.routes = list(filter(lambda route: route.path != endpoint_path, app.router.routes))
+    app.router.routes = list(filter(lambda route: getattr(route, "path", "") != endpoint_path, app.router.routes))
 
 
 def test_handle_exceptions_middleware_stac_mode_handles_errors_and_exceptions(mocker):
