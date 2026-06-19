@@ -2,8 +2,8 @@
     "$schema": "./../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "mockup",
-        "version": 1.0,
-        "specification_version": "1.0_draftE",
+        "version": "1.0",
+        "specification_version": "1.0_draftK",
         "update_datetime": "2025-10-03T11:00:00Z",
         "configuration_path": {}
     },
@@ -47,7 +47,7 @@
             ],
             "output_products": [
                 {
-                    "name": "output_folder",
+                    "name": "S03OLCL0_",
                     "mode": "always",
                     "mandatory": true,
                     "regex": ".*"
@@ -110,7 +110,7 @@
             "opening_mode": "CREATE_OVERWRITE"
         },
         {
-            "name": "output_folder",
+            "name": "S03OLCL0_",
             "type": "folder",
             "store_type": "zarr",
             "opening_mode": "CREATE_OVERWRITE"
@@ -184,7 +184,7 @@
                         "S1CADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_output"
+                        "S03OLCL0_": "pipeline_output"
                     }
                 }
             ]

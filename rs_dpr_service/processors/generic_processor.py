@@ -132,7 +132,7 @@ class GenericProcessor(BaseProcessor):
             # Return a default hardcoded value for the mockup
             if (not res) and self.use_mockup:
                 async with await anyio.open_file(
-                    Path(__file__).parent.parent / "config" / "tasktable.json",
+                    Path(__file__).parent.parent / "config" / "TaskTable_MOCKUP_generated_by_rs_python_v1.json",
                     encoding="utf-8",
                 ) as tf:
                     return json.loads(await tf.read())

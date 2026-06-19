@@ -69,7 +69,7 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
 @pytest.mark.parametrize(
     ("processor_cls", "expected_filename"),
     [
-        (MockupProcessor, "tasktable.json"),
+        (MockupProcessor, "TaskTable_MOCKUP_generated_by_rs_python_v1.json"),
         (S1L0Processor, "TaskTable_S1_L0_generated_by_rs_python_v1.json"),
         (S3L0Processor, "TaskTable_S3_L0_generated_by_rs_python_v1.json"),
         (S1ARDProcessor, "TaskTable_S1_ARD_generated_by_rs_python_v1.json"),
