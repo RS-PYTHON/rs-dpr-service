@@ -9,7 +9,8 @@
     },
     "external_variables": [
         "start_datetime",
-        "end_datetime"
+        "end_datetime",
+        "satellite"
     ],
     "units": [
         {
@@ -28,7 +29,7 @@
             },
             "input_products": [
                 {
-                    "name": "S3ACADUS",
+                    "name": "S3BCADUS",
                     "mode": "always",
                     "mandatory": true
                 }
@@ -57,7 +58,7 @@
     ],
     "io": [
         {
-            "name": "S3ACADUS",
+            "name": "S3BCADUS",
             "type": "folder",
             "store_type": "cadu"
         },
@@ -72,7 +73,7 @@
                     "query": {
                         "name": "LatestValCover",
                         "parameters": {
-                            "product_type": "OPER_AUX_OBMEMC_PDMC",
+                            "product_type": "AX___OSF_AX",
                             "satellite": "{external_variable.satellite}",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
@@ -94,7 +95,7 @@
                     "query": {
                         "name": "LatestValCover",
                         "parameters": {
-                            "product_type": "MPL_ORBSCT",
+                            "product_type": "AX___FRO_AX",
                             "satellite": "{external_variable.satellite}",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
@@ -117,6 +118,7 @@
             "name": "LatestValCover",
             "parameters": [
                 "product_type",
+                "satellite",
                 "start_datetime",
                 "end_datetime",
                 "dTa",
@@ -184,7 +186,7 @@
                     "unit_name": "single_unit_mockup",
                     "step_id": 1,
                     "input_products": {
-                        "S3ACADUS": "pipeline_input"
+                        "S3BCADUS": "pipeline_input"
                     },
                     "output_products": {
                         "S03OLCL0_": "pipeline_output"
