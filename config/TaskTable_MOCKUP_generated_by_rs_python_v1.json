@@ -1,7 +1,7 @@
 {
     "$schema": "./../schemas/TaskTable.schema.json",
     "tasktable": {
-        "name": "mockup",
+        "name": "mockup-processor",
         "version": "1.0",
         "specification_version": "1.0_draftK",
         "update_datetime": "2025-10-03T11:00:00Z",
@@ -13,22 +13,22 @@
     ],
     "units": [
         {
-            "name": "single_unit",
-            "module": "l0.s1.mockup_processor",
+            "name": "single_unit_mockup",
+            "module": "l0.s3.mockup_processing_units",
             "resources_min": {
                 "dask": {
-                    "worker_cpu": 4,
-                    "worker_ram": "58GB",
+                    "worker_cpu": 1,
+                    "worker_ram": "1GB",
                     "worker_thread_count": 1,
                     "worker_count": 1
                 },
                 "disk": {
-                    "size_per_worker": "50GB"
+                    "size_per_worker": "1GB"
                 }
             },
             "input_products": [
                 {
-                    "name": "S1CADUS",
+                    "name": "S3ACADUS",
                     "mode": "always",
                     "mandatory": true
                 }
@@ -57,7 +57,7 @@
     ],
     "io": [
         {
-            "name": "S1CADUS",
+            "name": "S3ACADUS",
             "type": "folder",
             "store_type": "cadu"
         },
@@ -73,6 +73,7 @@
                         "name": "LatestValCover",
                         "parameters": {
                             "product_type": "OPER_AUX_OBMEMC_PDMC",
+                            "satellite": "{external_variable.satellite}",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "dTa": 0,
@@ -93,7 +94,8 @@
                     "query": {
                         "name": "LatestValCover",
                         "parameters": {
-                            "product_type": "AUX_PP2",
+                            "product_type": "MPL_ORBSCT",
+                            "satellite": "{external_variable.satellite}",
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "dTa": 7200,
@@ -102,12 +104,6 @@
                     }
                 }
             ]
-        },
-        {
-            "name": "S03ISPS",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
         },
         {
             "name": "S03OLCL0_",
@@ -130,6 +126,13 @@
                 "filter": {
                     "op": "and",
                     "args": [
+                        {
+                            "op": "=",
+                            "args": [
+                                {"property": "platform"},
+                                "{satellite}"
+                                ]
+                        },
                         {
                             "op": "=",
                             "args": [
@@ -178,10 +181,10 @@
             "description": "Full pipeline for mockup_processor",
             "steps": [
                 {
-                    "unit_name": "single_unit",
+                    "unit_name": "single_unit_mockup",
                     "step_id": 1,
                     "input_products": {
-                        "S1CADUS": "pipeline_input"
+                        "S3ACADUS": "pipeline_input"
                     },
                     "output_products": {
                         "S03OLCL0_": "pipeline_output"
