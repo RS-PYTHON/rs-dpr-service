@@ -52,16 +52,6 @@
           "name": "S3NAVL0_1",
           "mode": "always",
           "mandatory": false
-        },
-        {
-          "name": "S3NAVL0_2",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S3NAVL0_3",
-          "mode": "always",
-          "mandatory": false
         }
       ],
       "input_adfs": [
@@ -170,22 +160,6 @@
     },
     {
       "name": "S3NAVL0_1",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S3NAVL0_2",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S3NAVL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -841,9 +815,7 @@
             "S3OLCIL0_2": "pipeline_input",
             "S3OLCIL0_3": "pipeline_input",
             "S3OLCRAC": "pipeline_input",
-            "S3NAVL0_1": "pipeline_input",
-            "S3NAVL0_2": "pipeline_input",
-            "S3NAVL0_3": "pipeline_input"
+            "S3NAVL0_1": "pipeline_input"
           },
           "output_products": {
             "S03OLCEFR": "pipeline_output",
