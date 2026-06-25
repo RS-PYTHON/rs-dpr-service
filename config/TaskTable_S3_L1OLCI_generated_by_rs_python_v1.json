@@ -91,7 +91,7 @@
           "mandatory": true
         },
         {
-          "name": "DEM",
+          "name": "GETAS",
           "mode": "always",
           "mandatory": true
         },
@@ -412,7 +412,7 @@
       ]
     },
     {
-      "name": "DEM",
+      "name": "GETAS",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
