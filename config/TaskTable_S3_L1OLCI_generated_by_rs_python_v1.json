@@ -49,22 +49,17 @@
           "mandatory": false
         },
         {
-          "name": "S3NATL0_1",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S3NATL0_2",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S3NATL0_3",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
           "name": "S3NAVL0_1",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S3NAVL0_2",
+          "mode": "always",
+          "mandatory": false
+        },
+        {
+          "name": "S3NAVL0_3",
           "mode": "always",
           "mandatory": false
         }
@@ -91,11 +86,6 @@
           "mandatory": true
         },
         {
-          "name": "OLINS",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
           "name": "OLCAL",
           "mode": "always",
           "mandatory": true
@@ -111,7 +101,7 @@
           "mandatory": true
         },
         {
-          "name": "GETAS",
+          "name": "DEM",
           "mode": "always",
           "mandatory": true
         },
@@ -122,6 +112,11 @@
         },
         {
           "name": "OLEOP",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "OLINS",
           "mode": "always",
           "mandatory": true
         }
@@ -174,31 +169,23 @@
       }
     },
     {
-      "name": "S3NATL0_1",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S3NATL0_2",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S3NATL0_3",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
       "name": "S3NAVL0_1",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S3NAVL0_2",
+      "type": "filename",
+      "store_type": "zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S3NAVL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -451,7 +438,7 @@
       ]
     },
     {
-      "name": "GETAS",
+      "name": "DEM",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -854,10 +841,9 @@
             "S3OLCIL0_2": "pipeline_input",
             "S3OLCIL0_3": "pipeline_input",
             "S3OLCRAC": "pipeline_input",
-            "S3NATL0_1": "pipeline_input",
-            "S3NATL0_2": "pipeline_input",
-            "S3NATL0_3": "pipeline_input",
-            "S3NAVL0_1":"pipeline_input"
+            "S3NAVL0_1": "pipeline_input",
+            "S3NAVL0_2": "pipeline_input",
+            "S3NAVL0_3": "pipeline_input"
           },
           "output_products": {
             "S03OLCEFR": "pipeline_output",
