@@ -69,8 +69,8 @@ mypy = "^1.15.0"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.11"
-opentelemetry-distro = "^0.63b1" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-exporter-otlp = "^1.42.1"
+opentelemetry-distro = "^0.64b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-exporter-otlp = "^1.43.0"
 tornado = "^6.5" # fix trivy vulnerability
 s3fs = "^2025.7.0"
 
