@@ -21,6 +21,7 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 import copy
 import json
 from datetime import datetime
+from importlib import reload
 from unittest.mock import AsyncMock
 
 import pytest
@@ -475,3 +476,27 @@ def test_delete_job_endpoint_returns_404_for_unknown_job(client, mocker):
     assert response.status_code == 404
     assert response.json()["detail"] == "Job with ID unknown-job not found"
     cancel_event.set.assert_not_called()
+
+
+def test_variable_processors(client, mocker, monkeypatch):
+    """Test that only ceertain processors are exposed."""
+    client.app.extra["process_manager"] = mocker.Mock()
+
+    monkeypatch.setenv(
+        "DPR_ENABLED_PROCESSORS",
+        "conv_safe_zarr,s1_l0,s3_l0",
+    )
+
+    reload(main_module)
+    response = client.get("/dpr/processes")
+    assert response.status_code == 200
+
+    processes = {p["id"] for p in response.json()["processes"]}
+
+    assert processes == {
+        "conv_safe_zarr",
+        "s1_l0",
+        "s3_l0",
+    }
+
+    assert "mockup" not in processes
