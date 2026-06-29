@@ -47,7 +47,6 @@ def _make_processor_caller(mocker, use_mockup=False):
         processor_name="mockup" if use_mockup else "s1_l0",
         job_id="job-1",
         data={"payload": "value"},
-        use_mockup=use_mockup,
     )
 
 
