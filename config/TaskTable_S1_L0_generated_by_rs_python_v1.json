@@ -12,6 +12,9 @@
         "end_datetime",
         "satellite"
     ],
+    "external_modules": [
+        "l0.cadu_processing.cadu_store"
+    ],
     "units": [
         {
             "name": "S1L0Processor",
