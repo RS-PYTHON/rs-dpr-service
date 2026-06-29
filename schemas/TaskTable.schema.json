@@ -27,6 +27,14 @@
                     },
                     "uniqueItems": true
                 },
+                "external_modules": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "pattern": "^[a-zA-Z0-9_./]+$"
+                    },
+                    "uniqueItems": true
+                },
                 "units": {
                     "type": "array",
                     "items": {
