@@ -60,7 +60,7 @@
         {
             "name": "S3BCADUS",
             "type": "folder",
-            "store_type": "cadu"
+            "store_type": "zarr"
         },
         {
             "name": "osf",
