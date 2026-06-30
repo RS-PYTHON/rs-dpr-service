@@ -15,7 +15,7 @@
     "units": [
         {
             "name": "single_unit_mockup",
-            "module": "l0.s3.mockup_processing_units",
+            "module": "mockup.processor.mockup_processing_units",
             "resources_min": {
                 "dask": {
                     "worker_cpu": 1,
