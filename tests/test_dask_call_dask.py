@@ -435,7 +435,9 @@ def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup
 def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mocker, monkeypatch):
     """Test ProcessorCaller.trigger() calls EORunner directly in local mode with local cluster enabled."""
     caller = _make_processor_caller(mocker)
-    caller.experimental_config = call_dask.ExperimentalConfig(local_cluster={"enabled": True})
+    caller.experimental_config = call_dask.ExperimentalConfig(
+        local_cluster=call_dask.ExperimentalConfig.LocalCluster(enabled=True),
+    )
     caller.payload_contents = {"workflow": [{"name": "unit"}]}
 
     eopf_module = types.ModuleType("eopf")
@@ -443,7 +445,7 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
     runner_module = types.ModuleType("eopf.triggering.runner")
     eorunner = mocker.Mock()
     eorunner_class = mocker.Mock(return_value=eorunner)
-    runner_module.EORunner = eorunner_class
+    setattr(runner_module, "EORunner", eorunner_class)
     monkeypatch.setitem(sys.modules, "eopf", eopf_module)
     monkeypatch.setitem(sys.modules, "eopf.triggering", triggering_module)
     monkeypatch.setitem(sys.modules, "eopf.triggering.runner", runner_module)
