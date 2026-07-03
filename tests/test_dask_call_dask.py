@@ -248,11 +248,28 @@ def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(moc
     assert result == {"tasks": [{"name": "task-1"}]}
 
 
-def test_processor_caller_get_tasktable_returns_empty_tasktable_for_mockup(mocker):
-    """Test ProcessorCaller.get_tasktable() returns the mockup shortcut tasktable."""
+def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocker):
+    """Test ProcessorCaller.get_tasktable() uses the normal dynamic import path for mockup."""
     caller = _make_processor_caller(mocker, use_mockup=True)
-    # Keep this variation focused on the mockup shortcut branch inside get_tasktable().
     caller.copy_caller_env = mocker.Mock()
+
+    class MockupProcessor:
+        """Fake EOPF processor class used to return a mockup tasktable."""
+
+        @staticmethod
+        def get_available_modes():
+            """Return fake available modes."""
+            return ["default"]
+
+        @staticmethod
+        def get_default_mode():
+            """Return fake default mode."""
+            return "default"
+
+        @staticmethod
+        def get_tasktable_description(_mode):
+            """Return a fake tasktable."""
+            return {"mockup": True}
 
     @contextmanager
     def fake_start_span(*args, **kwargs):
@@ -262,19 +279,17 @@ def test_processor_caller_get_tasktable_returns_empty_tasktable_for_mockup(mocke
         yield mocker.Mock()
 
     init_traces = mocker.patch("rs_dpr_service.dask.call_dask.init_traces")
-    # Avoid the intentional one-second wait used by the production mockup path.
-    sleep = mocker.patch("rs_dpr_service.dask.call_dask.time.sleep")
     mocker.patch("rs_dpr_service.dask.call_dask.start_span", side_effect=fake_start_span)
     # Patch import_module last because mocker.patch itself uses importlib internally.
-    import_module = mocker.patch("rs_dpr_service.dask.call_dask.importlib.import_module")
+    module = SimpleNamespace(MockupProcessor=MockupProcessor)
+    import_module = mocker.patch("rs_dpr_service.dask.call_dask.importlib.import_module", return_value=module)
 
     result = caller.get_tasktable("fake.module", "MockupProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
     init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
-    sleep.assert_called_once_with(1)
-    import_module.assert_not_called()
-    assert result == {}
+    import_module.assert_called_once_with("fake.module")
+    assert result == {"mockup": True}
 
 
 def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch):
@@ -364,15 +379,13 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
     record_error.assert_called_once_with(span, caller.trigger.side_effect)
 
 
-def test_processor_caller_run_processor_initializes_mockup_payload(mocker, monkeypatch, tmp_path):
-    """Test ProcessorCaller.run_processor() uses init() real mockup branch to prepare command and payload."""
+def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(mocker):
+    """Test ProcessorCaller.run_processor() uses normal init/trigger/finalize orchestration for mockup."""
     caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
-    # Let init() run for real, but avoid launching the DPR mockup subprocess.
+    caller.init = mocker.Mock()
     caller.trigger = mocker.Mock()
     caller.finalize = mocker.Mock(return_value={"mockup": "ok"})
-    # The mockup payload is written under Path.home(); redirect it to the pytest temp dir.
-    monkeypatch.setattr("rs_dpr_service.dask.call_dask.Path.home", lambda: tmp_path)
 
     @contextmanager
     def fake_start_span(*args, **kwargs):
@@ -387,27 +400,19 @@ def test_processor_caller_run_processor_initializes_mockup_payload(mocker, monke
 
     result = caller.run_processor()
 
-    payload_path = tmp_path / "payload.cfg"
-    assert payload_path.exists()
-    assert "payload: value" in payload_path.read_text(encoding="utf-8")
-    assert caller.command == ["python3", "DPR_processor_mock.py", "-p", str(payload_path)]
-    assert caller.working_dir == "/src/DPR"
-    assert caller.log_path == "./mockup.log"
     init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
     assert result == {"mockup": "ok"}
 
 
-def test_processor_caller_run_processor_returns_mockup_finalize_value(mocker):
-    """Test ProcessorCaller.run_processor() returns finalize() real mockup value."""
+def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup(mocker):
+    """Test ProcessorCaller.run_processor() returns the normal finalize() value for mockup."""
     caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
     caller.init = mocker.Mock()
-    # Simulate parse_eopf_log() having populated the value consumed by finalize().
-    caller.trigger = mocker.Mock(
-        side_effect=lambda: setattr(caller, "mockup_return_value", [{"status": "successful"}]),
-    )
+    caller.trigger = mocker.Mock()
 
     @contextmanager
     def fake_start_span(*args, **kwargs):
@@ -424,7 +429,7 @@ def test_processor_caller_run_processor_returns_mockup_finalize_value(mocker):
 
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
-    assert result == [{"status": "successful"}]
+    assert result == {}
 
 
 # ---- _collect_storage_options ----

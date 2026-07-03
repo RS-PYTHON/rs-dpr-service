@@ -14,7 +14,7 @@
     ],
     "units": [
         {
-            "name": "single_unit_mockup",
+            "name": "single_unit_mockup.mwrl",
             "module": "mockup.processor.mockup_processing_units",
             "resources_min": {
                 "dask": {
@@ -39,7 +39,39 @@
                     "name": "osf",
                     "mode": "always",
                     "mandatory": false
+                }
+            ],
+            "output_products": [
+                {
+                    "name": "S03MWRL0_",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "mock_output_.*"
+                }
+            ]
+        },
+        {
+            "name": "single_unit_mockup.olcl",
+            "module": "mockup.processor.mockup_processing_units",
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 1,
+                    "worker_ram": "1GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
                 },
+                "disk": {
+                    "size_per_worker": "1GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "S3BCADUS",
+                    "mode": "always",
+                    "mandatory": true
+                }
+            ],
+            "input_adfs": [
                 {
                     "name": "fro",
                     "mode": "always",
@@ -51,7 +83,7 @@
                     "name": "S03OLCL0_",
                     "mode": "always",
                     "mandatory": true,
-                    "regex": ".*"
+                    "regex": "mock_output_.*"
                 }
             ]
         }
@@ -105,6 +137,12 @@
                     }
                 }
             ]
+        },
+        {
+            "name": "S03MWRL0_",
+            "type": "folder",
+            "store_type": "zarr",
+            "opening_mode": "CREATE_OVERWRITE"
         },
         {
             "name": "S03OLCL0_",
@@ -183,13 +221,33 @@
             "description": "Full pipeline for mockup_processor",
             "steps": [
                 {
-                    "unit_name": "single_unit_mockup",
+                    "unit_name": "single_unit_mockup.mwrl",
                     "step_id": 1,
                     "input_products": {
                         "S3BCADUS": "pipeline_input"
                     },
                     "output_products": {
+                        "S03MWRL0_": "pipeline_output"
+                    },
+                    "parameters": {
+                        "output_products": [
+                            "S03MWRL0_"
+                        ]
+                    }
+                },
+                {
+                    "unit_name": "single_unit_mockup.olcl",
+                    "step_id": 2,
+                    "input_products": {
+                        "S3BCADUS": "pipeline_input"
+                    },
+                    "output_products": {
                         "S03OLCL0_": "pipeline_output"
+                    },
+                    "parameters": {
+                        "output_products": [
+                            "S03OLCL0_"
+                        ]
                     }
                 }
             ]
