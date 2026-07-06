@@ -151,14 +151,6 @@
       }
     },
     {
-      "name": "S3OLCRAC",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
       "name": "S3NAVL0_1",
       "type": "filename",
       "store_type": "zarr",
@@ -814,7 +806,6 @@
             "S3OLCIL0_1": "pipeline_input",
             "S3OLCIL0_2": "pipeline_input",
             "S3OLCIL0_3": "pipeline_input",
-            "S3OLCRAC": "pipeline_input",
             "S3NAVL0_1": "pipeline_input"
           },
           "output_products": {
