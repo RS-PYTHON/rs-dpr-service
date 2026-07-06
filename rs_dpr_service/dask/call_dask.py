@@ -829,9 +829,11 @@ class ProcessorCaller:
                         log_str += line
 
                     # Write to logger if not empty
+                    logger.info("Trying to log to logger")
                     line = line.rstrip()
                     if line:
-                        logger.info(line)
+                        logger.info("LOGGING")
+                        logger.info(f"[JOB:{self.job_id}] {line}")
 
             # Wait for the execution to finish
             status_code = proc.wait()

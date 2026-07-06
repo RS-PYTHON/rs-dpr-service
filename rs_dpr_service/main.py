@@ -14,9 +14,13 @@
 
 """rs dpr service main module."""
 
+import asyncio
 import copy
+import logging
 import os
 import pathlib
+import re
+from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template
@@ -34,7 +38,7 @@ from pygeoapi.provider.sql import get_engine  # pylint: disable=no-name-in-modul
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.status import (  # pylint: disable=C0411
     HTTP_200_OK,
     HTTP_201_CREATED,
@@ -95,6 +99,33 @@ JOB_ATTRS_MAPPING = {"identifier": "jobID"}
 OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 
 logger = Logging.default(__name__)
+
+
+class JobLogHandler(logging.Handler):
+    """Custom log handler that routes Dask worker logs to per job asyncio Queues for SSE streaming."""
+
+    def __init__(self):
+        super().__init__()
+        self.queues = defaultdict(list)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            match = re.search(r"\[JOB:([^\]]+)\]\s*(.*)", msg, re.DOTALL)
+            if match:
+                job_id = match.group(1)
+                clean_msg = match.group(2)
+                for q in self.queues[job_id]:
+                    # use put_nowait to avoid blocking the logging thread
+                    q.put_nowait(clean_msg)
+        except Exception:  # pylint: disable=broad-exception-caught
+            self.handleError(record)
+
+
+job_log_handler = JobLogHandler()
+job_log_handler.setLevel(logging.INFO)
+# Attach to the logger where dask_client.forward_logging sends worker logs
+logging.getLogger("rs_dpr_service.dask.call_dask").addHandler(job_log_handler)
 
 
 class DatabaseJobFormatError(Exception):
@@ -415,6 +446,49 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
         except Exception as e:
             record_error(span, e)
             raise
+
+
+# Endpoint to stream the logs of a job by job_id
+@router.get("/dpr/jobs/{job_id}/logs")
+async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(..., title="The ID of the job")]):
+    """Used to stream logs of a processing job."""
+
+    # Verify job exists
+    try:
+        app.extra["process_manager"].get_job(job_id)
+    except JobNotFoundError:
+        return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
+
+    queue: asyncio.Queue[str] = asyncio.Queue()
+    job_log_handler.queues[job_id].append(queue)
+
+    async def log_generator():
+        try:
+            while True:
+                if await request.is_disconnected():
+                    break
+
+                try:
+                    # Wait for log message
+                    msg = await asyncio.wait_for(queue.get(), timeout=2.0)
+                    yield f"data: {msg}\n\n"
+                except TimeoutError:
+                    # Check if job is still running
+                    try:
+                        job_status = app.extra["process_manager"].get_job(job_id)
+                        if job_status.get("status") in ["successful", "failed", "dismissed"]:
+                            # Job finished. Drain remaining queue items
+                            while not queue.empty():
+                                yield f"data: {queue.get_nowait()}\n\n"
+                            break
+                    except Exception:  # pylint: disable=broad-exception-caught
+                        break
+        finally:
+            job_log_handler.queues[job_id].remove(queue)
+            if not job_log_handler.queues[job_id]:
+                del job_log_handler.queues[job_id]
+
+    return StreamingResponse(log_generator(), media_type="text/event-stream")
 
 
 # Endpoint to get the status of a job by job_id
