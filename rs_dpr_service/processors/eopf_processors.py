@@ -51,7 +51,7 @@ class MockupProcessor(GenericProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
-        return _load_tasktable("tasktable.json")
+        return _load_tasktable("TaskTable_MOCKUP_generated_by_rs_python_v1.json")
 
 
 class S1L0Processor(GenericProcessor):

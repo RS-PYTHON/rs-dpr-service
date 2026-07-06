@@ -22,7 +22,7 @@ set -x
 # After conversion to json, its content should be something like:
 # {"deps": [
 # {"python_version": "3.11.7", "dask_version": "2024.5.2"},
-# {"python_version": "3.13.12", "dask_version": "2026.1.2"},
+# {"python_version": "3.13.12", "dask_version": "2026.3.0"},
 # ...
 
 # We test to download from the rs-workflow-env repo, first with the same branch name, then with 'develop'
@@ -108,10 +108,10 @@ matrix="{
 }"
 
 # The output matrix is something like:
-# "dep_name": ["py3.11.7-2024.5.2", "py3.13.12-2026.1.2", ...],
+# "dep_name": ["py3.11.7-2024.5.2", "py3.13.12-2026.3.0", ...],
 # "include": [
 #   {"dep_name": "py3.11.7-2024.5.2", "python_version": "...", "dask_version": "...", "temp_branch": "...", "github_ref": "...", "github_ref_name": "...", "poetry_version": "..." },
-#   {"dep_name": "py3.13.12-2026.1.2", "python_version": "...", ...
+#   {"dep_name": "py3.13.12-2026.3.0", "python_version": "...", ...
 #   ...
 
 echo "matrix=$(jq -c . <<< $matrix)" >> $GITHUB_OUTPUT
