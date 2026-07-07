@@ -44,11 +44,6 @@
           "mandatory": true
         },
         {
-          "name": "S3OLCRAC",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
           "name": "S3NAVL0_1",
           "mode": "always",
           "mandatory": false
