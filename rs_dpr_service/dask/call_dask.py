@@ -442,7 +442,10 @@ class ProcessorCaller:
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
         local_config_dir: AnyPath | str = self.s3.get(recursive=True)
         if isinstance(local_config_dir, AnyPath):
-            local_config_dir = local_config_dir.path
+            if hasattr(local_config_dir, "fs_path"):  # CPM >= 3.0.0rc4
+                local_config_dir = local_config_dir.fs_path
+            else:
+                local_config_dir = local_config_dir.path
 
         # Payload path and parent dir
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
