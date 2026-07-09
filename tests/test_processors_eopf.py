@@ -29,15 +29,15 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 
 @pytest.mark.parametrize(
-    ("processor_cls", "tasktable_module", "tasktable_class", "use_mockup"),
+    ("processor_cls", "tasktable_module", "tasktable_class"),
     [
         # Each class hardcodes the EOPF module/class names later used by the generic Dask flow.
-        (MockupProcessor, "", "", True),
-        (S1L0Processor, "l0.s1.s1_l0_processor", "S1L0Processor", False),
-        (S3L0Processor, "l0.s3.s3_l0_processor", "S3L0Processor", False),
-        (S1ARDProcessor, "s1_ard.computing.ard_processing_units", "Calibration", False),
-        (S3L1OLCIProcessor, "s3olci.s3_ol1.ol1_processor", "OL1Processor", False),
-        (S3L2OLCIProcessor, "s3olci.s3_ol2.ol2_processor", "OL2Processor", False),
+        (MockupProcessor, "", ""),
+        (S1L0Processor, "l0.s1.s1_l0_processor", "S1L0Processor"),
+        (S3L0Processor, "l0.s3.s3_l0_processor", "S3L0Processor"),
+        (S1ARDProcessor, "s1_ard.computing.ard_processing_units", "Calibration"),
+        (S3L1OLCIProcessor, "s3olci.s3_ol1.ol1_processor", "OL1Processor"),
+        (S3L2OLCIProcessor, "s3olci.s3_ol2.ol2_processor", "OL2Processor"),
     ],
 )
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
@@ -46,7 +46,6 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
     processor_cls,
     tasktable_module,
     tasktable_class,
-    use_mockup,
 ):
     """Test each EOPF processor initializes the expected generic processor configuration."""
     # The constructors go through GenericProcessor, which immediately builds a DaskClusterHandler.
@@ -60,7 +59,6 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
     assert isinstance(processor, GenericProcessor)
     assert processor.tasktable_module == tasktable_module
     assert processor.tasktable_class == tasktable_class
-    assert processor.use_mockup is use_mockup
     assert processor.cluster_handler.cluster_info is cluster_info
     assert processor.cluster_handler.cluster_address == "http://dask-gateway.test"
     db_process_manager.add_job.assert_called_once()
