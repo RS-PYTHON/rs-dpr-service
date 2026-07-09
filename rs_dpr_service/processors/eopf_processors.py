@@ -38,16 +38,13 @@ class MockupProcessor(GenericProcessor):
 
     def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
-        Initialize S1L0Processor
+        Initialize MockupProcessor
         """
         super().__init__(
             db_process_manager=db_process_manager,
             cluster_info=cluster_info,
             local_mode_address="DASK_GATEWAY_EOPF_MOCKUP_ADDRESS",
-            tasktable_module="",
-            tasktable_class="",
         )
-        self.use_mockup = True
 
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
