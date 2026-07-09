@@ -123,7 +123,7 @@ class JobLogHandler(logging.Handler):
 
 
 job_log_handler = JobLogHandler()
-job_log_handler.setLevel(logging.INFO)
+job_log_handler.setLevel(logging.DEBUG)
 # Attach to the logger where dask_client.forward_logging sends worker logs
 logging.getLogger("rs_dpr_service.dask.call_dask").addHandler(job_log_handler)
 
@@ -475,14 +475,18 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
                 except TimeoutError:
                     # Check if job is still running
                     try:
+                        # Send a keepalive message to keep the connection alive (prevents proxy timeouts)
+                        yield ": keepalive\n\n"
                         job_status = app.extra["process_manager"].get_job(job_id)
                         if job_status.get("status") in ["successful", "failed", "dismissed"]:
-                            # Job finished. Drain remaining queue items
+                            # job finished. drain remaining queue items (if any)
                             while not queue.empty():
                                 yield f"data: {queue.get_nowait()}\n\n"
                             break
-                    except Exception:  # pylint: disable=broad-exception-caught
-                        break
+                    except Exception as err:  # pylint: disable=broad-exception-caught
+                        # Do not break the stream if there's a transient DB error
+                        logger.warning(f"Error checking job status during log stream: {err}")
+                        continue
         finally:
             job_log_handler.queues[job_id].remove(queue)
             if not job_log_handler.queues[job_id]:
