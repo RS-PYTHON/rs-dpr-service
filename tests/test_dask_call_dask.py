@@ -243,7 +243,7 @@ def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(moc
     result = caller.get_tasktable("fake.module", "FakeProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    init_traces.assert_called_once_with()
     import_module.assert_called_once_with("fake.module")
     assert result == {"tasks": [{"name": "task-1"}]}
 
@@ -287,7 +287,7 @@ def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocke
     result = caller.get_tasktable("fake.module", "MockupProcessor")
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    init_traces.assert_called_once_with()
     import_module.assert_called_once_with("fake.module")
     assert result == {"mockup": True}
 
@@ -319,7 +319,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     @contextmanager
     def fake_start_span(*args, **kwargs):
         """Yield a fake span around the processor run."""
-        assert args == ("rs_dpr_service.dask.call_dask", "dpr_dask_processor", caller.span_context)
+        assert args == ("rs_dpr_service.dask.call_dask", "[dask-l0] dpr_dask_processor", caller.span_context)
         assert not kwargs
         yield mocker.Mock()
 
@@ -331,7 +331,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
 
     result = caller.run_processor()
 
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    init_traces.assert_called_once_with()
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
@@ -358,7 +358,7 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
     @contextmanager
     def fake_start_span(*args, **kwargs):
         """Yield a fake span around the failing processor run."""
-        assert args == ("rs_dpr_service.dask.call_dask", "dpr_dask_processor", caller.span_context)
+        assert args == ("rs_dpr_service.dask.call_dask", "[dask-l0] dpr_dask_processor", caller.span_context)
         assert not kwargs
         yield span
 
@@ -371,7 +371,7 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
         caller.run_processor()
 
     caller.copy_caller_env.assert_called_once_with()
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    init_traces.assert_called_once_with()
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     # finalize() must still run in the exception branch to preserve cleanup behavior.
@@ -390,7 +390,7 @@ def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(moc
     @contextmanager
     def fake_start_span(*args, **kwargs):
         """Yield a fake span around the mockup processor run."""
-        assert args == ("rs_dpr_service.dask.call_dask", "dpr_dask_processor", caller.span_context)
+        assert args == ("rs_dpr_service.dask.call_dask", "[dask-l0] dpr_dask_processor", caller.span_context)
         assert not kwargs
         yield mocker.Mock()
 
@@ -400,7 +400,7 @@ def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(moc
 
     result = caller.run_processor()
 
-    init_traces.assert_called_once_with(None, call_dask.SERVICE_NAME)
+    init_traces.assert_called_once_with()
     caller.init.assert_called_once_with()
     caller.trigger.assert_called_once_with()
     caller.finalize.assert_called_once_with()
@@ -417,7 +417,7 @@ def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup
     @contextmanager
     def fake_start_span(*args, **kwargs):
         """Yield a fake span around the mockup finalize run."""
-        assert args == ("rs_dpr_service.dask.call_dask", "dpr_dask_processor", caller.span_context)
+        assert args == ("rs_dpr_service.dask.call_dask", "[dask-l0] dpr_dask_processor", caller.span_context)
         assert not kwargs
         yield mocker.Mock()
 

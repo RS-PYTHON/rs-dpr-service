@@ -56,8 +56,6 @@ from rs_dpr_service.utils.init_opentelemetry import (
 )
 from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 
-SERVICE_NAME = "rs.dpr.dask"
-
 # Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
@@ -272,8 +270,11 @@ class ProcessorCaller:
             "S3_REGION",
             "PREFECT_BUCKET_NAME",
             "PREFECT_BUCKET_FOLDER",
+            # Opentelemetry
+            "OTEL_SERVICE_NAME",
             "TEMPO_ENDPOINT",
             "TRACEPARENT",
+            "TRACESTATE",
             # Only in local mode
             "LOCAL_DASK_USERNAME",
             "LOCAL_DASK_PASSWORD",
@@ -340,7 +341,7 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME)
+        init_traces()
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
             # Load the python class
             class_ = getattr(importlib.import_module(module_name), class_name)
@@ -360,8 +361,8 @@ class ProcessorCaller:
         self.copy_caller_env()
 
         # Init opentelemetry and record all task in an Opentelemetry span
-        init_traces(None, SERVICE_NAME)
-        with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
+        init_traces()
+        with start_span(__name__, f"[{self.cluster_info.cluster_label}] dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
                 logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
