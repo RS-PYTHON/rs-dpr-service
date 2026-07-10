@@ -19,8 +19,6 @@ import copy
 import logging
 import os
 import pathlib
-import re
-from collections import defaultdict
 from contextlib import asynccontextmanager
 from datetime import datetime
 from string import Template
@@ -67,7 +65,7 @@ from rs_dpr_service.utils.init_opentelemetry import (
     record_error,
     start_span,
 )
-from rs_dpr_service.utils.logging import Logging
+from rs_dpr_service.utils.logging import JobLogHandler, Logging
 from rs_dpr_service.utils.middlewares import (
     HandleExceptionsMiddleware,
     HealthMiddleware,
@@ -99,27 +97,6 @@ JOB_ATTRS_MAPPING = {"identifier": "jobID"}
 OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 
 logger = Logging.default(__name__)
-
-
-class JobLogHandler(logging.Handler):
-    """Custom log handler that routes Dask worker logs to per job asyncio Queues for SSE streaming."""
-
-    def __init__(self):
-        super().__init__()
-        self.queues = defaultdict(list)
-
-    def emit(self, record):
-        try:
-            msg = self.format(record)
-            match = re.search(r"\[JOB:([^\]]+)\]\s*(.*)", msg, re.DOTALL)
-            if match:
-                job_id = match.group(1)
-                clean_msg = match.group(2)
-                for q in self.queues[job_id]:
-                    # use put_nowait to avoid blocking the logging thread
-                    q.put_nowait(clean_msg)
-        except Exception:  # pylint: disable=broad-exception-caught
-            self.handleError(record)
 
 
 job_log_handler = JobLogHandler()
