@@ -362,7 +362,7 @@ class ProcessorCaller:
 
         # Init opentelemetry and record all task in an Opentelemetry span
         init_traces()
-        with start_span(__name__, "dpr_dask_processor", self.span_context) as span:
+        with start_span(__name__, f"[{self.cluster_info.cluster_label}] dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
                 logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
@@ -755,7 +755,7 @@ class ProcessorCaller:
         # Trigger EOPF processing with trace context propagation, catch output
         # NOTE: we run it in a subprocess because it's easier that way to capture stdout and stderr,
         # or cancel the subprocess.
-        with start_span(__name__, f"dpr.{self.processor_name}") as span:
+        with start_span(__name__, "eopf.subprocess") as span:
             span.set_attribute("subprocess.command", str(self.command))
             span.set_attribute("subprocess.working_dir", str(self.working_dir))
             span.set_attribute("subprocess.log_file", self.log_path)
@@ -835,6 +835,9 @@ class ProcessorCaller:
 
         # Also pass as JSON for scripts that can parse it
         env["OTEL_TRACE_CONTEXT"] = json.dumps(carrier)
+
+        # Set the opentelemetry service name
+        env["OTEL_SERVICE_NAME"] = f"dpr.{self.processor_name}"
 
         return env
 
