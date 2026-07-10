@@ -459,6 +459,23 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
     launch_subprocess.assert_not_called()
 
 
+# ---- handle_experimental_config ----
+
+
+def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker):
+    """Test handle_experimental_config() falls back to the 'io' key when 'I/O' is absent."""
+    caller = _make_processor_caller(mocker)
+    caller.data = {"experimental_config": {"local_files": {"local_dir": "/data/local"}}}
+    handle_local_product = mocker.patch.object(caller, "handle_local_product")
+
+    product = {"path": "s3://bucket/product"}
+    payload = {"io": {"input_products": [product]}}
+
+    caller.handle_experimental_config(payload)
+
+    handle_local_product.assert_called_once_with("input_products", product)
+
+
 # ---- _collect_storage_options ----
 
 
