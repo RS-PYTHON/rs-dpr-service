@@ -222,7 +222,7 @@ class GenericProcessor(BaseProcessor):
                 )
 
                 # Nominal usecase: run processor in the dask client
-                if dask_client:                    
+                if dask_client:
                     dpr_task = dask_client.submit(
                         dpr_processor.run_processor,
                         pure=False,  # disable cache
