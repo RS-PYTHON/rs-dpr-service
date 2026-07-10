@@ -19,6 +19,7 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
 import copy
+import contextlib
 import json
 from datetime import datetime
 from importlib import reload
@@ -413,6 +414,79 @@ def test_get_job_status_endpoint_returns_404_for_unknown_job(client, mocker):
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Job with ID unknown-job not found"
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_endpoint_returns_404_for_unknown_job(mocker):
+    """Test the job logs endpoint when the job does not exist."""
+    process_manager = mocker.Mock()
+    main_module.app.extra["process_manager"] = process_manager
+    process_manager.get_job.side_effect = main_module.JobNotFoundError
+
+    response = await main_module.get_job_logs_endpoint(mocker.Mock(), "unknown-job")
+
+    assert response.status_code == 404
+    assert json.loads(response.body) == "Job with ID unknown-job not found"
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_endpoint_streams_queued_log(mocker):
+    """Test that job logs are streamed as SSE data and the queue is cleaned up."""
+    process_manager = mocker.Mock()
+    main_module.app.extra["process_manager"] = process_manager
+    process_manager.get_job.return_value = job_record("job-1")
+    request = mocker.Mock()
+    request.is_disconnected = AsyncMock(side_effect=[False, True])
+    main_module.job_log_handler.queues.clear()
+
+    response = await main_module.get_job_logs_endpoint(request, "job-1")
+    queue = main_module.job_log_handler.queues["job-1"][0]
+    queue.put_nowait("Processing started")
+    body_iterator = response.body_iterator
+
+    try:
+        assert response.status_code == 200
+        assert response.media_type == "text/event-stream"
+        assert await anext(body_iterator) == "data: Processing started\n\n"
+        with pytest.raises(StopAsyncIteration):
+            await anext(body_iterator)
+        assert "job-1" not in main_module.job_log_handler.queues
+    finally:
+        with contextlib.suppress(Exception):
+            await body_iterator.aclose()
+        main_module.job_log_handler.queues.pop("job-1", None)
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_endpoint_sends_keepalive_until_job_finishes(mocker):
+    """Test that the log stream emits keepalive messages and stops for terminal jobs."""
+    async def timeout_wait_for(awaitable, timeout):  # pylint: disable=unused-argument
+        awaitable.close()
+        raise TimeoutError
+
+    process_manager = mocker.Mock()
+    main_module.app.extra["process_manager"] = process_manager
+    process_manager.get_job.side_effect = [
+        job_record("job-1", status="running"),
+        job_record("job-1", status="successful"),
+    ]
+    request = mocker.Mock()
+    request.is_disconnected = AsyncMock(return_value=False)
+    mocker.patch("rs_dpr_service.main.asyncio.wait_for", side_effect=timeout_wait_for)
+    main_module.job_log_handler.queues.clear()
+
+    response = await main_module.get_job_logs_endpoint(request, "job-1")
+    body_iterator = response.body_iterator
+
+    try:
+        assert await anext(body_iterator) == ": keepalive\n\n"
+        with pytest.raises(StopAsyncIteration):
+            await anext(body_iterator)
+        assert "job-1" not in main_module.job_log_handler.queues
+    finally:
+        with contextlib.suppress(Exception):
+            await body_iterator.aclose()
+        main_module.job_log_handler.queues.pop("job-1", None)
 
 
 def test_get_jobs_endpoint_success(client, mocker):
