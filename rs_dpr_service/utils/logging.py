@@ -15,6 +15,8 @@
 """Logging utility."""
 
 import logging
+import re
+from collections import defaultdict
 from threading import Lock
 
 
@@ -101,3 +103,24 @@ class CustomFormatter(logging.Formatter):
         level_format = self._FORMATS.get(record.levelno)
         formatter = logging.Formatter(level_format, self._DATETIME)
         return formatter.format(record)
+
+
+class JobLogHandler(logging.Handler):
+    """Custom log handler that routes Dask worker logs to per job asyncio Queues for SSE streaming."""
+
+    def __init__(self):
+        super().__init__()
+        self.queues = defaultdict(list)
+
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+            match = re.search(r"\[JOB:([^\]]+)\]\s*(.*)", msg, re.DOTALL)
+            if match:
+                job_id = match.group(1)
+                clean_msg = match.group(2)
+                for q in self.queues[job_id]:
+                    # use put_nowait to avoid blocking the logging thread
+                    q.put_nowait(clean_msg)
+        except Exception:  # pylint: disable=broad-exception-caught
+            self.handleError(record)
