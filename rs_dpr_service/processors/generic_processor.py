@@ -15,7 +15,6 @@
 """S1L0 and S3L0 Processors"""
 
 import asyncio  # for handling asynchronous tasks
-import logging
 import os
 import traceback
 
