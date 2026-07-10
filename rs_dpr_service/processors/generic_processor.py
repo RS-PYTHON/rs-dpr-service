@@ -222,8 +222,7 @@ class GenericProcessor(BaseProcessor):
                 )
 
                 # Nominal usecase: run processor in the dask client
-                if dask_client:
-                    dask_client.forward_logging(logger_name="rs_dpr_service.dask.call_dask", level=logging.DEBUG)
+                if dask_client:                    
                     dpr_task = dask_client.submit(
                         dpr_processor.run_processor,
                         pure=False,  # disable cache

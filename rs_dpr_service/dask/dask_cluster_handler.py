@@ -187,7 +187,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                 client = Client(self.cluster)
 
                 # Forward logging from dask workers to the caller
-                # client.forward_logging()
+                client.forward_logging()
 
                 # Upload local module to the dask client.
                 call_dask.upload_this_module(client)
