@@ -118,6 +118,31 @@ HandleExceptionsMiddleware.disable_default_exception_handler(app)
 app.add_middleware(HealthMiddleware)
 
 
+def get_enabled_processors() -> set[str] | None:
+    """Return the desired processors. These are set in DPR_ENABLED_PROCESSORS by deployment in rs-helm."""
+    raw = os.environ.get("DPR_ENABLED_PROCESSORS")
+    if raw is None:
+        return None
+    return {item.strip() for item in raw.split(",") if item.strip()}
+
+
+def filter_enabled_resources(config: dict) -> dict:
+    """Return the usual list of processors in local mode, and a specific one on cluster."""
+
+    enabled = get_enabled_processors()
+
+    # For localmode use the default configuration
+    if enabled is None:
+        return config
+
+    config["resources"] = {
+        resource_name: resource_config
+        for resource_name, resource_config in config.get("resources", {}).items()
+        if resource_config.get("processor", {}).get("name") in enabled
+    }
+    return config
+
+
 def get_config_path() -> pathlib.Path:
     """Return the pygeoapi configuration path and set the PYGEOAPI_CONFIG env var accordingly."""
     path = pathlib.Path(__file__).parent.parent / "config" / "geoapi.yaml"
@@ -135,7 +160,8 @@ def get_config_contents() -> dict:
         contents = Template(contents).substitute(os.environ)
 
         # Parse contents as yaml
-        return yaml.safe_load(contents)
+        config = yaml.safe_load(contents)
+        return filter_enabled_resources(config)
 
 
 def init_pygeoapi() -> API:

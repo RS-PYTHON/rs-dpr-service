@@ -53,7 +53,7 @@ include = [
 # NOTE: the python and dask version will be overriden locally by the ci/cd
 # when building binaries specific to these versions.
 python = "==3.13.12"
-dask = {extras = ["distributed"], version = "2026.1.2"}
+dask = {extras = ["distributed"], version = "2026.3.0"}
 
 pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
@@ -69,8 +69,8 @@ mypy = "^1.15.0"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.11"
-opentelemetry-distro = "^0.63b1" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-exporter-otlp = "^1.42.1"
+opentelemetry-distro = "^0.64b0" # then run 'poetry run opentelemetry-bootstrap -a install'
+opentelemetry-exporter-otlp = "^1.43.0"
 tornado = "^6.5" # fix trivy vulnerability
 s3fs = "^2025.7.0"
 

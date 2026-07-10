@@ -17,7 +17,6 @@ This module contains the code that is related to dask and/or sent to the dask wo
 Avoid import unnecessary dependencies here.
 """
 
-import ast
 import contextlib
 import importlib
 import json
@@ -209,7 +208,6 @@ class ProcessorCaller:
         processor_name: str,
         job_id: str,
         data: dict,
-        use_mockup: bool,
     ):
         """
         Constructor.
@@ -222,7 +220,6 @@ class ProcessorCaller:
             processor_name: processor name used as opentelemetry service name
             job_id: pygeoapi job id saved in the database.
             data: data to send to the processor
-            use_mockup: use the mockup or real processor
             s3: Bucket access to read/write configuration and report files
             local_report_dir: Report directory on the local disk
             s3_report_dir: Report directory on the S3 bucket
@@ -233,7 +230,6 @@ class ProcessorCaller:
             working_dir: Working directory on local disk
             to_be_uploaded: Output products to be uploaded to the s3 bucket at the end of the processor
             exec_times: Execution times with their description
-            mockup_return_value: Mockup return value
         """
         # NOTE: some imports exists in the dask worker environment, not in the rs-dpr-service env,
         # so we cannot import them from the top of this module.
@@ -249,7 +245,6 @@ class ProcessorCaller:
         self.processor_name: str = processor_name
         self.job_id: str = job_id
         self.data: dict = data
-        self.use_mockup: bool = use_mockup
         self.s3: Any | None = None  # AnyPath
         self.local_report_dir: str = ""
         self.s3_report_dir: str = ""
@@ -260,7 +255,6 @@ class ProcessorCaller:
         self.working_dir: str = ""
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
-        self.mockup_return_value: dict = {}
 
     def copy_caller_env(self):
         """
@@ -349,11 +343,6 @@ class ProcessorCaller:
         # Init opentelemetry and record all task in an Opentelemetry span
         init_traces()
         with start_span(__name__, f"dpr_dask_tasktable_{class_name}", self.span_context):
-
-            if self.use_mockup:
-                time.sleep(1)
-                return {}
-
             # Load the python class
             class_ = getattr(importlib.import_module(module_name), class_name)
 
@@ -399,24 +388,6 @@ class ProcessorCaller:
         """
         Init from the dask pod.
         """
-        # Mockup processor
-        if self.use_mockup:
-            try:
-                payload_abs_path = str(Path.home() / "payload.cfg")
-                with open(payload_abs_path, "w+", encoding="utf-8") as payload:
-                    payload.write(yaml.safe_dump(self.data))
-            except Exception as e:
-                logger.exception("Exception during payload file creation: %s", e)
-                raise
-            self.command = ["python3", "DPR_processor_mock.py", "-p", payload_abs_path]
-            self.working_dir = "/src/DPR"
-            self.log_path = "./mockup.log"  # not used
-            logger.debug(f"Working directory for subprocess: {self.working_dir} (type: {type(self.working_dir)})")
-            return
-
-        #
-        # Real processor
-
         # Read arguments
         s3_config_dir = self.data["s3_config_dir"]
         payload_subpath = self.data["payload_subpath"]
@@ -443,7 +414,10 @@ class ProcessorCaller:
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
         local_config_dir: AnyPath | str = self.s3.get(recursive=True)
         if isinstance(local_config_dir, AnyPath):
-            local_config_dir = local_config_dir.path
+            if hasattr(local_config_dir, "fs_path"):  # CPM >= 3.0.0rc4
+                local_config_dir = local_config_dir.fs_path
+            else:
+                local_config_dir = local_config_dir.path
 
         # Payload path and parent dir
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
@@ -770,12 +744,7 @@ class ProcessorCaller:
         # Everything is run on the rs-dpr-service host machine.
         # This is used to debug in local mode / docker compose on your local machine.
         # We call eopf from python code.
-        if (
-            settings.LOCAL_MODE
-            and (not self.use_mockup)
-            and self.experimental_config
-            and self.experimental_config.local_cluster.enabled
-        ):
+        if settings.LOCAL_MODE and self.experimental_config and self.experimental_config.local_cluster.enabled:
             from eopf.triggering.runner import (  # pylint: disable=import-outside-toplevel
                 EORunner,
             )
@@ -808,10 +777,6 @@ class ProcessorCaller:
         ) as proc:
 
             span.set_attribute("subprocess.pid", proc.pid)
-
-            # Log contents
-            log_str = ""
-
             # Write output to a log file and string + redirect to the prefect logger
             with open(self.log_path, "a", encoding="utf-8") as log_file:
 
@@ -826,8 +791,6 @@ class ProcessorCaller:
 
                     # Write to log file and string
                     log_file.write(line)
-                    if self.use_mockup:
-                        log_str += line
 
                     # Write to logger if not empty
                     line = line.rstrip()
@@ -853,9 +816,6 @@ class ProcessorCaller:
             span.set_status(Status(StatusCode.OK))
             logger.info(f"EOPF finished successfully with status code {status_code!r}")
 
-            # Parse log contents
-            self.parse_eopf_log(log_str)
-
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
         # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes
         # https://opentelemetry.io/docs/languages/python/propagation/#manual-context-propagation
@@ -878,33 +838,8 @@ class ProcessorCaller:
 
         return env
 
-    def parse_eopf_log(self, log_str: str):
-        """Parse the log contents returned by the eopf processing"""
-
-        # Only for the mockup
-        if not self.use_mockup:
-            return
-
-        # search for the JSON-like part, parse it, and ignore the rest.
-        match = re.search(r"(\[\s*\{.*\}\s*\])", log_str, re.DOTALL)
-        if not match:
-            raise ValueError(f"No valid dpr_payload structure found in the output:\n{log_str}")
-
-        payload_str = match.group(1)
-
-        # Use `ast.literal_eval` to safely evaluate the structure
-        try:
-            # payload_str is a string that looks like a JSON, extracted from the dpr mockup's raw output.
-            # ast.literal_eval() parses that string and returns the actual Python object (not just the string).
-            self.mockup_return_value = ast.literal_eval(payload_str)
-        except Exception as e:
-            raise ValueError(f"Failed to parse dpr_payload structure: {e}") from e
-
     def finalize(self) -> dict:
         """Code to run at the end of the processor."""
-
-        if self.use_mockup:
-            return self.mockup_return_value
 
         try:
             # Upload the reports dir to the s3 bucket

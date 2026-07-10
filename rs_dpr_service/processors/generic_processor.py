@@ -15,13 +15,9 @@
 """S1L0 and S3L0 Processors"""
 
 import asyncio  # for handling asynchronous tasks
-import json
 import os
-import re
 import traceback
-from pathlib import Path
 
-import anyio
 from dask.distributed import (  # LocalCluster,
     Client,
 )
@@ -59,43 +55,10 @@ class GenericProcessor(BaseProcessor):
         tasktable_module: str = "",
         tasktable_class: str = "",
     ):  # pylint: disable=super-init-not-called
-        self.use_mockup = False
         self.tasktable_module = tasktable_module
         self.tasktable_class = tasktable_class
         self.job_logger = JobLogger(db_process_manager)
         self.cluster_handler = DaskClusterHandler(cluster_info, local_mode_address)
-
-    def replace_placeholders(self, obj):
-        """
-        Recursively replaces placeholders in the form ${PLACEHODER} within a nested structure (dict, list, str)
-        using corresponding environment variable values.
-
-        If an environment variable is not found, the placeholder is left unchanged and a warning is logged.
-
-        Args:
-            obj (Any): The input object, typically a dict or list, containing strings with placeholders.
-
-        Returns:
-            Any: The same structure with all placeholders replaced where possible.
-        """
-        pattern = re.compile(r"\$\{(\w+)\}")
-
-        if isinstance(obj, dict):
-            return {k: self.replace_placeholders(v) for k, v in obj.items()}
-        if isinstance(obj, list):
-            return [self.replace_placeholders(item) for item in obj]
-        if isinstance(obj, str):
-
-            def replacer(match):
-                key = match.group(1)
-                value = os.environ.get(key)
-                if value is None:
-                    logger.warning("Environment variable '%s' not found; leaving placeholder unchanged.", key)
-                    return match.group(0)
-                return value
-
-            return pattern.sub(replacer, obj)
-        return obj
 
     def get_processor_name(self):
         """Return the normalized processor name in lowercase"""
@@ -117,7 +80,6 @@ class GenericProcessor(BaseProcessor):
                 processor_name=self.get_processor_name(),
                 job_id=self.job_logger.job_id,
                 data={},  # not used for the tasktables
-                use_mockup=self.use_mockup,
             )
 
             # Run processor in the dask client
@@ -128,14 +90,6 @@ class GenericProcessor(BaseProcessor):
                 pure=False,  # disable cache
             )
             res = task_table_task.result()
-
-            # Return a default hardcoded value for the mockup
-            if (not res) and self.use_mockup:
-                async with await anyio.open_file(
-                    Path(__file__).parent.parent / "config" / "tasktable.json",
-                    encoding="utf-8",
-                ) as tf:
-                    return json.loads(await tf.read())
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
             logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
@@ -255,11 +209,6 @@ class GenericProcessor(BaseProcessor):
         processor_name = self.get_processor_name()
         with start_span(__name__, f"dpr_manage_dask_tasks_{processor_name}") as span:
             try:
-                # For the mockup, replace placeholders by env vars.
-                # For the real processor, it is done automatically by eopf.
-                if self.use_mockup:
-                    data = self.replace_placeholders(data)
-
                 # Build the processor caller with span context
                 dpr_processor = call_dask.ProcessorCaller(
                     caller_env=dict(os.environ),
@@ -269,7 +218,6 @@ class GenericProcessor(BaseProcessor):
                     processor_name=processor_name,
                     job_id=self.job_logger.job_id,
                     data=data,
-                    use_mockup=self.use_mockup,
                 )
 
                 # Nominal usecase: run processor in the dask client

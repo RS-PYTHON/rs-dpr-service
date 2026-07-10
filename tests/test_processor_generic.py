@@ -144,10 +144,9 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
     assert message_fragment in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
 
 
-def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, monkeypatch):
-    """Test execute() when mockup placeholders are replaced before Dask submission."""
+def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker, monkeypatch):
+    """Test execute() passes the payload unchanged before Dask submission."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
-    monkeypatch.setenv("FOUND_VALUE", "resolved")
 
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -180,7 +179,6 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
         db_process_manager=db_process_manager,
         cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
     )
-    processor.use_mockup = True
 
     dask_client = mocker.Mock()
     dask_client.submit.return_value.result.return_value = {"result": "ok"}
@@ -208,14 +206,11 @@ def test_execute_replaces_mockup_placeholders_before_submitting_to_dask(mocker, 
 
     submitted_processor = dask_client.submit.call_args.args[0].__self__
     assert submitted_processor.data == {
-        "item": "resolved",
-        "nested": ["resolved", "${MISSING_VALUE}", 7],
-        "deep": {"path": "prefix-resolved"},
+        "item": "${FOUND_VALUE}",
+        "nested": ["${FOUND_VALUE}", "${MISSING_VALUE}", 7],
+        "deep": {"path": "prefix-${FOUND_VALUE}"},
     }
-    warning.assert_called_once_with(
-        "Environment variable '%s' not found; leaving placeholder unchanged.",
-        "MISSING_VALUE",
-    )
+    warning.assert_not_called()
     assert result == ("application/json", {"successful": processor.job_logger.job_id})
 
 
@@ -549,27 +544,13 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
     assert result == {"tasktable": "value"}
 
 
-def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker):
-    """Test get_tasktable() when mockup mode loads the fallback tasktable file."""
+def test_get_tasktable_returns_empty_dask_result(mocker, monkeypatch):
+    """Test get_tasktable() returns an empty Dask tasktable result unchanged."""
+    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
+
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
     mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
-
-    class FakeAsyncFile:
-        """Minimal async file wrapper for the mockup fallback path."""
-
-        async def __aenter__(self):
-            return self
-
-        async def __aexit__(self, exc_type, exc, tb):
-            return False
-
-        async def read(self):
-            """Return the mocked tasktable payload."""
-            return '{"mockup": true}'
-
-    async def fake_open_file(*_args, **_kwargs):
-        return FakeAsyncFile()
 
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
@@ -578,7 +559,6 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
-    processor.use_mockup = True
 
     current_span = mocker.Mock()
     current_span.get_span_context.return_value = mocker.Mock()
@@ -587,9 +567,8 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
     dask_client = mocker.Mock()
     dask_client.submit.return_value = future
 
-    # Branch under test: empty Dask result + use_mockup=True => fallback file is loaded.
+    # Branch under test: an empty Dask result is returned unchanged.
     mocker.patch("rs_dpr_service.processors.generic_processor.trace.get_current_span", return_value=current_span)
-    mocker.patch("rs_dpr_service.processors.generic_processor.anyio.open_file", side_effect=fake_open_file)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
     setup_dask_connection = mocker.patch.object(
         processor.cluster_handler,
@@ -602,7 +581,7 @@ def test_get_tasktable_returns_mockup_fallback_when_dask_result_is_empty(mocker)
     setup_dask_connection.assert_called_once_with()
     dask_client.submit.assert_called_once()
     dask_client.close.assert_called_once_with()
-    assert result == {"mockup": True}
+    assert result == {}
 
 
 def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
