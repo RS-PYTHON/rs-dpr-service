@@ -18,8 +18,8 @@ Implement tests that are common to several services.
 NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
-import copy
 import contextlib
+import copy
 import json
 from datetime import datetime
 from importlib import reload
@@ -460,6 +460,7 @@ async def test_get_job_logs_endpoint_streams_queued_log(mocker):
 @pytest.mark.asyncio
 async def test_get_job_logs_endpoint_sends_keepalive_until_job_finishes(mocker):
     """Test that the log stream emits keepalive messages and stops for terminal jobs."""
+
     async def timeout_wait_for(awaitable, timeout):  # pylint: disable=unused-argument
         awaitable.close()
         raise TimeoutError
