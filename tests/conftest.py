@@ -24,6 +24,8 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
+from rs_dpr_service.dask.call_dask import ClusterInfo
+
 # These env vars are mandatory before importing the main module
 for envvar in "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB":
     os.environ[envvar] = ""
@@ -40,3 +42,9 @@ def client_(mocker):
     with TestClient(app) as client:
 
         yield client
+
+
+@pytest.fixture(name="cluster_info", scope="function")
+def cluster_info():
+    """Mock ClusterInfo instance"""
+    yield ClusterInfo(jupyter_token="token", dask_gateway_address="address", cluster_label="dask-l0")

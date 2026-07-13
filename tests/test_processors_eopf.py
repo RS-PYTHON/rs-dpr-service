@@ -16,7 +16,6 @@
 
 import pytest
 
-from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.processors.eopf_processors import (
     MockupProcessor,
     S1ARDProcessor,
@@ -43,6 +42,7 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
     mocker,
     monkeypatch,
+    cluster_info,
     processor_cls,
     tasktable_module,
     tasktable_class,
@@ -52,7 +52,6 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
     db_process_manager = mocker.Mock()
-    cluster_info = ClusterInfo(jupyter_token="token", cluster_label="dask-l0")  # nosec B106
 
     processor = processor_cls(db_process_manager=db_process_manager, cluster_info=cluster_info)
 
@@ -60,7 +59,7 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
     assert processor.tasktable_module == tasktable_module
     assert processor.tasktable_class == tasktable_class
     assert processor.cluster_handler.cluster_info is cluster_info
-    assert processor.cluster_handler.cluster_address == "http://dask-gateway.test"
+    assert processor.cluster_handler.dask_gateway_address == "http://dask-gateway.test"
     db_process_manager.add_job.assert_called_once()
 
 
@@ -79,6 +78,7 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
 async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
     mocker,
     monkeypatch,
+    cluster_info,
     processor_cls,
     expected_filename,
 ):
@@ -95,7 +95,7 @@ async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
 
     processor = processor_cls(
         db_process_manager=mocker.Mock(),
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     result = await processor.get_tasktable()

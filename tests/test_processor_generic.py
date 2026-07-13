@@ -23,11 +23,10 @@ from contextlib import contextmanager
 import pytest
 from pygeoapi.util import JobStatus
 
-from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 
-def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatch):
+def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatch, cluster_info):
     """Test execute() on the nominal path with a mocked Dask future."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
@@ -58,7 +57,7 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     future = mocker.Mock()
@@ -105,7 +104,7 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker, monkeypatc
         (KeyError("DASK_GATEWAY_ADDRESS"), "No env var 'DASK_GATEWAY_ADDRESS' found"),
     ],
 )
-def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_effect, message_fragment):
+def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, cluster_info, side_effect, message_fragment):
     """Test execute() when start_processor() fails to create the Dask client."""
     mocker.patch.dict(sys.modules, {"s3fs": types.ModuleType("s3fs")})
 
@@ -127,7 +126,7 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
@@ -144,7 +143,7 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker, side_
     assert message_fragment in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
 
 
-def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker, monkeypatch):
+def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker, monkeypatch, cluster_info):
     """Test execute() passes the payload unchanged before Dask submission."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
@@ -177,7 +176,7 @@ def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker, monk
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     dask_client = mocker.Mock()
@@ -214,7 +213,7 @@ def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker, monk
     assert result == ("application/json", {"successful": processor.job_logger.job_id})
 
 
-def test_execute_schedules_start_processor_when_event_loop_is_already_running(mocker, monkeypatch):
+def test_execute_schedules_start_processor_when_event_loop_is_already_running(mocker, monkeypatch, cluster_info):
     """Test execute() when it schedules start_processor() on an already running loop."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
@@ -240,7 +239,7 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
@@ -263,7 +262,7 @@ def test_execute_schedules_start_processor_when_event_loop_is_already_running(mo
     assert db_process_manager.update_job.call_args_list[-1].args[1]["status"] == JobStatus.running.value
 
 
-def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mode(mocker, monkeypatch):
+def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mode(mocker, monkeypatch, cluster_info):
     """Test execute() when local mode bypasses Dask client creation."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
@@ -298,7 +297,7 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     # Branch under test: LOCAL_MODE + local_cluster.enabled => dask_client = None.
@@ -332,7 +331,7 @@ def test_execute_runs_processor_inline_when_local_cluster_is_enabled_in_local_mo
     assert db_process_manager.update_job.call_args_list[-1].args[1]["progress"] == 100
 
 
-def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
+def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker, cluster_info):
     """Test execute() when the tasks monitoring thread handoff raises an error."""
 
     class FakeLoop:
@@ -351,7 +350,7 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     dask_client = mocker.Mock()
@@ -383,7 +382,7 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
     assert "Error from tasks monitoring thread:" in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
 
 
-def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
+def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker, cluster_info):
     """Test manage_dask_tasks() when task submission to Dask fails."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -398,7 +397,7 @@ def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     dask_client = mocker.Mock()
@@ -424,7 +423,7 @@ def test_manage_dask_tasks_marks_job_failed_when_submit_to_dask_raises(mocker):
     )
 
 
-def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker):
+def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker, cluster_info):
     """Test manage_dask_tasks() when the submitted Dask task result raises."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -439,7 +438,7 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     dask_client = mocker.Mock()
@@ -467,7 +466,7 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
     assert "Processing task failed:" in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
 
 
-def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask_client(mocker):
+def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask_client(mocker, cluster_info):
     """Test manage_dask_tasks() when local execution raises without a Dask client."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -482,7 +481,7 @@ def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
     # Branch under test: dask_client is None and local run_processor() raises in the first try block.
@@ -506,7 +505,7 @@ def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask
     logger_exception.assert_called_once()
 
 
-def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
+def test_get_tasktable_returns_dask_result_and_closes_client(mocker, cluster_info):
     """Test get_tasktable() on the nominal path and close the Dask client."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -515,7 +514,7 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
@@ -544,7 +543,7 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
     assert result == {"tasktable": "value"}
 
 
-def test_get_tasktable_returns_empty_dask_result(mocker, monkeypatch):
+def test_get_tasktable_returns_empty_dask_result(mocker, monkeypatch, cluster_info):
     """Test get_tasktable() returns an empty Dask tasktable result unchanged."""
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
@@ -555,7 +554,7 @@ def test_get_tasktable_returns_empty_dask_result(mocker, monkeypatch):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )
@@ -584,7 +583,7 @@ def test_get_tasktable_returns_empty_dask_result(mocker, monkeypatch):
     assert result == {}
 
 
-def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
+def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker, cluster_info):
     """Test get_tasktable() when the Dask tasktable retrieval raises an exception."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -593,7 +592,7 @@ def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
     db_process_manager = mocker.Mock()
     processor = GenericProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
         tasktable_module="fake.module",
         tasktable_class="FakeTaskTable",
     )

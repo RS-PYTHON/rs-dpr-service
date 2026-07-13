@@ -256,15 +256,21 @@ async def app_lifespan(fastapi_app: FastAPI):
 
 def build_cluster_info(data: dict) -> ClusterInfo:
     """This function handles missing parameters from request, hence properly creates a ClusterInfo object."""
-    jupyter_token = data.get("jupyter_token")
-    cluster_label = data.get("cluster_label")
-    cluster_instance = data.get("cluster_instance", "")
 
-    if jupyter_token is None or cluster_label is None:
-        raise HTTPException(status_code=400, detail="Missing required fields: jupyter_token or cluster_label")
+    # Mandatory fields
+    try:
+        jupyter_token = data["jupyter_token"]
+        dask_gateway_address = data["dask_gateway_address"]
+        cluster_label = data["cluster_label"]
+    except KeyError as error:
+        raise HTTPException(status_code=400, detail=f"Missing required field: {str(error)}")
+
+    # Optional fields
+    cluster_instance = data.get("cluster_instance", "")
 
     return ClusterInfo(
         jupyter_token=jupyter_token,
+        dask_gateway_address=dask_gateway_address,
         cluster_label=cluster_label,
         cluster_instance=cluster_instance,
     )

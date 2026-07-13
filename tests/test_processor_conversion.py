@@ -34,11 +34,11 @@ def _set_conversion_env(monkeypatch):
     monkeypatch.setenv("S3_REGION", "region")
 
 
-def _build_processor(mocker):
+def _build_processor(mocker, cluster_info):
     """Create a ConversionProcessor with mocked database access."""
     return ConversionProcessor(
         db_process_manager=mocker.Mock(),
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=cluster_info,
     )
 
 
@@ -67,13 +67,17 @@ def test_conversion_processor_initializes_generic_processor_configuration(mocker
     monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
     db_process_manager = mocker.Mock()
-    cluster_info = ClusterInfo(jupyter_token="token", cluster_label="dask-l0")  # nosec B106
+    cluster_info = ClusterInfo(
+        jupyter_token="token",
+        dask_gateway_address="address",
+        cluster_label="dask-l0",
+    )  # nosec B106
 
     processor = ConversionProcessor(db_process_manager=db_process_manager, cluster_info=cluster_info)
 
     assert isinstance(processor, GenericProcessor)
     assert processor.cluster_handler.cluster_info is cluster_info
-    assert processor.cluster_handler.cluster_address == "http://dask-gateway.test"
+    assert processor.cluster_handler.dask_gateway_address == "http://dask-gateway.test"
     db_process_manager.add_job.assert_called_once()
 
 
@@ -102,7 +106,11 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
     db_process_manager = mocker.Mock()
     processor = ConversionProcessor(
         db_process_manager=db_process_manager,
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=ClusterInfo(
+            jupyter_token="token",
+            dask_gateway_address="address",
+            cluster_label="dask-l0",
+        ),  # nosec B106
     )
 
     # Mock S3 checks, but let _check_s3_config/_check_input_output_uris/_check_write_permission run.
@@ -183,6 +191,7 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
 def test_execute_marks_job_failed_when_conversion_validation_fails(
     mocker,
     monkeypatch,
+    cluster_info,
     case_name,
     payload_updates,
     env_to_delete,
@@ -199,7 +208,7 @@ def test_execute_marks_job_failed_when_conversion_validation_fails(
     data = _valid_conversion_payload()
     data.update(payload_updates)
 
-    processor = _build_processor(mocker)
+    processor = _build_processor(mocker, cluster_info)
     s3_fs = mocker.Mock()
     # Some cases need path-specific existence checks; others can use a single boolean result.
     if isinstance(exists_result, dict):
@@ -221,7 +230,7 @@ def test_execute_marks_job_failed_when_conversion_validation_fails(
     assert processor.job_logger.status == JobStatus.failed
 
 
-def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker, monkeypatch):
+def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker, monkeypatch, cluster_info):
     """Test execute() when conversion manage_dask_tasks() receives no Dask client."""
     _set_conversion_env(monkeypatch)
 
@@ -243,7 +252,7 @@ def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker,
         """Run asyncio.to_thread() work inline for deterministic assertions."""
         return func(*args, **kwargs)
 
-    processor = _build_processor(mocker)
+    processor = _build_processor(mocker, cluster_info)
     s3_fs = mocker.Mock()
     s3_fs.exists.return_value = True
     s3_fs.open = mocker.mock_open()
@@ -259,7 +268,12 @@ def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker,
 
 
 @pytest.mark.parametrize("dask_failure", ["submit", "result"])
-def test_execute_marks_job_failed_when_conversion_dask_processing_fails(mocker, monkeypatch, dask_failure):
+def test_execute_marks_job_failed_when_conversion_dask_processing_fails(
+    mocker,
+    monkeypatch,
+    cluster_info,
+    dask_failure,
+):
     """Test execute() when conversion Dask submission or result retrieval fails."""
     _set_conversion_env(monkeypatch)
 
@@ -281,7 +295,7 @@ def test_execute_marks_job_failed_when_conversion_dask_processing_fails(mocker, 
         """Run asyncio.to_thread() work inline for deterministic assertions."""
         return func(*args, **kwargs)
 
-    processor = _build_processor(mocker)
+    processor = _build_processor(mocker, cluster_info)
     s3_fs = mocker.Mock()
     s3_fs.exists.return_value = True
     s3_fs.open = mocker.mock_open()
