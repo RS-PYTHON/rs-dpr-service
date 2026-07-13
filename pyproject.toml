@@ -53,7 +53,7 @@ include = [
 # NOTE: the python and dask version will be overriden locally by the ci/cd
 # when building binaries specific to these versions.
 python = "==3.13.12"
-dask = {extras = ["distributed"], version = "2026.3.0"}
+dask = {extras = ["distributed"], version = "2026.7.0"}
 
 pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
@@ -62,7 +62,7 @@ fastapi = ">=0.123.0"
 geoalchemy2 = ">=0.18.0"
 SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
-dask-gateway = "2025.4.0"
+dask-gateway = "2026.3.0"
 openapi-core = ">=0.22.0"
 bandit = "^1.8.3"
 mypy = "^1.15.0"
