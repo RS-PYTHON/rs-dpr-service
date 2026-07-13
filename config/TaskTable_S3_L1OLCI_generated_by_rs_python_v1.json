@@ -29,94 +29,79 @@
       },
       "input_products": [
         {
-          "name": "S03OLCL0_1",
+          "name": "S3OLCIL0_1",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCL0_2",
+          "name": "S3OLCIL0_2",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCL0_3",
+          "name": "S3OLCIL0_3",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03OLCRAC",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S03NATL0_1",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S03NATL0_2",
-          "mode": "always",
-          "mandatory": false
-        },
-        {
-          "name": "S03NATL0_3",
+          "name": "S3NAVL0_1",
           "mode": "always",
           "mandatory": false
         }
       ],
       "input_adfs": [
         {
-          "name": "Orbit_file",
+          "name": "FRO",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "Reference_Orbit_Scenario_file",
+          "name": "OSF",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_ECMWF",
+          "name": "ECMWF",
           "mode": "nrt",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_ECMWA",
+          "name": "ECMWA",
           "mode": "ntc",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLINS",
+          "name": "OLCAL",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLCAL",
+          "name": "OLPRG",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLPRG",
+          "name": "OLLUT",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLLUT",
+          "name": "GETAS",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_GETAS",
+          "name": "WATER",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S00_ADF_WATER",
+          "name": "OLEOP",
           "mode": "always",
           "mandatory": true
         },
         {
-          "name": "S03_ADF_OLEOP",
+          "name": "OLINS",
           "mode": "always",
           "mandatory": true
         }
@@ -137,7 +122,7 @@
   ],
   "io": [
     {
-      "name": "S03OLCL0_1",
+      "name": "S3OLCIL0_1",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -145,7 +130,7 @@
       }
     },
     {
-      "name": "S03OLCL0_2",
+      "name": "S3OLCIL0_2",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -153,7 +138,7 @@
       }
     },
     {
-      "name": "S03OLCL0_3",
+      "name": "S3OLCIL0_3",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -161,7 +146,7 @@
       }
     },
     {
-      "name": "S03OLCRAC",
+      "name": "S3NAVL0_1",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -169,31 +154,7 @@
       }
     },
     {
-      "name": "S03NATL0_1",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S03NATL0_2",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "S03NATL0_3",
-      "type": "filename",
-      "store_type": "zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "Orbit_file",
+      "name": "FRO",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -206,7 +167,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_FROAX",
+              "product_type": "AX___FRO_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -221,7 +182,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_FPOAX",
+              "product_type": "AX___FPO_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -236,7 +197,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_OSFAX",
+              "product_type": "AX___OSF_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -251,7 +212,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S00_ADF_IERSB",
+              "product_type": "AX__OSF_IERSB",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -263,7 +224,7 @@
       ]
     },
     {
-      "name": "Reference_Orbit_Scenario_file",
+      "name": "OSF",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -276,7 +237,7 @@
           "query": {
             "name": "LatestValCover",
             "parameters": {
-              "product_type": "S03_ADF_OSFAX",
+              "product_type": "AX___OSF_AX",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -288,7 +249,7 @@
       ]
     },
     {
-      "name": "S00_ADF_ECMWF",
+      "name": "ECMWF",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -301,7 +262,7 @@
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
-              "product_type": "S00_ADF_ECMWF",
+              "product_type": "ADF_ECMWF",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -313,7 +274,7 @@
       ]
     },
     {
-      "name": "S00_ADF_ECMWA",
+      "name": "ECMWA",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -326,7 +287,7 @@
           "query": {
             "name": "ValIntersectWithoutDuplicates",
             "parameters": {
-              "product_type": "S00_ADF_ECMWA",
+              "product_type": "ADF_ECMWA",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -338,7 +299,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLINS",
+      "name": "OLINS",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -351,7 +312,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLINS",
+              "product_type": "ADF_OLINS",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -363,7 +324,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLCAL",
+      "name": "OLCAL",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -376,7 +337,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLCAL",
+              "product_type": "ADF_OLCAL",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -388,7 +349,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLPRG",
+      "name": "OLPRG",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -401,7 +362,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLPRG",
+              "product_type": "ADF_OLPRG",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -413,7 +374,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLLUT",
+      "name": "OLLUT",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -426,7 +387,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLLUT",
+              "product_type": "ADF_OLLUT",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -438,7 +399,7 @@
       ]
     },
     {
-      "name": "S00_ADF_GETAS",
+      "name": "GETAS",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -451,7 +412,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S00_ADF_GETAS",
+              "product_type": "ADF_GETAS",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -463,7 +424,7 @@
       ]
     },
     {
-      "name": "S00_ADF_WATER",
+      "name": "WATER",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -476,7 +437,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S00_ADF_WATER",
+              "product_type": "ADF_WATER",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -488,7 +449,7 @@
       ]
     },
     {
-      "name": "S03_ADF_OLEOP",
+      "name": "OLEOP",
       "type": "filename",
       "store_type": "zarr",
       "store_params": {
@@ -501,7 +462,7 @@
           "query": {
             "name": "LatestValIntersect",
             "parameters": {
-              "product_type": "S03_ADF_OLEOP",
+              "product_type": "ADF_OLEOP",
               "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
@@ -514,7 +475,7 @@
     },
     {
       "name": "S03OLCEFR",
-      "type": "filename",
+      "type": "folder",
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
@@ -522,7 +483,7 @@
     },
     {
       "name": "S03OLCERR",
-      "type": "filename",
+      "type": "folder",
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
@@ -834,16 +795,13 @@
       "description": "Full Sentinel-3 OLCI L1 EO processing",
       "steps": [
         {
-          "unit_name": "OL1",
+          "unit_name": "OL1Processor",
           "step_id": 1,
           "input_products": {
-            "S03OLCL0_1": "pipeline_input",
-            "S03OLCL0_2": "pipeline_input",
-            "S03OLCL0_3": "pipeline_input",
-            "S03OLCRAC": "pipeline_input",
-            "S03NATL0_1": "pipeline_input",
-            "S03NATL0_2": "pipeline_input",
-            "S03NATL0_3": "pipeline_input"
+            "S3OLCIL0_1": "pipeline_input",
+            "S3OLCIL0_2": "pipeline_input",
+            "S3OLCIL0_3": "pipeline_input",
+            "S3NAVL0_1": "pipeline_input"
           },
           "output_products": {
             "S03OLCEFR": "pipeline_output",

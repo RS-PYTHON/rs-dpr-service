@@ -164,7 +164,7 @@ def botocore_hook(span, _service_name, _operation_name, api_params: dict):
     span.set_attribute("_path", f"s3://{bucket}/{key}")
 
 
-def init_traces(app: fastapi.FastAPI | None, service_name: str):
+def init_traces(app: fastapi.FastAPI | None = None, service_name: str = ""):
     """
     Init instrumentation of OpenTelemetry traces.
 
@@ -179,7 +179,8 @@ def init_traces(app: fastapi.FastAPI | None, service_name: str):
         INITIALIZED = True
 
     # Set the opentelemetry service name
-    os.environ["OTEL_SERVICE_NAME"] = service_name
+    if service_name:
+        os.environ["OTEL_SERVICE_NAME"] = service_name
 
     # Send openelemetry signals to tempo
     if not (tempo_endpoint := os.getenv("TEMPO_ENDPOINT")):
