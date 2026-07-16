@@ -26,8 +26,10 @@ import pytest
 
 from rs_dpr_service.dask import call_dask
 
+from .conftest import get_cluster_info
 
-def _make_processor_caller(mocker, cluster_info, use_mockup=False):
+
+def _make_processor_caller(mocker, use_mockup=False):
     """Create ProcessorCaller with the minimal worker-only imports stubbed."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -43,7 +45,7 @@ def _make_processor_caller(mocker, cluster_info, use_mockup=False):
         },
         span_context=mocker.Mock(),
         dask_gateway_address="http://dask-gateway.test",
-        cluster_info=cluster_info,
+        cluster_info=get_cluster_info(),
         processor_name="mockup" if use_mockup else "s1_l0",
         job_id="job-1",
         data={"payload": "value"},
@@ -62,9 +64,9 @@ def test_get_ip_address_resolves_hostname(mocker):
     gethostbyname.assert_called_once_with("worker-host")
 
 
-def test_processor_caller_hide_secrets_masks_sensitive_log_values(mocker, cluster_info):
+def test_processor_caller_hide_secrets_masks_sensitive_log_values(mocker):
     """Test ProcessorCaller.hide_secrets() masks sensitive values in log payloads."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     # The log mimics payload/S3 credentials printed by EOPF before being forwarded to our logs.
     log = (
         "{"
@@ -200,9 +202,9 @@ def test_convert_safe_to_zarr_raises_when_subprocess_fails(mocker, monkeypatch, 
         call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
 
 
-def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(mocker, cluster_info):
+def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(mocker):
     """Test ProcessorCaller.get_tasktable() nominally loads a processor class and returns its tasktable."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     # Env propagation is covered by run_processor(); keep this test focused on tasktable loading.
     caller.copy_caller_env = mocker.Mock()
 
@@ -248,9 +250,9 @@ def test_processor_caller_get_tasktable_returns_imported_processor_tasktable(moc
     assert result == {"tasks": [{"name": "task-1"}]}
 
 
-def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocker, cluster_info):
+def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocker):
     """Test ProcessorCaller.get_tasktable() uses the normal dynamic import path for mockup."""
-    caller = _make_processor_caller(mocker, cluster_info, use_mockup=True)
+    caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
 
     class MockupProcessor:
@@ -292,7 +294,7 @@ def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocke
     assert result == {"mockup": True}
 
 
-def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch, cluster_info):
+def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch):
     """Test ProcessorCaller.run_processor() copies env, runs init/trigger/finalize, and returns the result."""
     # Track env restoration even though copy_caller_env() writes directly into os.environ.
     for key in (
@@ -309,7 +311,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     ):
         monkeypatch.setenv(key, "")
 
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     expected_result = {"result": "ok"}
     # Keep run_processor() real, but stop before real EOPF init/subprocess/final upload.
     caller.init = mocker.Mock()
@@ -345,9 +347,9 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert caller.exec_times[0][0] == "Run processor"
 
 
-def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger_fails(mocker, cluster_info):
+def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger_fails(mocker):
     """Test ProcessorCaller.run_processor() finalizes and records errors when trigger() fails."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     # Isolate the error branch: only trigger() fails, cleanup/finalize stays observable.
     caller.copy_caller_env = mocker.Mock()
     caller.init = mocker.Mock()
@@ -379,9 +381,9 @@ def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger
     record_error.assert_called_once_with(span, caller.trigger.side_effect)
 
 
-def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(mocker, cluster_info):
+def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(mocker):
     """Test ProcessorCaller.run_processor() uses normal init/trigger/finalize orchestration for mockup."""
-    caller = _make_processor_caller(mocker, cluster_info, use_mockup=True)
+    caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
     caller.init = mocker.Mock()
     caller.trigger = mocker.Mock()
@@ -407,9 +409,9 @@ def test_processor_caller_run_processor_uses_normal_orchestration_for_mockup(moc
     assert result == {"mockup": "ok"}
 
 
-def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup(mocker, cluster_info):
+def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup(mocker):
     """Test ProcessorCaller.run_processor() returns the normal finalize() value for mockup."""
-    caller = _make_processor_caller(mocker, cluster_info, use_mockup=True)
+    caller = _make_processor_caller(mocker, use_mockup=True)
     caller.copy_caller_env = mocker.Mock()
     caller.init = mocker.Mock()
     caller.trigger = mocker.Mock()
@@ -432,9 +434,9 @@ def test_processor_caller_run_processor_returns_normal_finalize_value_for_mockup
     assert result == {}
 
 
-def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mocker, monkeypatch, cluster_info):
+def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mocker, monkeypatch):
     """Test ProcessorCaller.trigger() calls EORunner directly in local mode with local cluster enabled."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     caller.experimental_config = call_dask.ExperimentalConfig(
         local_cluster=call_dask.ExperimentalConfig.LocalCluster(enabled=True),
     )
@@ -462,9 +464,9 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
 # ---- handle_experimental_config ----
 
 
-def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker, cluster_info):
+def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker):
     """Test handle_experimental_config() falls back to the 'io' key when 'I/O' is absent."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     caller.data = {"experimental_config": {"local_files": {"local_dir": "/data/local"}}}
     handle_local_product = mocker.patch.object(caller, "handle_local_product")
 
@@ -537,9 +539,9 @@ def test_collect_storage_options_uses_lowercase_io_key_fallback():
 # ---- write_secret_conf_files ----
 
 
-def test_write_secret_conf_files_errors_on_multiple_files(mocker, cluster_info, tmp_path):
+def test_write_secret_conf_files_errors_on_multiple_files(mocker, tmp_path):
     """Logs an error and writes nothing when more than one secret file is requested."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     error_log = mocker.patch("rs_dpr_service.dask.call_dask.logger.error")
 
     caller.write_secret_conf_files(["a.json", "b.json"], {}, str(tmp_path / "payload.yaml"))
@@ -548,9 +550,9 @@ def test_write_secret_conf_files_errors_on_multiple_files(mocker, cluster_info, 
     assert not list(tmp_path.iterdir())
 
 
-def test_write_secret_conf_files_warns_when_no_storage_options(mocker, cluster_info, tmp_path):
+def test_write_secret_conf_files_warns_when_no_storage_options(mocker, tmp_path):
     """Logs a warning and writes nothing when the payload contains no storage_options."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     warn_log = mocker.patch("rs_dpr_service.dask.call_dask.logger.warning")
 
     caller.write_secret_conf_files(["secrets.json"], {}, str(tmp_path / "payload.yaml"))
@@ -559,9 +561,9 @@ def test_write_secret_conf_files_warns_when_no_storage_options(mocker, cluster_i
     assert not (tmp_path / "secrets.json").exists()
 
 
-def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, cluster_info, tmp_path):
+def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_path):
     """Logs an error and writes nothing when differing credentials are found across products."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     payload = {
         "I/O": {
             "input_products": [
@@ -594,9 +596,9 @@ def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, clus
     assert not (tmp_path / "secrets.json").exists()
 
 
-def test_write_secret_conf_files_nominal(mocker, cluster_info, tmp_path):
+def test_write_secret_conf_files_nominal(mocker, tmp_path):
     """Writes secrets.json with the correct structure when all credentials are identical."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     creds = {
         "key": "mykey",
         "secret": "mysecret",  # nosec B105
@@ -623,9 +625,9 @@ def test_write_secret_conf_files_nominal(mocker, cluster_info, tmp_path):
     }
 
 
-def test_write_secret_conf_files_written_next_to_payload(mocker, cluster_info, tmp_path):
+def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
     """Secrets file is created in the payload directory, not the process cwd."""
-    caller = _make_processor_caller(mocker, cluster_info)
+    caller = _make_processor_caller(mocker)
     payload_dir = tmp_path / "subdir"
     payload_dir.mkdir()
     creds = {

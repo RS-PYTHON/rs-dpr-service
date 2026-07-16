@@ -32,6 +32,12 @@ for envvar in "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_P
 
 from rs_dpr_service.main import app
 
+get_cluster_info = lambda: ClusterInfo(
+    jupyter_token="token",
+    dask_gateway_address="http://dask-gateway.test",
+    cluster_label="dask-l0",
+)
+
 
 @pytest.fixture(name="client")
 def client_(mocker):
@@ -42,9 +48,3 @@ def client_(mocker):
     with TestClient(app) as client:
 
         yield client
-
-
-@pytest.fixture(name="cluster_info", scope="function")
-def cluster_info():
-    """Mock ClusterInfo instance"""
-    yield ClusterInfo(jupyter_token="token", dask_gateway_address="address", cluster_label="dask-l0")

@@ -23,11 +23,12 @@ from opentelemetry.trace import StatusCode
 from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
 from rs_dpr_service.utils.settings import set_dask_env
 
+from .conftest import get_cluster_info
 
-def _mock_nominal_gateway_connection(mocker, monkeypatch, cluster_info, scheduler_info):
+
+def _mock_nominal_gateway_connection(mocker, monkeypatch, scheduler_info):
     """Prepare a mocked Dask Gateway connection for setup_dask_connection()."""
     # The handler reads these env vars while building the Gateway connection.
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
     monkeypatch.setenv("DASK_GATEWAY__AUTH__TYPE", "jupyterhub")
 
     span = mocker.Mock()
@@ -39,7 +40,7 @@ def _mock_nominal_gateway_connection(mocker, monkeypatch, cluster_info, schedule
         assert not kwargs
         yield span
 
-    handler = DaskClusterHandler(cluster_info=cluster_info, local_mode_address="")
+    handler = DaskClusterHandler(cluster_info=get_cluster_info(), local_mode_address="")
 
     # The newest matching cluster should be selected after sorting by start_time.
     gateway_cluster = mocker.Mock()
@@ -164,7 +165,6 @@ def test_setup_dask_connection_records_error_when_scheduler_info_fails(mocker, m
 def test_setup_dask_connection_raises_for_gateway_connection_errors(
     mocker,
     monkeypatch,
-    cluster_info,
     case_name,
     auth_type,
     clusters,
@@ -172,7 +172,6 @@ def test_setup_dask_connection_raises_for_gateway_connection_errors(
     expected_message,
 ):
     """Test setup_dask_connection() raises clear errors for Dask Gateway connection failures."""
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
     monkeypatch.setenv("DASK_GATEWAY__AUTH__TYPE", auth_type)
 
     span = mocker.Mock()
@@ -196,7 +195,7 @@ def test_setup_dask_connection_raises_for_gateway_connection_errors(
     mocker.patch("rs_dpr_service.dask.dask_cluster_handler.start_span", side_effect=fake_start_span)
 
     handler = DaskClusterHandler(
-        cluster_info=cluster_info,
+        cluster_info=get_cluster_info(),
         local_mode_address="",
     )
 
@@ -216,9 +215,8 @@ def test_setup_dask_connection_raises_for_gateway_connection_errors(
     record_error.assert_called_once_with(span, mocker.ANY)
 
 
-def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, monkeypatch, cluster_info):
+def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, monkeypatch):
     """Test setup_dask_connection() raises when Dask Gateway auth env is missing."""
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
     monkeypatch.delenv("DASK_GATEWAY__AUTH__TYPE", raising=False)
 
     span = mocker.Mock()
@@ -236,7 +234,7 @@ def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, m
     mocker.patch("rs_dpr_service.dask.dask_cluster_handler.start_span", side_effect=fake_start_span)
 
     handler = DaskClusterHandler(
-        cluster_info=cluster_info,
+        cluster_info=get_cluster_info(),
         local_mode_address="",
     )
 

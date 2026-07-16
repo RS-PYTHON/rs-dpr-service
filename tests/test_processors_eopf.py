@@ -26,6 +26,8 @@ from rs_dpr_service.processors.eopf_processors import (
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
+from .conftest import get_cluster_info
+
 
 @pytest.mark.parametrize(
     ("processor_cls", "tasktable_module", "tasktable_class"),
@@ -41,18 +43,15 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 )
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
     mocker,
-    monkeypatch,
-    cluster_info,
     processor_cls,
     tasktable_module,
     tasktable_class,
 ):
     """Test each EOPF processor initializes the expected generic processor configuration."""
     # The constructors go through GenericProcessor, which immediately builds a DaskClusterHandler.
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
-
     db_process_manager = mocker.Mock()
 
+    cluster_info = get_cluster_info()
     processor = processor_cls(db_process_manager=db_process_manager, cluster_info=cluster_info)
 
     assert isinstance(processor, GenericProcessor)
@@ -77,15 +76,11 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
 @pytest.mark.asyncio
 async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
     mocker,
-    monkeypatch,
-    cluster_info,
     processor_cls,
     expected_filename,
 ):
     """Test each EOPF processor get_tasktable() loads the expected tasktable file."""
     # Instantiation still builds the shared Dask cluster handler, even though get_tasktable() is local here.
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
-
     expected_tasktable = {"filename": expected_filename}
     # Mock the loader so the test verifies which tasktable filename the processor selects.
     load_tasktable = mocker.patch(
@@ -95,7 +90,7 @@ async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
 
     processor = processor_cls(
         db_process_manager=mocker.Mock(),
-        cluster_info=cluster_info,
+        cluster_info=get_cluster_info(),
     )
 
     result = await processor.get_tasktable()
