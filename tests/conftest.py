@@ -32,11 +32,14 @@ for envvar in "POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_P
 
 from rs_dpr_service.main import app
 
-get_cluster_info = lambda: ClusterInfo(
-    jupyter_token="token",
-    dask_gateway_address="http://dask-gateway.test",
-    cluster_label="dask-l0",
-)
+
+def get_cluster_info():
+    """Dummy cluster info"""
+    return ClusterInfo(
+        jupyter_token="token",  # nosec
+        dask_gateway_address="http://dask-gateway.test",
+        cluster_label="dask-l0",
+    )
 
 
 @pytest.fixture(name="client")

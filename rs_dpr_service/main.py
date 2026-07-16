@@ -263,7 +263,7 @@ def build_cluster_info(data: dict) -> ClusterInfo:
         dask_gateway_address = data["dask_gateway_address"]
         cluster_label = data["cluster_label"]
     except KeyError as error:
-        raise HTTPException(status_code=400, detail=f"Missing required field: {str(error)}")
+        raise HTTPException(status_code=400, detail=f"Missing required field: {str(error)}") from error
 
     # Optional fields
     cluster_instance = data.get("cluster_instance", "")

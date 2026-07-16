@@ -488,9 +488,9 @@ def test_collect_storage_options_returns_empty_when_no_io_section():
 
 def test_collect_storage_options_gathers_all_sections():
     """Collects storage_options from input_products, output_products, and adfs."""
-    so_in = {"key": "k1", "secret": "s1"}  # nosec B105
-    so_out = {"key": "k2", "secret": "s2"}  # nosec B105
-    so_adf = {"key": "k3", "secret": "s3"}  # nosec B105
+    so_in = {"key": "k1", "secret": "s1"}  # nosec
+    so_out = {"key": "k2", "secret": "s2"}  # nosec
+    so_adf = {"key": "k3", "secret": "s3"}  # nosec
     payload = {
         "I/O": {
             "input_products": [{"reader_params": {"storage_options": so_in}}],
@@ -571,7 +571,7 @@ def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_
                     "reader_params": {
                         "storage_options": {
                             "key": "k1",
-                            "secret": "s1",  # nosec B105
+                            "secret": "s1",  # nosec
                             "client_kwargs": {"endpoint_url": "u1", "region_name": "r1"},
                         },
                     },
@@ -580,7 +580,7 @@ def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_
                     "reader_params": {
                         "storage_options": {
                             "key": "k2",
-                            "secret": "s2",  # nosec B105
+                            "secret": "s2",  # nosec
                             "client_kwargs": {"endpoint_url": "u2", "region_name": "r2"},
                         },
                     },
@@ -601,7 +601,7 @@ def test_write_secret_conf_files_nominal(mocker, tmp_path):
     caller = _make_processor_caller(mocker)
     creds = {
         "key": "mykey",
-        "secret": "mysecret",  # nosec B105
+        "secret": "mysecret",  # nosec
         "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
     }
     payload = {
@@ -619,7 +619,7 @@ def test_write_secret_conf_files_nominal(mocker, tmp_path):
     assert json.loads(secrets_path.read_text(encoding="utf-8")) == {
         "s3": {
             "key": "mykey",
-            "secret": "mysecret",  # nosec B105
+            "secret": "mysecret",  # nosec
             "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
         },
     }
@@ -632,7 +632,7 @@ def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
     payload_dir.mkdir()
     creds = {
         "key": "k",
-        "secret": "s",  # nosec B105
+        "secret": "s",  # nosec
         "client_kwargs": {"endpoint_url": "u", "region_name": "r"},
     }
     payload = {"I/O": {"input_products": [{"reader_params": {"storage_options": creds}}]}}

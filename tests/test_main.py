@@ -64,30 +64,30 @@ def test_build_cluster_info_all_fields():
         "dask_gateway_address": "http://dask-gateway.test",
         "cluster_label": "dask-l0",
         "cluster_instance": "instance-1",
-    }  # nosec B105
+    }  # nosec
 
     result = build_cluster_info(data)
 
     assert isinstance(result, ClusterInfo)
-    assert result.jupyter_token == "jupyter"  # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec
     assert result.dask_gateway_address == "http://dask-gateway.test"
-    assert result.cluster_label == "dask-l0"  # nosec B105
-    assert result.cluster_instance == "instance-1"  # nosec B105
+    assert result.cluster_label == "dask-l0"  # nosec
+    assert result.cluster_instance == "instance-1"  # nosec
 
 
 def test_build_cluster_info_without_cluster_instance():
     """Test if the optional parameter is set to default value."""
     data = {
-        "jupyter_token": "jupyter",  # nosec B105
+        "jupyter_token": "jupyter",  # nosec
         "dask_gateway_address": "http://dask-gateway.test",
-        "cluster_label": "dask-l0",  # nosec B105
+        "cluster_label": "dask-l0",  # nosec
     }
 
     result = build_cluster_info(data)
 
-    assert result.jupyter_token == "jupyter"  # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec
     assert result.dask_gateway_address == "http://dask-gateway.test"
-    assert result.cluster_label == "dask-l0"  # nosec B105
+    assert result.cluster_label == "dask-l0"  # nosec
     assert result.cluster_instance == ""
 
 
@@ -262,7 +262,7 @@ def test_get_resource_endpoint_returns_404_for_unknown_resource(client):
     assert response.json()["detail"] == "Process 'unknown-process' not found"
 
 
-def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker, monkeypatch):
+def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker):
     """Test the endpoint response for a known process resource."""
     client.app.extra["process_manager"] = mocker.Mock()
 
@@ -282,7 +282,7 @@ def test_execute_process_returns_404_for_unknown_resource(client, mocker):
     start_span_mock.return_value.__exit__.return_value = False
     mocker.patch(
         "rs_dpr_service.main.validate_request",
-        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec
     )
 
     response = client.post("/dpr/processes/unknown-process/execution", json={})
