@@ -41,7 +41,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
 
     def __init__(self, cluster_info: ClusterInfo, local_mode_address: str):
         self.cluster_info = cluster_info
-        self.cluster_address = os.environ[local_mode_address] if LOCAL_MODE else os.environ["DASK_GATEWAY_ADDRESS"]
+        self.dask_gateway_address = os.environ[local_mode_address] if LOCAL_MODE else cluster_info.dask_gateway_address
         self.cluster: GatewayCluster
 
     def _connect_to_cluster(self):
@@ -72,13 +72,13 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                     raise RuntimeError(f"Unsupported authentication type: {auth_type}")
 
             gateway = Gateway(
-                address=self.cluster_address,
+                address=self.dask_gateway_address,
                 auth=gateway_auth,
             )
 
             # Sort the clusters by newest first
             clusters = sorted(gateway.list_clusters(), key=lambda cluster: cluster.start_time, reverse=True)
-            logger.debug(f"Cluster list for gateway {self.cluster_address!r}: {clusters}")
+            logger.debug(f"Cluster list for gateway {self.dask_gateway_address!r}: {clusters}")
 
             # We need to find the cluster instance, if it is not set in the input info
             if not self.cluster_info.cluster_instance:

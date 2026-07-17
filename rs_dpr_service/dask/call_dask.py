@@ -146,12 +146,14 @@ class ClusterInfo:
 
     Attributes:
         jupyter_token: JupyterHub API token. Only used in cluster mode, not local mode.
+        dask_gateway_address: Dask gateway address, defined in Jupyter, with a different value for each organization.
         cluster_label: Dask cluster label e.g. "dask-l0"
         cluster_instance: Dask cluster instance ID (something like "dask-gateway.17e196069443463495547eb97f532834").
         If instance is empty, the DPR processor will use the first cluster with the given label.
     """
 
     jupyter_token: str
+    dask_gateway_address: str
     cluster_label: str
     cluster_instance: str | None = ""
 
@@ -203,7 +205,7 @@ class ProcessorCaller:
         self,
         caller_env: dict[str, str],
         span_context: SpanContext,
-        cluster_address: str,
+        dask_gateway_address: str,
         cluster_info: ClusterInfo,
         processor_name: str,
         job_id: str,
@@ -215,7 +217,7 @@ class ProcessorCaller:
         Attributes:
             caller_env: env variables coming from the caller
             span_context: OpenTelemetry caller span context
-            cluster_address: Dask Gateway address
+            dask_gateway_address: Dask Gateway address
             cluster_info: Information to connect to a DPR Dask cluster.
             processor_name: processor name used as opentelemetry service name
             job_id: pygeoapi job id saved in the database.
@@ -240,7 +242,7 @@ class ProcessorCaller:
 
         self.caller_env: dict[str, str] = caller_env
         self.span_context = span_context
-        self.cluster_address: str = cluster_address
+        self.dask_gateway_address: str = dask_gateway_address
         self.cluster_info: ClusterInfo = cluster_info
         self.processor_name: str = processor_name
         self.job_id: str = job_id
@@ -589,7 +591,7 @@ class ProcessorCaller:
                 "dask_context": {
                     "cluster_type": "gateway",
                     "cluster_config": {
-                        "address": self.cluster_address,
+                        "address": self.dask_gateway_address,
                         "reuse_cluster": self.cluster_info.cluster_instance,
                         "auth": auth,
                     },

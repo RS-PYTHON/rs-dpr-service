@@ -75,7 +75,7 @@ class GenericProcessor(BaseProcessor):
             dpr_processor = call_dask.ProcessorCaller(
                 caller_env=dict(os.environ),
                 span_context=span_context,
-                cluster_address=self.cluster_handler.cluster_address,
+                dask_gateway_address=self.cluster_handler.dask_gateway_address,
                 cluster_info=self.cluster_handler.cluster_info,
                 processor_name=self.get_processor_name(),
                 job_id=self.job_logger.job_id,
@@ -213,7 +213,7 @@ class GenericProcessor(BaseProcessor):
                 dpr_processor = call_dask.ProcessorCaller(
                     caller_env=dict(os.environ),
                     span_context=span.get_span_context(),
-                    cluster_address=self.cluster_handler.cluster_address,
+                    dask_gateway_address=self.cluster_handler.dask_gateway_address,
                     cluster_info=self.cluster_handler.cluster_info,
                     processor_name=processor_name,
                     job_id=self.job_logger.job_id,

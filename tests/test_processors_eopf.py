@@ -16,7 +16,6 @@
 
 import pytest
 
-from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.processors.eopf_processors import (
     MockupProcessor,
     S1ARDProcessor,
@@ -26,6 +25,8 @@ from rs_dpr_service.processors.eopf_processors import (
     S3L2OLCIProcessor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
+
+from .conftest import get_cluster_info
 
 
 @pytest.mark.parametrize(
@@ -42,25 +43,22 @@ from rs_dpr_service.processors.generic_processor import GenericProcessor
 )
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
     mocker,
-    monkeypatch,
     processor_cls,
     tasktable_module,
     tasktable_class,
 ):
     """Test each EOPF processor initializes the expected generic processor configuration."""
     # The constructors go through GenericProcessor, which immediately builds a DaskClusterHandler.
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
-
     db_process_manager = mocker.Mock()
-    cluster_info = ClusterInfo(jupyter_token="token", cluster_label="dask-l0")  # nosec B106
 
+    cluster_info = get_cluster_info()
     processor = processor_cls(db_process_manager=db_process_manager, cluster_info=cluster_info)
 
     assert isinstance(processor, GenericProcessor)
     assert processor.tasktable_module == tasktable_module
     assert processor.tasktable_class == tasktable_class
     assert processor.cluster_handler.cluster_info is cluster_info
-    assert processor.cluster_handler.cluster_address == "http://dask-gateway.test"
+    assert processor.cluster_handler.dask_gateway_address == "http://dask-gateway.test"
     db_process_manager.add_job.assert_called_once()
 
 
@@ -78,14 +76,11 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
 @pytest.mark.asyncio
 async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
     mocker,
-    monkeypatch,
     processor_cls,
     expected_filename,
 ):
     """Test each EOPF processor get_tasktable() loads the expected tasktable file."""
     # Instantiation still builds the shared Dask cluster handler, even though get_tasktable() is local here.
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
-
     expected_tasktable = {"filename": expected_filename}
     # Mock the loader so the test verifies which tasktable filename the processor selects.
     load_tasktable = mocker.patch(
@@ -95,7 +90,7 @@ async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
 
     processor = processor_cls(
         db_process_manager=mocker.Mock(),
-        cluster_info=ClusterInfo(jupyter_token="token", cluster_label="dask-l0"),  # nosec B106
+        cluster_info=get_cluster_info(),
     )
 
     result = await processor.get_tasktable()

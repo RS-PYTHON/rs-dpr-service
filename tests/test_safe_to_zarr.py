@@ -123,7 +123,7 @@ def test_main_success(monkeypatch, mocker):
 
     expected_s3_cfg = {
         "key": "access",
-        "secret": "secret",  # nosec B105
+        "secret": "secret",  # nosec
         "client_kwargs": {
             "endpoint_url": "https://example.com",
             "region_name": "eu-west-1",

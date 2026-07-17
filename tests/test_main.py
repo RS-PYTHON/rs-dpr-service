@@ -21,6 +21,7 @@ NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 import contextlib
 import copy
 import json
+from dataclasses import asdict
 from datetime import datetime
 from importlib import reload
 from unittest.mock import AsyncMock
@@ -39,6 +40,8 @@ from rs_dpr_service.main import (
     init_db,
 )
 
+from .conftest import get_cluster_info
+
 
 def job_record(identifier: str, status: str = "running") -> dict:
     """Create a database-shaped job payload for endpoint tests."""
@@ -56,27 +59,35 @@ def job_record(identifier: str, status: str = "running") -> dict:
 
 def test_build_cluster_info_all_fields():
     """Test the default behaviour for all parameters set."""
-    data = {"jupyter_token": "jupyter", "cluster_label": "dask-l0", "cluster_instance": "instance-1"}  # nosec B105
+    data = {
+        "jupyter_token": "jupyter",
+        "dask_gateway_address": "http://dask-gateway.test",
+        "cluster_label": "dask-l0",
+        "cluster_instance": "instance-1",
+    }  # nosec
 
     result = build_cluster_info(data)
 
     assert isinstance(result, ClusterInfo)
-    assert result.jupyter_token == "jupyter"  # nosec B105
-    assert result.cluster_label == "dask-l0"  # nosec B105
-    assert result.cluster_instance == "instance-1"  # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec
+    assert result.dask_gateway_address == "http://dask-gateway.test"
+    assert result.cluster_label == "dask-l0"  # nosec
+    assert result.cluster_instance == "instance-1"  # nosec
 
 
 def test_build_cluster_info_without_cluster_instance():
     """Test if the optional parameter is set to default value."""
     data = {
-        "jupyter_token": "jupyter",  # nosec B105
-        "cluster_label": "dask-l0",  # nosec B105
+        "jupyter_token": "jupyter",  # nosec
+        "dask_gateway_address": "http://dask-gateway.test",
+        "cluster_label": "dask-l0",  # nosec
     }
 
     result = build_cluster_info(data)
 
-    assert result.jupyter_token == "jupyter"  # nosec B105
-    assert result.cluster_label == "dask-l0"  # nosec B105
+    assert result.jupyter_token == "jupyter"  # nosec
+    assert result.dask_gateway_address == "http://dask-gateway.test"
+    assert result.cluster_label == "dask-l0"  # nosec
     assert result.cluster_instance == ""
 
 
@@ -90,7 +101,7 @@ def test_build_cluster_info_missing_jupyter_token():
         build_cluster_info(data)
 
     assert exc.value.status_code == 400
-    assert "Missing required fields" in exc.value.detail
+    assert "Missing required field" in exc.value.detail
 
 
 def test_format_jobs_data_missing_jobs_key():
@@ -251,15 +262,11 @@ def test_get_resource_endpoint_returns_404_for_unknown_resource(client):
     assert response.json()["detail"] == "Process 'unknown-process' not found"
 
 
-def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker, monkeypatch):
+def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker):
     """Test the endpoint response for a known process resource."""
     client.app.extra["process_manager"] = mocker.Mock()
-    monkeypatch.setenv("DASK_GATEWAY_ADDRESS", "http://dask-gateway.test")
 
-    response = client.get(
-        "/dpr/processes/mockup",
-        params={"jupyter_token": "token", "cluster_label": "dask-l0"},  # nosec B105
-    )
+    response = client.get("/dpr/processes/mockup", params=asdict(get_cluster_info()))
 
     assert response.status_code == 200
     payload = response.json()
@@ -275,7 +282,7 @@ def test_execute_process_returns_404_for_unknown_resource(client, mocker):
     start_span_mock.return_value.__exit__.return_value = False
     mocker.patch(
         "rs_dpr_service.main.validate_request",
-        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec
     )
 
     response = client.post("/dpr/processes/unknown-process/execution", json={})
@@ -291,7 +298,7 @@ def test_execute_process_endpoint_success(client, mocker):
     start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
     start_span_mock.return_value.__enter__.return_value = span
     start_span_mock.return_value.__exit__.return_value = False
-    valid_body = {"jupyter_token": "jupyter", "cluster_label": "dask-l0"}  # nosec B105
+    valid_body = asdict(get_cluster_info())
 
     # Let client.post() call the real validate_request(), but provide a stable request body.
     mocker.patch(
@@ -343,7 +350,7 @@ def test_execute_process_returns_404_for_unknown_processor_name(client, mocker):
     start_span_mock.return_value.__exit__.return_value = False
     mocker.patch(
         "rs_dpr_service.main.validate_request",
-        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
+        return_value=asdict(get_cluster_info()),
     )
     api_mock = mocker.Mock()
     api_mock.config = {"resources": {"mockup": {"processor": {"name": "unknown_processor"}}}}
@@ -362,10 +369,7 @@ def test_execute_process_records_error_when_processor_execution_fails(client, mo
     start_span_mock = mocker.patch("rs_dpr_service.main.start_span")
     start_span_mock.return_value.__enter__.return_value = span
     start_span_mock.return_value.__exit__.return_value = False
-    mocker.patch(
-        "rs_dpr_service.main.validate_request",
-        return_value={"jupyter_token": "jupyter", "cluster_label": "dask-l0"},  # nosec B105
-    )
+    mocker.patch("rs_dpr_service.main.validate_request", return_value=asdict(get_cluster_info()))
     record_error = mocker.patch("rs_dpr_service.main.record_error")
     client.app.extra["process_manager"] = mocker.Mock()
 
