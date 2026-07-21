@@ -47,7 +47,13 @@ for dep in $deps; do
     used_by=$(jq -r '."used_by"' <<< $dep)
     
     # Skip this set of versions if it is not used by the dpr processors
-    is_dpr=$(jq -r --arg val 'dpr' 'if ($used_by | index($val)) then "true" else "false" end' <<< "$used_by")
+    is_dpr="false"
+    for usage in $used_by; do
+        if [[ $usage == "dpr" ]]; then
+            is_dpr="true"
+            break
+        fi
+    done
     if [[ $is_dpr == "false" ]]; then
         continue
     fi
