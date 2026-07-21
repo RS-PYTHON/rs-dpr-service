@@ -45,7 +45,7 @@ for dep in $deps; do
     python_version=$(jq -r '."python_version"' <<< $dep)
     dask_version=$(jq -r '."dask_version"' <<< $dep)
     used_by=$(jq -r '."used_by"' <<< $dep)
-    
+
     # Skip this set of versions if it is not used by the dpr processors
     is_dpr="false"
     for usage in $used_by; do
@@ -57,7 +57,7 @@ for dep in $deps; do
     if [[ $is_dpr == "false" ]]; then
         continue
     fi
-    
+
     dep_name="py${python_version}-${dask_version}"
 
     # Add dep_name to json array and dict
