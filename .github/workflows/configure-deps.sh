@@ -44,6 +44,14 @@ deps=$(yq -o json $deps_file | jq -c '.deps[]')
 for dep in $deps; do
     python_version=$(jq -r '."python_version"' <<< $dep)
     dask_version=$(jq -r '."dask_version"' <<< $dep)
+    used_by=$(jq -r '."used_by"' <<< $dep)
+    
+    # Skip this set of versions if it is not used by the dpr processors
+    is_dpr=$(jq -r --arg val 'dpr' 'if ($used_by | index($val)) then "true" else "false" end' <<< "$used_by")
+    if [[ $is_dpr == "false" ]]; then
+        continue
+    fi
+    
     dep_name="py${python_version}-${dask_version}"
 
     # Add dep_name to json array and dict
