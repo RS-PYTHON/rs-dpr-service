@@ -49,7 +49,7 @@ for dep in $deps; do
     # Skip this set of versions if it is not used by the dpr processors
     is_dpr="false"
     for usage in $used_by; do
-        if [[ "$usage" == "dpr" ]]; then
+        if [[ $usage == "\"dpr\"" ]]; then
             is_dpr="true"
             break
         fi
