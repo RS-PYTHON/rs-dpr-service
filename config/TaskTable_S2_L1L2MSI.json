@@ -1,4 +1,5 @@
 {
+  "$schema": "./../schemas/TaskTable.schema_cpm3.json",
   "tasktable": {
     "name": "s2-msi",
     "version": "0.1.0",
