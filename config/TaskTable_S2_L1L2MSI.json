@@ -7686,7 +7686,7 @@
           "unit_name": "Framing",
           "step_id": 7,
           "input_products": {
-            "RadiometricOffsetAddition_out": "RadiometricOffsetAddition.RadiometricOffsetAddition_out"
+            "RadiometricOffsetAddition_out": "SWIRRearrangement.6.SWIRRearrangement_out"
           },
           "output_products": {
             "Framing_out": "pipeline_internal"
@@ -9234,7 +9234,7 @@
           "unit_name": "Orthorectification",
           "step_id": 2,
           "input_products": {
-            "l1b": "AllGeometricRefinement.l1b_output",
+            "l1b": "pipeline_input",
             "l1c": "TileInitiation.1.TileInitiation_out"
           },
           "output_products": {
