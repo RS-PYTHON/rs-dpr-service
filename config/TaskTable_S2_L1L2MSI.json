@@ -3712,7 +3712,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -3770,7 +3770,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "AllRadiometricCorrectionL1B_out": "pipeline_internal"
@@ -3830,7 +3830,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 4,
           "input_products": {
-            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.AllRadiometricCorrectionL1B_out"
+            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.3.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -3885,7 +3885,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 5,
           "input_products": {
-            "l1b_output": "AllGeometricRefinement.l1b_output"
+            "l1b_output": "AllGeometricRefinement.4.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -3984,7 +3984,7 @@
           "unit_name": "AllProjected",
           "step_id": 6,
           "input_products": {
-            "l1c_output": "AllTransitionGeometry.l1c_output"
+            "l1c_output": "AllTransitionGeometry.5.l1c_output"
           },
           "output_products": {
             "l2a_output": "pipeline_output"
@@ -4179,7 +4179,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -4237,7 +4237,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -4297,7 +4297,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 4,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.3.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -4396,7 +4396,7 @@
           "unit_name": "AllProjected",
           "step_id": 5,
           "input_products": {
-            "l1c_output": "AllTransitionGeometry.l1c_output"
+            "l1c_output": "AllTransitionGeometry.4.l1c_output"
           },
           "output_products": {
             "l2a_output": "pipeline_output"
@@ -4591,7 +4591,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -4649,7 +4649,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "AllRadiometricCorrectionL1B_out": "pipeline_internal"
@@ -4709,7 +4709,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 4,
           "input_products": {
-            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.AllRadiometricCorrectionL1B_out"
+            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.3.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -4764,7 +4764,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 5,
           "input_products": {
-            "l1b_output": "AllGeometricRefinement.l1b_output"
+            "l1b_output": "AllGeometricRefinement.4.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -5025,7 +5025,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -5083,7 +5083,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.2.AllL0cComplementary_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -5143,7 +5143,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 4,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.4.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -5404,7 +5404,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "AllRadiometricCorrectionL1B_out": "pipeline_internal"
@@ -5464,7 +5464,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 3,
           "input_products": {
-            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.AllRadiometricCorrectionL1B_out"
+            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.2.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -5519,7 +5519,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 4,
           "input_products": {
-            "l1b_output": "AllGeometricRefinement.l1b_output"
+            "l1b_output": "AllGeometricRefinement.3.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -5780,7 +5780,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -5840,7 +5840,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 3,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.2.l1b_output"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -6101,7 +6101,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -6159,7 +6159,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "AllRadiometricCorrectionL1B_out": "pipeline_internal"
@@ -6219,7 +6219,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 4,
           "input_products": {
-            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.AllRadiometricCorrectionL1B_out"
+            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.3.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -6436,7 +6436,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -6494,7 +6494,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -6716,7 +6716,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "AllRadiometricCorrectionL1B_out": "pipeline_internal"
@@ -6776,7 +6776,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 3,
           "input_products": {
-            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.AllRadiometricCorrectionL1B_out"
+            "AllRadiometricCorrectionL1B_out": "AllRadiometricCorrectionL1B.2.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -6993,7 +6993,7 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -7215,7 +7215,7 @@
           "unit_name": "AllRadiometricCorrectionL1A",
           "step_id": 2,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -7470,7 +7470,7 @@
           "unit_name": "TechnicalQualityMask",
           "step_id": 2,
           "input_products": {
-            "PreProcessL0CProduct_out": "PreProcessL0CProduct.PreProcessL0CProduct_out"
+            "PreProcessL0CProduct_out": "PreProcessL0CProduct.1.PreProcessL0CProduct_out"
           },
           "output_products": {
             "TechnicalQualityMask_out": "pipeline_internal"
@@ -7511,7 +7511,7 @@
           "unit_name": "FootprintsComputation",
           "step_id": 3,
           "input_products": {
-            "TechnicalQualityMask_out": "TechnicalQualityMask.TechnicalQualityMask_out"
+            "TechnicalQualityMask_out": "TechnicalQualityMask.2.TechnicalQualityMask_out"
           },
           "output_products": {
             "FootprintsComputation_out": "pipeline_internal"
@@ -7557,7 +7557,7 @@
           "unit_name": "CloudMask",
           "step_id": 4,
           "input_products": {
-            "FootprintsComputation_out": "FootprintsComputation.FootprintsComputation_out"
+            "FootprintsComputation_out": "FootprintsComputation.3.FootprintsComputation_out"
           },
           "output_products": {
             "CloudMask_out": "pipeline_internal"
@@ -7604,7 +7604,7 @@
           "unit_name": "BlindPixelsRemoval",
           "step_id": 5,
           "input_products": {
-           "CloudMask_out": "CloudMask.CloudMask_out"
+           "CloudMask_out": "CloudMask.4.CloudMask_out"
           },
           "output_products": {
             "BlindPixelsRemoval_out": "pipeline_internal"
@@ -7645,7 +7645,7 @@
           "unit_name": "SWIRRearrangement",
           "step_id": 6,
           "input_products": {
-            "BlindPixelsRemoval_out": "BlindPixelsRemoval.BlindPixelsRemoval_out"
+            "BlindPixelsRemoval_out": "BlindPixelsRemoval.5.BlindPixelsRemoval_out"
           },
           "output_products": {
             "SWIRRearrangement_out": "pipeline_internal"
@@ -7727,7 +7727,7 @@
           "unit_name": "RoundAndClamp",
           "step_id": 8,
           "input_products": {
-            "Framing_out": "Framing.Framing_out"
+            "Framing_out": "Framing.7.Framing_out"
           },
           "output_products": {
             "l1a_output": "pipeline_output"
@@ -7821,7 +7821,7 @@
           "unit_name": "TechnicalQualityMask",
           "step_id": 2,
           "input_products": {
-            "PreProcessL0CProduct_out": "PreProcessL0CProduct.PreProcessL0CProduct_out"
+            "PreProcessL0CProduct_out": "PreProcessL0CProduct.1.PreProcessL0CProduct_out"
           },
           "output_products": {
             "TechnicalQualityMask_out": "pipeline_internal"
@@ -7862,7 +7862,7 @@
           "unit_name": "FootprintsComputation",
           "step_id": 3,
           "input_products": {
-            "TechnicalQualityMask_out": "TechnicalQualityMask.TechnicalQualityMask_out"
+            "TechnicalQualityMask_out": "TechnicalQualityMask.2.TechnicalQualityMask_out"
           },
           "output_products": {
             "FootprintsComputation_out": "pipeline_internal"
@@ -7908,7 +7908,7 @@
           "unit_name": "CloudMask",
           "step_id": 4,
           "input_products": {
-            "FootprintsComputation_out": "FootprintsComputation.FootprintsComputation_out"
+            "FootprintsComputation_out": "FootprintsComputation.3.FootprintsComputation_out"
           },
           "output_products": {
             "CloudMask_out": "pipeline_internal"
@@ -7955,7 +7955,7 @@
           "unit_name": "InverseEqualization",
           "step_id": 5,
           "input_products": {
-            "CloudMask_out": "CloudMask.CloudMask_out"
+            "CloudMask_out": "CloudMask.4.CloudMask_out"
           },
           "output_products": {
             "InverseEqualization_out": "pipeline_internal"
@@ -7996,7 +7996,7 @@
           "unit_name": "DarkSignalCorrection",
           "step_id": 6,
           "input_products": {
-            "InverseEqualization_out": "InverseEqualization.InverseEqualization_out"
+            "InverseEqualization_out": "InverseEqualization.5.InverseEqualization_out"
           },
           "output_products": {
             "DarkSignalCorrection_out": "pipeline_internal"
@@ -8037,7 +8037,7 @@
           "unit_name": "BlindPixelsRemoval",
           "step_id": 7,
           "input_products": {
-            "DarkSignalCorrection_out": "DarkSignalCorrection.DarkSignalCorrection_out"
+            "DarkSignalCorrection_out": "DarkSignalCorrection.6.DarkSignalCorrection_out"
           },
           "output_products": {
             "BlindPixelsRemoval_out": "pipeline_internal"
@@ -8078,7 +8078,7 @@
           "unit_name": "CrossTalkCorrection",
           "step_id": 8,
           "input_products": {
-            "BlindPixelsRemoval_out": "BlindPixelsRemoval.BlindPixelsRemoval_out"
+            "BlindPixelsRemoval_out": "BlindPixelsRemoval.7.BlindPixelsRemoval_out"
           },
           "output_products": {
             "CrossTalkCorrection_out": "pipeline_internal"
@@ -8119,7 +8119,7 @@
           "unit_name": "RelativeResponseCorrection",
           "step_id": 9,
           "input_products": {
-            "CrossTalkCorrection_out": "CrossTalkCorrection.CrossTalkCorrection_out"
+            "CrossTalkCorrection_out": "CrossTalkCorrection.8.CrossTalkCorrection_out"
           },
           "output_products": {
             "RelativeResponseCorrection_out": "pipeline_internal"
@@ -8160,7 +8160,7 @@
           "unit_name": "SWIRRearrangement",
           "step_id": 10,
           "input_products": {
-            "RelativeResponseCorrection_out": "RelativeResponseCorrection.RelativeResponseCorrection_out"
+            "RelativeResponseCorrection_out": "RelativeResponseCorrection.9.RelativeResponseCorrection_out"
           },
           "output_products": {
             "SWIRRearrangement_out": "pipeline_internal"
@@ -8201,7 +8201,7 @@
           "unit_name": "DefectivePixelsInterpolation",
           "step_id": 11,
           "input_products": {
-            "SWIRRearrangement_out": "SWIRRearrangement.SWIRRearrangement_out"
+            "SWIRRearrangement_out": "SWIRRearrangement.10.SWIRRearrangement_out"
           },
           "output_products": {
             "DefectivePixelsInterpolation_out": "pipeline_internal"
@@ -8242,7 +8242,7 @@
           "unit_name": "NoDataPixelsInterpolation",
           "step_id": 12,
           "input_products": {
-            "DefectivePixelsInterpolation_out": "DefectivePixelsInterpolation.DefectivePixelsInterpolation_out"
+            "DefectivePixelsInterpolation_out": "DefectivePixelsInterpolation.11.DefectivePixelsInterpolation_out"
           },
           "output_products": {
             "NoDataPixelsInterpolation_out": "pipeline_internal"
@@ -8283,7 +8283,7 @@
           "unit_name": "BandsBinning60m",
           "step_id": 13,
           "input_products": {
-            "NoDataPixelsInterpolation_out": "NoDataPixelsInterpolation.NoDataPixelsInterpolation_out"
+            "NoDataPixelsInterpolation_out": "NoDataPixelsInterpolation.12.NoDataPixelsInterpolation_out"
           },
           "output_products": {
             "BandsBinning60m_out": "pipeline_internal"
@@ -8324,7 +8324,7 @@
           "unit_name": "RadiometricOffsetAddition",
           "step_id": 14,
           "input_products": {
-            "BandsBinning60m_out": "BandsBinning60m.BandsBinning60m_out"
+            "BandsBinning60m_out": "BandsBinning60m.13.BandsBinning60m_out"
           },
           "output_products": {
             "RadiometricOffsetAddition_out": "pipeline_internal"
@@ -8365,7 +8365,7 @@
           "unit_name": "Framing",
           "step_id": 15,
           "input_products": {
-            "RadiometricOffsetAddition_out": "RadiometricOffsetAddition.RadiometricOffsetAddition_out"
+            "RadiometricOffsetAddition_out": "RadiometricOffsetAddition.14.RadiometricOffsetAddition_out"
           },
           "output_products": {
             "Framing_out": "pipeline_internal"
@@ -8406,7 +8406,7 @@
           "unit_name": "RoundAndClamp",
           "step_id": 16,
           "input_products": {
-            "Framing_out": "Framing.Framing_out"
+            "Framing_out": "Framing.15.Framing_out"
           },
           "output_products": {
             "RoundAndClamp_out": "pipeline_internal"
@@ -8447,7 +8447,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 17,
           "input_products": {
-            "RoundAndClamp_out": "RoundAndClamp.RoundAndClamp_out"
+            "RoundAndClamp_out": "RoundAndClamp.16.RoundAndClamp_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -8555,7 +8555,7 @@
           "unit_name": "TechnicalQualityMask",
           "step_id": 2,
           "input_products": {
-            "PreProcessL0CProduct_out": "PreProcessL0CProduct.PreProcessL0CProduct_out"
+            "PreProcessL0CProduct_out": "PreProcessL0CProduct.1.PreProcessL0CProduct_out"
           },
           "output_products": {
             "TechnicalQualityMask_out": "pipeline_internal"
@@ -8596,7 +8596,7 @@
           "unit_name": "FootprintsComputation",
           "step_id": 3,
           "input_products": {
-            "TechnicalQualityMask_out": "TechnicalQualityMask.TechnicalQualityMask_out"
+            "TechnicalQualityMask_out": "TechnicalQualityMask.2.TechnicalQualityMask_out"
           },
           "output_products": {
             "FootprintsComputation_out": "pipeline_internal"
@@ -8642,7 +8642,7 @@
           "unit_name": "CloudMask",
           "step_id": 4,
           "input_products": {
-            "FootprintsComputation_out": "FootprintsComputation.FootprintsComputation_out"
+            "FootprintsComputation_out": "FootprintsComputation.3.FootprintsComputation_out"
           },
           "output_products": {
             "CloudMask_out": "pipeline_internal"
@@ -8689,7 +8689,7 @@
           "unit_name": "InverseEqualization",
           "step_id": 5,
           "input_products": {
-            "CloudMask_out": "CloudMask.CloudMask_out"
+            "CloudMask_out": "CloudMask.4.CloudMask_out"
           },
           "output_products": {
             "InverseEqualization_out": "pipeline_internal"
@@ -8730,7 +8730,7 @@
           "unit_name": "DarkSignalCorrection",
           "step_id": 6,
           "input_products": {
-            "InverseEqualization_out": "InverseEqualization.InverseEqualization_out"
+            "InverseEqualization_out": "InverseEqualization.5.InverseEqualization_out"
           },
           "output_products": {
             "DarkSignalCorrection_out": "pipeline_internal"
@@ -8771,7 +8771,7 @@
           "unit_name": "BlindPixelsRemoval",
           "step_id": 7,
           "input_products": {
-            "DarkSignalCorrection_out": "DarkSignalCorrection.DarkSignalCorrection_out"
+            "DarkSignalCorrection_out": "DarkSignalCorrection.6.DarkSignalCorrection_out"
           },
           "output_products": {
             "BlindPixelsRemoval_out": "pipeline_internal"
@@ -8812,7 +8812,7 @@
           "unit_name": "CrossTalkCorrection",
           "step_id": 8,
           "input_products": {
-            "BlindPixelsRemoval_out": "BlindPixelsRemoval.BlindPixelsRemoval_out"
+            "BlindPixelsRemoval_out": "BlindPixelsRemoval.7.BlindPixelsRemoval_out"
           },
           "output_products": {
             "CrossTalkCorrection_out": "pipeline_internal"
@@ -8853,7 +8853,7 @@
           "unit_name": "RelativeResponseCorrection",
           "step_id": 9,
           "input_products": {
-            "CrossTalkCorrection_out": "CrossTalkCorrection.CrossTalkCorrection_out"
+            "CrossTalkCorrection_out": "CrossTalkCorrection.8.CrossTalkCorrection_out"
           },
           "output_products": {
             "RelativeResponseCorrection_out": "pipeline_internal"
@@ -8894,7 +8894,7 @@
           "unit_name": "SWIRRearrangement",
           "step_id": 10,
           "input_products": {
-            "RelativeResponseCorrection_out": "RelativeResponseCorrection.RelativeResponseCorrection_out"
+            "RelativeResponseCorrection_out": "RelativeResponseCorrection.9.RelativeResponseCorrection_out"
           },
           "output_products": {
             "SWIRRearrangement_out": "pipeline_internal"
@@ -8935,7 +8935,7 @@
           "unit_name": "DefectivePixelsInterpolation",
           "step_id": 11,
           "input_products": {
-            "SWIRRearrangement_out": "SWIRRearrangement.SWIRRearrangement_out"
+            "SWIRRearrangement_out": "SWIRRearrangement.10.SWIRRearrangement_out"
           },
           "output_products": {
             "DefectivePixelsInterpolation_out": "pipeline_internal"
@@ -8976,7 +8976,7 @@
           "unit_name": "NoDataPixelsInterpolation",
           "step_id": 12,
           "input_products": {
-            "DefectivePixelsInterpolation_out": "DefectivePixelsInterpolation.DefectivePixelsInterpolation_out"
+            "DefectivePixelsInterpolation_out": "DefectivePixelsInterpolation.11.DefectivePixelsInterpolation_out"
           },
           "output_products": {
             "NoDataPixelsInterpolation_out": "pipeline_internal"
@@ -9017,7 +9017,7 @@
           "unit_name": "BandsBinning60m",
           "step_id": 13,
           "input_products": {
-            "NoDataPixelsInterpolation_out": "NoDataPixelsInterpolation.NoDataPixelsInterpolation_out"
+            "NoDataPixelsInterpolation_out": "NoDataPixelsInterpolation.12.NoDataPixelsInterpolation_out"
           },
           "output_products": {
             "BandsBinning60m_out": "pipeline_internal"
@@ -9058,7 +9058,7 @@
           "unit_name": "RadiometricOffsetAddition",
           "step_id": 14,
           "input_products": {
-            "BandsBinning60m_out": "BandsBinning60m.BandsBinning60m_out"
+            "BandsBinning60m_out": "BandsBinning60m.13.BandsBinning60m_out"
           },
           "output_products": {
             "RadiometricOffsetAddition_out": "pipeline_internal"
@@ -9099,7 +9099,7 @@
           "unit_name": "Framing",
           "step_id": 15,
           "input_products": {
-            "RadiometricOffsetAddition_out": "RadiometricOffsetAddition.RadiometricOffsetAddition_out"
+            "RadiometricOffsetAddition_out": "RadiometricOffsetAddition.14.RadiometricOffsetAddition_out"
           },
           "output_products": {
             "Framing_out": "pipeline_internal"
@@ -9140,7 +9140,7 @@
           "unit_name": "RoundAndClamp",
           "step_id": 16,
           "input_products": {
-            "Framing_out": "Framing.Framing_out"
+            "Framing_out": "Framing.15.Framing_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -9235,7 +9235,7 @@
           "step_id": 2,
           "input_products": {
             "l1b": "AllGeometricRefinement.l1b_output",
-            "l1c": "TileInitiation.TileInitiation_out"
+            "l1c": "TileInitiation.1.TileInitiation_out"
           },
           "output_products": {
             "Orthorectification_out": "pipeline_internal"
@@ -9284,7 +9284,7 @@
           "unit_name": "MaskS2",
           "step_id": 3,
           "input_products": {
-            "Orthorectification_out": "Orthorectification.Orthorectification_out"
+            "Orthorectification_out": "Orthorectification.2.Orthorectification_out"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
