@@ -223,7 +223,7 @@
                 },
                 "description": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 512
                 },
                 "steps": {
                     "type": "array",
