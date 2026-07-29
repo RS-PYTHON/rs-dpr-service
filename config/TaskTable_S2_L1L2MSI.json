@@ -2223,24 +2223,24 @@
   "io": [
     {
       "name": "l0_input",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       }
     },
     {
       "name": "l1b_input",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       }
     },
     {
       "name": "l1c_input",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       }
@@ -2248,7 +2248,7 @@
     {
       "name": "l1a_output",
       "type": "folder",
-      "store_type": "zarr",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2257,7 +2257,7 @@
     {
       "name": "l1b_output",
       "type": "folder",
-      "store_type": "zarr",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2266,7 +2266,7 @@
     {
       "name": "l1c_output",
       "type": "folder",
-      "store_type": "zarr",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2275,7 +2275,7 @@
     {
       "name": "l2a_output",
       "type": "folder",
-      "store_type": "zarr",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2283,8 +2283,8 @@
     },
     {
       "name": "BLIND",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2307,8 +2307,8 @@
     },
     {
       "name": "CLOIN",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2331,8 +2331,8 @@
     },
     {
       "name": "CLOPA",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2355,8 +2355,8 @@
     },
     {
       "name": "DATAT",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2379,8 +2379,8 @@
     },
     {
       "name": "GEO2P",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2403,8 +2403,8 @@
     },
     {
       "name": "GPARA",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2427,8 +2427,8 @@
     },
     {
       "name": "GPARE",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2451,8 +2451,8 @@
     },
     {
       "name": "GSGCP",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2475,8 +2475,8 @@
     },
     {
       "name": "INTDP",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2499,8 +2499,8 @@
     },
     {
       "name": "MRLUT",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2523,8 +2523,8 @@
     },
     {
       "name": "PRDLO",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2547,8 +2547,8 @@
     },
     {
       "name": "RABCA",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2571,8 +2571,8 @@
     },
     {
       "name": "RBINN",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2595,8 +2595,8 @@
     },
     {
       "name": "RCRCO",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2619,8 +2619,8 @@
     },
     {
       "name": "RDEFI",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2643,8 +2643,8 @@
     },
     {
       "name": "RDEPI",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2667,8 +2667,8 @@
     },
     {
       "name": "RDENT",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2691,8 +2691,8 @@
     },
     {
       "name": "REQOG",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2715,8 +2715,8 @@
     },
     {
       "name": "REOB2",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2739,8 +2739,8 @@
     },
     {
       "name": "RESAM",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2763,8 +2763,8 @@
     },
     {
       "name": "RL2NC",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2787,8 +2787,8 @@
     },
     {
       "name": "RNOMO",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2811,8 +2811,8 @@
     },
     {
       "name": "RPARA",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2835,8 +2835,8 @@
     },
     {
       "name": "RSWIR",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2859,8 +2859,8 @@
     },
     {
       "name": "RWAFI",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2883,8 +2883,8 @@
     },
     {
       "name": "SADMP",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2907,8 +2907,8 @@
     },
     {
       "name": "SPAMO",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2931,8 +2931,8 @@
     },
     {
       "name": "TILEP",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2955,8 +2955,8 @@
     },
     {
       "name": "VDIRP",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -2979,8 +2979,8 @@
     },
     {
       "name": "L2ACF",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3003,8 +3003,8 @@
     },
     {
       "name": "L2ASC",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3027,8 +3027,8 @@
     },
     {
       "name": "L2AAC",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3051,8 +3051,8 @@
     },
     {
       "name": "L2ALC",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3075,8 +3075,8 @@
     },
     {
       "name": "L2AWB",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3099,8 +3099,8 @@
     },
     {
       "name": "L2ASN",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3123,8 +3123,8 @@
     },
     {
       "name": "L2AGS",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3147,8 +3147,8 @@
     },
     {
       "name": "L2ALU",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3171,8 +3171,8 @@
     },
     {
       "name": "CAMSA",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3195,8 +3195,8 @@
     },
     {
       "name": "ECMWF",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3219,8 +3219,8 @@
     },
     {
       "name": "GEOI8",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3243,8 +3243,8 @@
     },
     {
       "name": "GETAS",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3267,8 +3267,8 @@
     },
     {
       "name": "DEM90",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3291,8 +3291,8 @@
     },
     {
       "name": "DEM30",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3315,8 +3315,8 @@
     },
     {
       "name": "UTM_DEM",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       },
@@ -3339,16 +3339,16 @@
     },
     {
       "name": "AllL0cComplementary_out",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       }
     },
     {
       "name": "AllRadiometricCorrectionL1B_out",
-      "type": "filename",
-      "store_type": "zarr",
+      "type": "file",
+      "engine": "cpm_zarr",
       "store_params": {
         "consolidate": true
       }
