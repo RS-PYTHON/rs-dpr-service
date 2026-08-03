@@ -12,6 +12,9 @@
         "end_datetime",
         "satellite"
     ],
+    "external_modules": [
+        "l0.cadu_processing.cadu_store"
+    ],
     "units": [
         {
             "name": "S1L0Processor",
@@ -47,6 +50,11 @@
                 },
                 {
                     "name": "fpo",
+                    "mode": "always",
+                    "mandatory": false
+                },
+                {
+                    "name": "calibration",
                     "mode": "always",
                     "mandatory": false
                 }
@@ -144,8 +152,26 @@
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "satellite": "{external_variable.satellite}",
-                            "dTa": 345600,
+                            "dTa": 0,
                             "dTb": 0
+                        }
+                    }
+                }
+            ]
+        },
+        {
+            "name": "calibration",
+            "type": "filename",
+            "store_type": "zarr",
+            "alternatives": [
+                {
+                    "order": 1,
+                    "timeout_seconds": 0,
+                    "query": {
+                        "name": "SatelliteFilter",
+                        "parameters": {
+                            "product_type": "ADF_CALIB",
+                            "satellite": "{external_variable.satellite}"
                         }
                     }
                 }
@@ -251,6 +277,38 @@
                     }
                 ],
                 "limit": 1
+            }
+        },
+        {
+            "name": "SatelliteFilter",
+            "parameters": [
+                "product_type",
+                "satellite"
+            ],
+            "stac": {
+                "filter": {
+                    "op": "and",
+                    "args": [
+                        {
+                            "op": "=",
+                            "args": [
+                                {
+                                    "property": "product:type"
+                                },
+                                "{product_type}"
+                            ]
+                        },
+                        {
+                            "op": "=",
+                            "args": [
+                                {
+                                    "property": "platform"
+                                },
+                                "{satellite}"
+                            ]
+                        }
+                    ]
+                }
             }
         }
     ],

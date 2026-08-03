@@ -7,6 +7,9 @@
     "update_datetime": "2026-04-24T15:00:00Z",
     "configuration_path": {}
   },
+  "external_modules": [
+    "l0.cadu_processing.cadu_store"
+  ],
   "external_variables": [
     "start_datetime",
     "end_datetime",
