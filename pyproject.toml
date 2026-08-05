@@ -59,6 +59,7 @@ pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.35.0"
 fastapi = ">=0.123.0"
+starlette = ">=0.46.0,<1.4.0"
 geoalchemy2 = ">=0.18.0"
 SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
