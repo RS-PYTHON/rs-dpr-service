@@ -20,6 +20,7 @@ import sys
 import types
 import zipfile
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -459,6 +460,196 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
     eorunner_class.assert_called_once_with()
     eorunner.run.assert_called_once_with(caller.payload_contents)
     launch_subprocess.assert_not_called()
+
+
+# ---- _launch_eopf_subprocess / _flush_log_batch ----
+
+
+def _fake_subprocess(mocker, lines: list[str], returncode: int = 0):
+    """Build a fake Popen context manager yielding the given stdout lines then EOF.
+
+    select.select() is patched to always report data ready immediately, so these lines land in
+    the batch back-to-back without any real wait: only the _LOG_BATCH_SIZE threshold, not the
+    time-based flush, is under test here.
+    """
+    fake_stdout = mocker.Mock()
+    fake_stdout.readline.side_effect = [*lines, ""]
+    always_ready: tuple[list, list, list] = ([fake_stdout], [], [])
+    mocker.patch("rs_dpr_service.dask.call_dask.select.select", return_value=always_ready)
+
+    fake_proc = mocker.MagicMock()
+    fake_proc.__enter__.return_value = fake_proc
+    fake_proc.__exit__.return_value = False
+    fake_proc.stdout = fake_stdout
+    fake_proc.pid = 1234
+    fake_proc.returncode = returncode
+    fake_proc.wait.return_value = returncode
+    return fake_proc
+
+
+def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainder(mocker, monkeypatch, tmp_path):
+    """Test _launch_eopf_subprocess groups subprocess output lines into batched logger calls.
+
+    Forwarding one dask log record per subprocess output line floods the rs-dpr-service caller
+    (Client.forward_logging() re-processes every record live) and can starve it under its
+    Kubernetes CPU limit during a verbose processor run. Lines must be coalesced into batches.
+    """
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+
+    # One full batch, plus a partial remainder, plus a blank line that must be skipped entirely.
+    body_lines = [f"line {i}\n" for i in range(batch_size)] + ["last line\n", "\n"]
+    fake_proc = _fake_subprocess(mocker, body_lines)
+
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+    span = mocker.Mock()
+
+    caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+
+    job_prefix = f"[JOB:{caller.job_id}]"
+    all_calls = [call.args[0] for call in logger_info.call_args_list]
+    batch_calls = [msg for msg in all_calls if msg.startswith(job_prefix)]
+    # One flush once the batch fills up, one final flush for the single remaining line.
+    assert batch_calls == [
+        "[JOB:job-1] " + "\n".join(f"line {i}" for i in range(batch_size)),
+        "[JOB:job-1] last line",
+    ]
+
+    # Every raw line (including the blank one) is still written to the local report file.
+    assert Path(caller.log_path).read_text(encoding="utf-8") == "".join(body_lines)
+
+    fake_proc.wait.assert_called_once_with()
+    span.set_status.assert_called_once()
+    assert span.set_status.call_args.args[0].status_code == call_dask.StatusCode.OK
+
+
+def test_launch_eopf_subprocess_flushes_a_partial_batch_after_an_idle_period(mocker, monkeypatch, tmp_path):
+    """Test _launch_eopf_subprocess flushes a buffered line once it has been idle for too long.
+
+    Without a time bound, a single buffered line would only be flushed once _LOG_BATCH_SIZE
+    lines pile up, or the processor exits: for a quiet processor (e.g. one output line every 30
+    minutes), that would leave the line invisible on the SSE log stream for a very long time.
+    """
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+
+    fake_stdout = mocker.Mock()
+    fake_stdout.readline.side_effect = ["first line\n", ""]
+    fake_proc = mocker.MagicMock()
+    fake_proc.__enter__.return_value = fake_proc
+    fake_proc.__exit__.return_value = False
+    fake_proc.stdout = fake_stdout
+    fake_proc.pid = 1234
+    fake_proc.returncode = 0
+    fake_proc.wait.return_value = 0
+
+    # select() reports: data ready (the one line), then two idle timeouts, then EOF ready.
+    # A real idle select() only returns once `timeout` seconds have elapsed, so the fake clock
+    # is advanced by `timeout` on every simulated timeout to mimic that passage of time.
+    now = [0.0]
+    select_outcomes = iter([True, False, False, True])
+
+    def fake_select(rlist, wlist, xlist, timeout):  # pylint: disable=unused-argument
+        if next(select_outcomes):
+            return (rlist, [], [])
+        now[0] += timeout
+        return ([], [], [])
+
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", side_effect=lambda: now[0])
+    mocker.patch("rs_dpr_service.dask.call_dask.select.select", side_effect=fake_select)
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+    span = mocker.Mock()
+
+    caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+
+    job_prefix = f"[JOB:{caller.job_id}]"
+    all_calls = [call.args[0] for call in logger_info.call_args_list]
+    batch_calls = [msg for msg in all_calls if msg.startswith(job_prefix)]
+    # Flushed once during the idle period, well before EOF: not held back until the process ends.
+    assert batch_calls == ["[JOB:job-1] first line"]
+
+
+def test_should_flush_log_batch_returns_false_for_an_empty_batch(mocker):
+    """Test _should_flush_log_batch() never flushes an empty batch, even long after the interval."""
+    caller = _make_processor_caller(mocker)
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=1000.0)
+
+    assert not caller._should_flush_log_batch([], last_flush=0.0)  # pylint: disable=protected-access
+
+
+def test_should_flush_log_batch_returns_true_when_the_batch_is_full(mocker):
+    """Test _should_flush_log_batch() flushes as soon as the batch reaches its size limit."""
+    caller = _make_processor_caller(mocker)
+    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=0.0)
+    full_batch = ["line"] * batch_size
+
+    assert caller._should_flush_log_batch(full_batch, last_flush=0.0)  # pylint: disable=protected-access
+
+
+def test_should_flush_log_batch_returns_false_before_the_interval_elapses(mocker):
+    """Test _should_flush_log_batch() waits for the interval before flushing a partial batch."""
+    caller = _make_processor_caller(mocker)
+    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval - 0.1)
+
+    assert not caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+
+
+def test_should_flush_log_batch_returns_true_after_the_interval_elapses(mocker):
+    """Test _should_flush_log_batch() flushes a partial batch once it has been idle long enough."""
+    caller = _make_processor_caller(mocker)
+    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval)
+
+    assert caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+
+
+def test_launch_eopf_subprocess_raises_and_skips_final_message_on_nonzero_status(mocker, monkeypatch, tmp_path):
+    """Test _launch_eopf_subprocess raises when the subprocess exits with a non-zero status."""
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+    fake_proc = _fake_subprocess(mocker, ["boom\n"], returncode=1)
+
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+    span = mocker.Mock()
+
+    with pytest.raises(RuntimeError, match="EOPF error, status code 1"):
+        caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+
+
+def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
+    """Test _flush_log_batch() emits one logger call for the whole batch, then empties it."""
+    caller = _make_processor_caller(mocker)
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+    batch = ["first line", "second line"]
+
+    caller._flush_log_batch(batch)  # pylint: disable=protected-access
+
+    logger_info.assert_called_once_with("[JOB:job-1] first line\nsecond line")
+    assert not batch
+
+
+def test_flush_log_batch_does_nothing_for_an_empty_batch(mocker):
+    """Test _flush_log_batch() is a no-op when there is nothing buffered."""
+    caller = _make_processor_caller(mocker)
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    caller._flush_log_batch([])  # pylint: disable=protected-access
+
+    logger_info.assert_not_called()
 
 
 # ---- handle_experimental_config ----

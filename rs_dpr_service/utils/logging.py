@@ -16,7 +16,6 @@
 
 import logging
 import re
-from collections import defaultdict
 from threading import Lock
 
 
@@ -110,7 +109,7 @@ class JobLogHandler(logging.Handler):
 
     def __init__(self):
         super().__init__()
-        self.queues = defaultdict(list)
+        self.queues = {}
 
     def emit(self, record):
         try:
@@ -119,7 +118,7 @@ class JobLogHandler(logging.Handler):
             if match:
                 job_id = match.group(1)
                 clean_msg = match.group(2)
-                for q in self.queues[job_id]:
+                for q in self.queues.get(job_id, []):
                     # use put_nowait to avoid blocking the logging thread
                     q.put_nowait(clean_msg)
         except Exception:  # pylint: disable=broad-exception-caught

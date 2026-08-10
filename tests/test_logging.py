@@ -40,8 +40,8 @@ def test_job_log_handler_routes_job_log_to_all_matching_queues():
     first_queue: Queue[str] = Queue()
     second_queue: Queue[str] = Queue()
     other_job_queue: Queue[str] = Queue()
-    handler.queues["job-1"].extend([first_queue, second_queue])
-    handler.queues["job-2"].append(other_job_queue)
+    handler.queues["job-1"] = [first_queue, second_queue]
+    handler.queues["job-2"] = [other_job_queue]
 
     handler.emit(make_record("[JOB:job-1] Processing started"))
 
@@ -50,11 +50,25 @@ def test_job_log_handler_routes_job_log_to_all_matching_queues():
     assert other_job_queue.empty()
 
 
+def test_job_log_handler_does_not_leak_an_entry_for_jobs_with_no_subscriber():
+    """Emitting a job log for a job with no registered queue must not create a dict entry.
+
+    self.queues used to be a defaultdict(list), so reading self.queues[job_id] for an
+    unsubscribed job silently created and kept an empty list forever: a leak that grows for
+    the whole pod lifetime, one entry per job, since most jobs are never tailed over SSE.
+    """
+    handler = JobLogHandler()
+
+    handler.emit(make_record("[JOB:job-without-subscriber] Processing started"))
+
+    assert not handler.queues
+
+
 def test_job_log_handler_ignores_logs_without_job_marker():
     """Logs that do not contain a job marker are not routed to any queue."""
     handler = JobLogHandler()
     queue: Queue[str] = Queue()
-    handler.queues["job-1"].append(queue)
+    handler.queues["job-1"] = [queue]
 
     handler.emit(make_record("Processing started"))
 
@@ -65,7 +79,7 @@ def test_job_log_handler_preserves_multiline_job_log_payload():
     """The payload can span multiple lines after the job marker."""
     handler = JobLogHandler()
     queue: Queue[str] = Queue()
-    handler.queues["job-1"].append(queue)
+    handler.queues["job-1"] = [queue]
 
     handler.emit(make_record("[JOB:job-1] First line\nSecond line"))
 
@@ -77,7 +91,7 @@ def test_job_log_handler_delegates_unexpected_errors_to_handle_error():
     handler = JobLogHandler()
     failing_queue = Mock()
     failing_queue.put_nowait.side_effect = RuntimeError("queue is unavailable")
-    handler.queues["job-1"].append(failing_queue)
+    handler.queues["job-1"] = [failing_queue]
     record = make_record("[JOB:job-1] Processing started")
 
     with patch.object(handler, "handleError") as handle_error:
