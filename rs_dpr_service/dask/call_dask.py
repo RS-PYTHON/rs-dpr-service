@@ -24,6 +24,7 @@ import logging
 import os
 import os.path as osp
 import re
+import select
 import shutil
 import socket
 import subprocess
@@ -767,6 +768,11 @@ class ProcessorCaller:
             )
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
+    # Number of subprocess output lines coalesced into a single forwarded log record, and the
+    # max time a buffered line waits before being flushed anyway.
+    _LOG_BATCH_SIZE = 50
+    _LOG_BATCH_INTERVAL_SECONDS = 1
+
     def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
         """Trigger eopf-cpm execution in a subprocess"""
         with subprocess.Popen(
@@ -785,19 +791,38 @@ class ProcessorCaller:
                 # Handle cancellation of eopf processing
                 cancel_event = self.handle_cancellation(proc, log_file)
 
-                # Read eopf stdout
-                while proc.stdout and (line := proc.stdout.readline()) != "":
+                # Read eopf stdout. Use select() so we can periodically check whether the
+                # buffered batch is due for a time-based flush, even while no new line has
+                # arrived yet (readline() alone would block for as long as the processor stays
+                # quiet, which could delay a partial batch by a very long time).
+                batch: list[str] = []
+                last_flush = time.monotonic()
+                while proc.stdout:
+                    interval = self._LOG_BATCH_INTERVAL_SECONDS
+                    ready, _, _ = select.select([proc.stdout], [], [], interval)
+                    if ready:
+                        line = proc.stdout.readline()
+                        if line == "":
+                            break
 
-                    # Hide secrets from logs
-                    line = self.hide_secrets(line)
+                        # Hide secrets from logs
+                        line = self.hide_secrets(line)
 
-                    # Write to log file and string
-                    log_file.write(line)
+                        # Write to log file and string
+                        log_file.write(line)
 
-                    # Write to logger if not empty
-                    line = line.rstrip()
-                    if line:
-                        logger.info(f"[JOB:{self.job_id}] {line}")
+                        # Buffer non-empty lines
+                        line = line.rstrip()
+                        if line:
+                            batch.append(line)
+
+                    # Flush once the batch is full, or once it's been waiting long enough
+                    if self._should_flush_log_batch(batch, last_flush):
+                        self._flush_log_batch(batch)
+                        last_flush = time.monotonic()
+
+                # Flush the remaining buffered lines, if any
+                self._flush_log_batch(batch)
 
             # Wait for the execution to finish
             status_code = proc.wait()
@@ -817,6 +842,21 @@ class ProcessorCaller:
 
             span.set_status(Status(StatusCode.OK))
             logger.info(f"EOPF finished successfully with status code {status_code!r}")
+
+    def _should_flush_log_batch(self, batch: list[str], last_flush: float) -> bool:
+        """Return True if the buffered batch is full, or non-empty and waiting long enough."""
+        if not batch:
+            return False
+        if len(batch) >= self._LOG_BATCH_SIZE:
+            return True
+        return (time.monotonic() - last_flush) >= self._LOG_BATCH_INTERVAL_SECONDS
+
+    def _flush_log_batch(self, batch: list[str]) -> None:
+        """Log buffered subprocess output lines as a single record, then clear the buffer."""
+        if batch:
+            joined = "\n".join(batch)
+            logger.info(f"[JOB:{self.job_id}] {joined}")
+            batch.clear()
 
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
         # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes

@@ -443,7 +443,7 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
     queue: asyncio.Queue[str] = asyncio.Queue()
-    job_log_handler.queues[job_id].append(queue)
+    job_log_handler.queues.setdefault(job_id, []).append(queue)
 
     async def log_generator():
         try:
