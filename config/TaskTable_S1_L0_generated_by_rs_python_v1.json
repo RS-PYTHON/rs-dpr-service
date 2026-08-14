@@ -48,11 +48,11 @@
                     "mode": "always",
                     "mandatory": false
                 },
-                {
-                    "name": "fpo",
-                    "mode": "always",
-                    "mandatory": false
-                },
+                // {
+                //     "name": "fpo",
+                //     "mode": "always",
+                //     "mandatory": false
+                // },
                 {
                     "name": "calibration",
                     "mode": "always",
@@ -115,30 +115,30 @@
                 }
             ]
         },
+        // {
+        //     "name": "fro",
+        //     "type": "filename",
+        //     "store_type": "safe",
+        //     "alternatives": [
+        //         {
+        //             "order": 1,
+        //             "timeout_seconds": 0,
+        //             "query": {
+        //                 "name": "LatestValCover",
+        //                 "parameters": {
+        //                     "product_type": "MPL_ORBRES",
+        //                     "start_datetime": "{external_variable.start_datetime}",
+        //                     "end_datetime": "{external_variable.end_datetime}",
+        //                     "satellite": "{external_variable.satellite}",
+        //                     "dTa": 345600,
+        //                     "dTb": 0
+        //                 }
+        //             }
+        //         }
+        //     ]
+        // },
         {
             "name": "fro",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "MPL_ORBRES",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "satellite": "{external_variable.satellite}",
-                            "dTa": 345600,
-                            "dTb": 0
-                        }
-                    }
-                }
-            ]
-        },
-        {
-            "name": "fpo",
             "type": "filename",
             "store_type": "safe",
             "alternatives": [
