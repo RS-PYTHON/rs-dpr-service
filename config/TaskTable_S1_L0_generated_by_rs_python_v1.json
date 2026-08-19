@@ -49,6 +49,11 @@
                     "mandatory": false
                 },
                 {
+                    "name": "fpo",
+                    "mode": "always",
+                    "mandatory": false
+                },
+                {
                     "name": "calibration",
                     "mode": "always",
                     "mandatory": false
@@ -147,7 +152,7 @@
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "satellite": "{external_variable.satellite}",
-                            "dTa": 0,
+                            "dTa": 345600,
                             "dTb": 0
                         }
                     }
