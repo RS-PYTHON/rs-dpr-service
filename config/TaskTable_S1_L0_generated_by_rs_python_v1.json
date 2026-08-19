@@ -152,7 +152,7 @@
                             "start_datetime": "{external_variable.start_datetime}",
                             "end_datetime": "{external_variable.end_datetime}",
                             "satellite": "{external_variable.satellite}",
-                            "dTa": 345600,
+                            "dTa": 0,
                             "dTb": 0
                         }
                     }
