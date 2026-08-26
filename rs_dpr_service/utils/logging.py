@@ -14,6 +14,7 @@
 
 """Logging utility."""
 
+import asyncio
 import logging
 import re
 from threading import Lock
@@ -109,7 +110,7 @@ class JobLogHandler(logging.Handler):
 
     def __init__(self):
         super().__init__()
-        self.queues = {}
+        self.queues: dict[str, asyncio.Queue[str]] = {}
 
     def emit(self, record):
         try:
