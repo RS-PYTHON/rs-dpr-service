@@ -110,7 +110,7 @@ class JobLogHandler(logging.Handler):
 
     def __init__(self):
         super().__init__()
-        self.queues: dict[str, asyncio.Queue[str]] = {}
+        self.queues: dict[str, list[asyncio.Queue[str]]] = {}
 
     def emit(self, record):
         try:
