@@ -518,6 +518,7 @@ def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainde
     assert batch_calls == [
         "[JOB:job-1] " + "\n".join(f"line {i}" for i in range(batch_size)),
         "[JOB:job-1] last line",
+        "[JOB:job-1] EOPF finished successfully with status code 0",
     ]
 
     # Every raw line (including the blank one) is still written to the local report file.
@@ -575,7 +576,7 @@ def test_launch_eopf_subprocess_flushes_a_partial_batch_after_an_idle_period(moc
     all_calls = [call.args[0] for call in logger_info.call_args_list]
     batch_calls = [msg for msg in all_calls if msg.startswith(job_prefix)]
     # Flushed once during the idle period, well before EOF: not held back until the process ends.
-    assert batch_calls == ["[JOB:job-1] first line"]
+    assert batch_calls == ["[JOB:job-1] first line", "[JOB:job-1] EOPF finished successfully with status code 0"]
 
 
 def test_should_flush_log_batch_returns_false_for_an_empty_batch(mocker):

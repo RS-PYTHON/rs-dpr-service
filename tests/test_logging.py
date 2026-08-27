@@ -15,7 +15,7 @@
 """Tests for logging utilities."""
 
 import logging
-from queue import Queue
+from asyncio import Queue
 from unittest.mock import Mock, patch
 
 from rs_dpr_service.utils.logging import JobLogHandler

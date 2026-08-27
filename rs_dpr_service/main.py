@@ -454,7 +454,8 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
                 try:
                     # Wait for log message
                     msg = await asyncio.wait_for(queue.get(), timeout=2.0)
-                    yield f"data: {msg}\n\n"
+                    for line in msg.split("\n"):
+                        yield f"data: {line}\n\n"
                 except TimeoutError:
                     # Check if job is still running
                     try:
