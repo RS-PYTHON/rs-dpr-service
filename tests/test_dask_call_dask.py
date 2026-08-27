@@ -518,6 +518,7 @@ def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainde
     assert batch_calls == [
         "[JOB:job-1] " + "\n".join(f"line {i}" for i in range(batch_size)),
         "[JOB:job-1] last line",
+        "[JOB:job-1] EOPF finished successfully with status code 0",
     ]
 
     # Every raw line (including the blank one) is still written to the local report file.
