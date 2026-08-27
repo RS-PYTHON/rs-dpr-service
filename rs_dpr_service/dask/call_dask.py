@@ -48,6 +48,7 @@ from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
 from opentelemetry.trace.span import Span, SpanContext
+from pip._internal.operations import freeze
 
 from rs_dpr_service.utils import settings
 from rs_dpr_service.utils.init_opentelemetry import (
@@ -239,7 +240,7 @@ class ProcessorCaller:
         import s3fs  # pylint: disable=import-outside-toplevel
 
         # This should run on the rs-dpr-service container
-        logger.debug(f"Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
+        logger.debug(f"[JOB:{job_id}] Call 'ProcessorCaller.__init__' from {get_ip_address()!r}")
 
         self.caller_env: dict[str, str] = caller_env
         self.span_context = span_context
@@ -351,7 +352,7 @@ class ProcessorCaller:
 
             # Get the tasktable for default mode. See:
             # https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html#tasktables
-            logger.debug(f"Available modes for {class_}: {class_.get_available_modes()}")
+            logger.debug(f"[JOB:{self.job_id}] Available modes for {class_}: {class_.get_available_modes()}")
             default_mode = class_.get_default_mode()
             tasktable = class_.get_tasktable_description(default_mode)
             return tasktable
@@ -368,7 +369,13 @@ class ProcessorCaller:
         with start_span(__name__, f"[{self.cluster_info.cluster_label}] dpr_dask_processor", self.span_context) as span:
             try:
                 # This should run on the dask worker
-                logger.debug(f"Call 'ProcessorCaller.run' from {get_ip_address()!r}")
+                logger.debug(f"[JOB:{self.job_id}] Call 'ProcessorCaller.run' from {get_ip_address()!r}")
+
+                # Run a pip freeze
+                logger.debug(
+                    f"[JOB:{self.job_id}] "
+                    f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
+                )
 
                 self.init()
 
@@ -383,7 +390,7 @@ class ProcessorCaller:
                 try:
                     self.finalize()
                 except Exception:  # pylint: disable=broad-exception-caught
-                    logger.exception(traceback.format_exc())
+                    logger.exception(f"[JOB:{self.job_id}] {traceback.format_exc()}")
                 record_error(span, e)
                 raise
 
@@ -411,7 +418,7 @@ class ProcessorCaller:
             },
         )
 
-        logger.info(f"The dpr processing task started in {s3_config_dir}")
+        logger.info(f"[JOB:{self.job_id}] The dpr processing task started in {s3_config_dir}")
 
         # Download the configuration folder from the S3 bucket into a local temp folder.
         # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
@@ -474,7 +481,7 @@ class ProcessorCaller:
             message += f"Dask cluster instance: {self.cluster_info.cluster_instance!r}\n"
             message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
-            logger.debug(message)
+            logger.debug(f"[JOB:{self.job_id}] {message}")
 
             with open(self.log_path, "w", encoding="utf-8") as log_file:
                 log_file.write(message)
@@ -519,13 +526,15 @@ class ProcessorCaller:
         Write the external secret json config file(s) from the ones provided in the payload.
         """
         if len(secret_conf_files) > 1:
-            logger.error("A single secret json config file is expected for now")
+            logger.error(f"[JOB:{self.job_id}] A single secret json config file is expected for now")
             return
         secret_conf_file = osp.join(osp.dirname(payload_file), secret_conf_files[0])
 
         all_storage_options = self._collect_storage_options(payload_contents)
         if not all_storage_options:
-            logger.warning("No storage_options found in payload, skipping secret conf file writing")
+            logger.warning(
+                f"[JOB:{self.job_id}] No storage_options found in payload, skipping secret conf file writing",
+            )
             return
 
         unique_credentials = {
@@ -540,6 +549,7 @@ class ProcessorCaller:
 
         if len(unique_credentials) > 1:
             logger.error(
+                f"[JOB:{self.job_id}] "
                 "Multiple different credential sets found in payload storage_options, "
                 "cannot write a single secret conf file",
             )
@@ -560,7 +570,7 @@ class ProcessorCaller:
                 indent=2,
             )
 
-        logger.info("Secret configuration file written: %s", secret_conf_file)
+        logger.info(f"[JOB:{self.job_id}] Secret configuration file written: {secret_conf_file}")
 
     def write_dask_context(self, payload_contents: dict):
         """
@@ -680,7 +690,7 @@ class ProcessorCaller:
 
             # Download the product locally if not already there
             if not local_path.exists():
-                logger.info(f"Download {s3_path!r} to {str(local_path)!r}")
+                logger.info(f"[JOB:{self.job_id}] Download {s3_path!r} to {str(local_path)!r}")
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 credentials.get(s3_path, local_path, recursive=True)
 
@@ -721,17 +731,17 @@ class ProcessorCaller:
 
             msg = f"\nForce termination of EOPF job: {self.job_id!r}\n"
             log_file.write(msg)
-            logger.warning(msg)
+            logger.warning(f"[JOB:{self.job_id}] {msg}")
 
             # Call .terminate() to send a SIGTERM. This signal can be caught by eopf to do some cleaning.
-            logger.warning("Send SIGTERM signal")
+            logger.warning(f"[JOB:{self.job_id}] Send SIGTERM signal")
             proc.terminate()
 
             # Wait a few moments, then send a SIGKILL in case the SIGTERM was not enough.
             # NOTE: the delay value should be configurable for each processor.
             # Some processors could e.g. clean directories so it could take longer to finish.
             time.sleep(60)
-            logger.warning("Send SIGKILL signal")
+            logger.warning(f"[JOB:{self.job_id}] Send SIGKILL signal")
             proc.kill()
 
         # Run this in a separate thread.
@@ -764,7 +774,8 @@ class ProcessorCaller:
             span.set_attribute("subprocess.log_file", self.log_path)
 
             logger.info(
-                f"Trigger EOPF processing with command '{self.command}' in working directory '{self.working_dir}'",
+                f"[JOB:{self.job_id}] Trigger EOPF processing with command '{self.command}' "
+                "in working directory '{self.working_dir}'",
             )
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
@@ -841,7 +852,7 @@ class ProcessorCaller:
                 raise RuntimeError(err_msg)
 
             span.set_status(Status(StatusCode.OK))
-            logger.info(f"EOPF finished successfully with status code {status_code!r}")
+            logger.info(f"[JOB:{self.job_id}] EOPF finished successfully with status code {status_code!r}")
 
     def _should_flush_log_batch(self, batch: list[str], last_flush: float) -> bool:
         """Return True if the buffered batch is full, or non-empty and waiting long enough."""
@@ -867,7 +878,7 @@ class ProcessorCaller:
         carrier: dict[str, str] = {}
         inject(carrier)
 
-        logger.info(f"OpenTelemetry carrier: {carrier!r}")
+        logger.info(f"[JOB:{self.job_id}] OpenTelemetry carrier: {carrier!r}")
 
         # Convert carrier to environment variables
         if "traceparent" in carrier:
@@ -889,7 +900,7 @@ class ProcessorCaller:
         try:
             # Upload the reports dir to the s3 bucket
             if self.s3:
-                logger.info(f"Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
+                logger.info(f"[JOB:{self.job_id}] Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
                 self.s3._fs.put(  # pylint: disable=protected-access
                     self.local_report_dir,
                     self.s3_report_dir,
@@ -899,7 +910,7 @@ class ProcessorCaller:
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
-                logger.info(f"Upload {local_path!r} to {s3_path!r}")
+                logger.info(f"[JOB:{self.job_id}] Upload {local_path!r} to {s3_path!r}")
                 try:
                     credentials.rm(s3_path, recursive=True)  # remove existing from s3 bucket
                 except FileNotFoundError:
@@ -910,10 +921,10 @@ class ProcessorCaller:
                 self.exec_times.append(("Upload output files", time.time() - start_time))
 
         except Exception as exception:  # pylint: disable=broad-exception-caught
-            logger.error(exception)
+            logger.error(f"[JOB:{self.job_id}] {exception}")
 
         for description, exec_time in self.exec_times:
-            logger.info(f"[TIME] {description}: {str(timedelta(seconds=exec_time))}")
+            logger.info(f"[JOB:{self.job_id}] [TIME] {description}: {str(timedelta(seconds=exec_time))}")
 
         # NOTE: with the real processor, what should we return ?
         return {}
