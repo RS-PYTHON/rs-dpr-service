@@ -259,10 +259,6 @@ class ProcessorCaller:
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
 
-        logger.debug(f"[JOB:{self.job_id}] MYTEST DEBUG INIT PROCESSOR")
-        logger.info(f"[JOB:{self.job_id}] MYTEST INFO INIT PROCESSOR")
-        logger.warning(f"[JOB:{self.job_id}] MYTEST WARNING INIT PROCESSOR")
-
     def copy_caller_env(self):
         """
         Copy environment variables from the calling service environment to the dask client.
@@ -366,11 +362,6 @@ class ProcessorCaller:
         """
         # Copy env vars from the caller
         self.copy_caller_env()
-
-        logger.debug(f"[JOB:{self.job_id}] MYTEST DEBUG RUN PROCESSOR")
-        logger.info(f"[JOB:{self.job_id}] MYTEST INFO RUN PROCESSOR")
-        logger.warning(f"[JOB:{self.job_id}] MYTEST WARNING RUN PROCESSOR")
-        raise RuntimeError(f"[JOB:{self.job_id}] MYTEST RAISE RUN PROCESSOR")
 
         # Init opentelemetry and record all task in an Opentelemetry span
         init_traces()
