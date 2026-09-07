@@ -220,6 +220,7 @@
         "product_type",
         "start_datetime",
         "end_datetime",
+        "satellite",
         "dTa",
         "dTb"
       ],
@@ -288,6 +289,7 @@
         "product_type",
         "start_datetime",
         "end_datetime",
+        "satellite",
         "dTa",
         "dTb"
       ],
