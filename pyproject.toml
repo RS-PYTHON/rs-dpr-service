@@ -55,7 +55,7 @@ include = [
 python = "==3.13.12"
 dask = {extras = ["distributed"], version = "2026.3.0"}
 
-pygeoapi = "^0.24"
+pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.35.0"
 fastapi = ">=0.123.0"

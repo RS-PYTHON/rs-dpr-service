@@ -38,7 +38,7 @@ job_status: {
   'created': '2026-02-17T09:02:06Z',
   'message': 'Sending tasks to the dask cluster',
   'progress': 0,
-  'process_id': 'staging',
+  'processID': 'staging',
   'started': '2026-02-17T09:02:06Z',
   'updated': '2026-02-17T09:02:06Z',
   'jobID': '556363bf-c74d-41cf-931d-1972fe8a7b87'

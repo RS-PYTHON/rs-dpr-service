@@ -72,7 +72,7 @@ class JobLogger:
         """
         job_metadata = {
             "identifier": self.job_id,
-            "process_id": "dpr-service",
+            "processID": "dpr-service",
             "status": self.status.value,
             "progress": int(self.progress),
             "message": self.message,
