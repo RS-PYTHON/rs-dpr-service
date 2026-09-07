@@ -53,7 +53,7 @@ def job_record(identifier: str, status: str = "running") -> dict:
         "message": "Test detail",
         "created": datetime(2026, 4, 20, 10, 0, 0),
         "updated": datetime(2026, 4, 20, 11, 0, 0),
-        "processID": "mockup",
+        "process_id": "mockup",
     }
 
 
