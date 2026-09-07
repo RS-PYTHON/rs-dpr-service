@@ -250,6 +250,15 @@
                   ]
                 },
                 {
+                  "op": "=",
+                  "args": [
+                    {
+                      "property": "platform"
+                    },
+                    "{satellite}"
+                  ]
+                },
+                {
                   "interval": [
                     {
                       "op": "-",
@@ -306,6 +315,15 @@
                     {
                       "property": "end_datetime"
                     }
+                  ]
+                },
+                {
+                  "op": "=",
+                  "args": [
+                    {
+                      "property": "platform"
+                    },
+                    "{satellite}"
                   ]
                 },
                 {
