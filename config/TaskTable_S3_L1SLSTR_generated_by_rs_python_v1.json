@@ -1,0 +1,848 @@
+{
+  "tasktable": {
+    "name": "s3-slstr-l1-rbt",
+    "version": "1.3.2",
+    "specification_version": "1.1a",
+    "update_datetime": "2026-09-15T12:14:00Z",
+    "configuration_path": {}
+  },
+  "external_variables": [
+    "start_datetime",
+    "end_datetime"
+  ],
+  "units": [
+    {
+      "name": "SL1",
+      "module": "s3slstr.rbt.rbt_processing",
+      "resources_min": {
+        "dask": {
+          "worker_cpu": 1.0,
+          "worker_ram": "20GB",
+          "worker_thread_count": 1,
+          "worker_count": 1
+        },
+        "disk": {
+          "size_per_worker": "50GB"
+        }
+      },
+      "input_products": [
+        {
+          "name": "S03SLSL0_",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03NATL0_",
+          "mode": "always",
+          "mandatory": false
+        }
+      ],
+      "input_adfs": [
+        {
+          "name": "Orbit_file",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_OSFAX",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_GETAS",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_ECMWF",
+          "mode": "nrt",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_ECMWA",
+          "mode": "ntc",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SL1PP",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLANC",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_TIRCD",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_VSWCD",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLVSC",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLGEO",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLGEC",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S00_ADF_WATER",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLCLO",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLVIC",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLDTM",
+          "mode": "always",
+          "mandatory": true
+        },
+        {
+          "name": "S03_ADF_SLPFP",
+          "mode": "always",
+          "mandatory": true
+        }
+      ],
+      "output_products": [
+        {
+          "name": "S03SLSRBT",
+          "mode": "always",
+          "mandatory": false,
+          "apply_eoqc": false
+        },
+        {
+          "name": "S03_ADF_SLVSC",
+          "mode": "always",
+          "mandatory": false,
+          "apply_eoqc": false
+        }
+      ]
+    }
+  ],
+  "io": [
+    {
+      "name": "S03SLSL0_",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03NATL0_",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "Orbit_file",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_FROAX",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 12,
+              "dTb": 150
+            }
+          }
+        },
+        {
+          "order": 2,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_FPOAX",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 12,
+              "dTb": 150
+            }
+          }
+        },
+        {
+          "order": 3,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_OSFAX",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 12,
+              "dTb": 150
+            }
+          }
+        },
+        {
+          "order": 4,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S00_ADF_IERSB",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 12,
+              "dTb": 150
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_OSFAX",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValCover",
+            "parameters": {
+              "product_type": "S03_ADF_OSFAX",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 12,
+              "dTb": 150
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_GETAS",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S00_ADF_GETAS",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_ECMWF",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "ValIntersectWithoutDuplicates",
+            "parameters": {
+              "product_type": "S00_ADF_ECMWF",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 64800,
+              "dTb": 21600
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_ECMWA",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "ValIntersectWithoutDuplicates",
+            "parameters": {
+              "product_type": "S00_ADF_ECMWA",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 64800,
+              "dTb": 21600
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "TODO_AX___MFA_AX",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03_ADF_SL1PP",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SL1PP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLANC",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLANC",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_TIRCD",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_TIRCD",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_VSWCD",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_VSWCD",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLVSC",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLVSC",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLGEO",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLGEO",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLGEC",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLGEC",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S00_ADF_WATER",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S00_ADF_WATER",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLCLO",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLCLO",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLVIC",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLVIC",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLDTM",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLDTM",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03_ADF_SLPFP",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      },
+      "alternatives": [
+        {
+          "order": 1,
+          "timeout_seconds": 180,
+          "query": {
+            "name": "LatestValIntersect",
+            "parameters": {
+              "product_type": "S03_ADF_SLPFP",
+              "start_datetime": "{external_variable.start_datetime}",
+              "end_datetime": "{external_variable.end_datetime}",
+              "dTa": 0,
+              "dTb": 0
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "S03SLSRBT",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    },
+    {
+      "name": "S03_ADF_SLVSC",
+      "type": "file",
+      "engine": "cpm_zarr",
+      "store_params": {
+        "consolidate": true
+      }
+    }
+  ],
+  "queries": [
+    {
+      "name": "LatestValCover",
+      "parameters": [
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "t_contains",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    },
+    {
+      "name": "ValIntersect",
+      "parameters": [
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "LatestValIntersect",
+      "parameters": [
+        "product_type",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    }
+  ],
+  "pipelines": [
+    {
+      "name": "sl1_rbt",
+      "description": "Full Sentinel-3 SLSTR L1 RBT processing",
+      "steps": [
+        {
+          "unit_name": "SL1",
+          "step_id": 1,
+          "input_products": {
+            "S03SLSL0_": "pipeline_input",
+            "S03NATL0_": "pipeline_input"
+          },
+          "output_products": {
+            "S03SLSRBT": "pipeline_output",
+            "S03_ADF_SLVSC": "pipeline_output"
+          }
+        }
+      ]
+    }
+  ]
+}
