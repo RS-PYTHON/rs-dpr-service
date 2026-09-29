@@ -599,14 +599,20 @@ class ProcessorCaller:
 
         payload_contents.update(
             {
-                "dask_context": {
-                    "cluster_type": "gateway",
-                    "cluster_config": {
-                        "address": self.dask_gateway_address,
-                        "reuse_cluster": self.cluster_info.cluster_instance,
-                        "auth": auth,
+                "context_managers": [
+                    {
+                        "module": "eopf.dask_utils.dask_context_manager",
+                        "context_manager": "DaskContext",
+                        "parameters": {
+                            "cluster_type": "gateway",
+                            "cluster_config": {
+                                "address": self.dask_gateway_address,
+                                "reuse_cluster": self.cluster_info.cluster_instance,
+                                "auth": auth,
+                            },
+                        },
                     },
-                },
+                ],
             },
         )
 
@@ -619,17 +625,19 @@ class ProcessorCaller:
             return
 
         # Hard replace the dask gateway configuration with a LocalCluster
-        if self.experimental_config.local_cluster.enabled and (dask_context := payload_contents.get("dask_context")):
-            dask_context["cluster_type"] = "local"
-            if cluster_config := dask_context["cluster_config"]:
-                cluster_config.pop("address", None)
-                cluster_config.pop("reuse_cluster", None)
-                cluster_config.pop("auth", None)
-                cluster_config.pop("workers", None)
+        if self.experimental_config.local_cluster.enabled:
+            for manager in payload_contents["context_managers"]:
+                parameters = manager.get("parameters", {})
+                parameters["cluster_type"] = "local"
+                if cluster_config := parameters.get("cluster_config", {}):
+                    cluster_config.pop("address", None)
+                    cluster_config.pop("reuse_cluster", None)
+                    cluster_config.pop("auth", None)
+                    cluster_config.pop("workers", None)
 
-                cluster_config["n_workers"] = self.experimental_config.local_cluster.n_workers
-                cluster_config["memory_limit"] = self.experimental_config.local_cluster.memory_limit
-                cluster_config["threads_per_worker"] = self.experimental_config.local_cluster.threads_per_worker
+                    cluster_config["n_workers"] = self.experimental_config.local_cluster.n_workers
+                    cluster_config["memory_limit"] = self.experimental_config.local_cluster.memory_limit
+                    cluster_config["threads_per_worker"] = self.experimental_config.local_cluster.threads_per_worker
 
         # Read/write on the local disk rather than on the S3 bucket. Only works with a LocalCluster.
         if self.experimental_config.local_files.local_dir:
