@@ -1,14 +1,16 @@
 {
+  "$schema": "./../schemas/TaskTable.schema_cpm3.json",
   "tasktable": {
     "name": "s3-slstr-l1-rbt",
     "version": "1.3.2",
     "specification_version": "1.1a",
-    "update_datetime": "2026-09-15T12:14:00Z",
+    "update_datetime": "2026-09-29T14:03:00Z",
     "configuration_path": {}
   },
   "external_variables": [
     "start_datetime",
-    "end_datetime"
+    "end_datetime",
+    "satellite"
   ],
   "units": [
     {
@@ -172,6 +174,7 @@
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_FROAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 12,
@@ -186,6 +189,7 @@
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_FPOAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 12,
@@ -200,6 +204,7 @@
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 12,
@@ -211,7 +216,7 @@
           "order": 4,
           "timeout_seconds": 180,
           "query": {
-            "name": "LatestValCover",
+            "name": "LatestValCoverWithoutSatellite",
             "parameters": {
               "product_type": "S00_ADF_IERSB",
               "start_datetime": "{external_variable.start_datetime}",
@@ -238,6 +243,7 @@
             "name": "LatestValCover",
             "parameters": {
               "product_type": "S03_ADF_OSFAX",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 12,
@@ -262,6 +268,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S00_ADF_GETAS",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -283,7 +290,7 @@
           "order": 1,
           "timeout_seconds": 180,
           "query": {
-            "name": "ValIntersectWithoutDuplicates",
+            "name": "ValIntersect",
             "parameters": {
               "product_type": "S00_ADF_ECMWF",
               "start_datetime": "{external_variable.start_datetime}",
@@ -307,7 +314,7 @@
           "order": 1,
           "timeout_seconds": 180,
           "query": {
-            "name": "ValIntersectWithoutDuplicates",
+            "name": "ValIntersect",
             "parameters": {
               "product_type": "S00_ADF_ECMWA",
               "start_datetime": "{external_variable.start_datetime}",
@@ -318,14 +325,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "TODO_AX___MFA_AX",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      }
     },
     {
       "name": "S03_ADF_SL1PP",
@@ -342,6 +341,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SL1PP",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -366,6 +366,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLANC",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -390,6 +391,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_TIRCD",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -414,6 +416,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_VSWCD",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -438,6 +441,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLVSC",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -462,6 +466,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLGEO",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -486,6 +491,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLGEC",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -507,7 +513,7 @@
           "order": 1,
           "timeout_seconds": 180,
           "query": {
-            "name": "LatestValIntersect",
+            "name": "LatestValIntersectWithoutSatellite",
             "parameters": {
               "product_type": "S00_ADF_WATER",
               "start_datetime": "{external_variable.start_datetime}",
@@ -534,6 +540,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLCLO",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -558,6 +565,7 @@
             "name": "LatestValIntersect",
             "parameters": {
               "product_type": "S03_ADF_SLVIC",
+              "satellite": "{external_variable.satellite}",
               "start_datetime": "{external_variable.start_datetime}",
               "end_datetime": "{external_variable.end_datetime}",
               "dTa": 0,
@@ -579,7 +587,7 @@
           "order": 1,
           "timeout_seconds": 180,
           "query": {
-            "name": "LatestValIntersect",
+            "name": "LatestValIntersectWithoutSatellite",
             "parameters": {
               "product_type": "S03_ADF_SLDTM",
               "start_datetime": "{external_variable.start_datetime}",
@@ -603,7 +611,7 @@
           "order": 1,
           "timeout_seconds": 180,
           "query": {
-            "name": "LatestValIntersect",
+            "name": "LatestValIntersectWithoutSatellite",
             "parameters": {
               "product_type": "S03_ADF_SLPFP",
               "start_datetime": "{external_variable.start_datetime}",
@@ -635,6 +643,82 @@
   "queries": [
     {
       "name": "LatestValCover",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_contains",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    },
+    {
+      "name": "LatestValCoverWithoutSatellite",
       "parameters": [
         "product_type",
         "start_datetime",
@@ -760,6 +844,82 @@
     },
     {
       "name": "LatestValIntersect",
+      "parameters": [
+        "product_type",
+        "satellite",
+        "start_datetime",
+        "end_datetime",
+        "dTa",
+        "dTb"
+      ],
+      "stac": {
+        "filter": {
+          "op": "and",
+          "args": [
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "product:type"
+                },
+                "{product_type}"
+              ]
+            },
+            {
+              "op": "=",
+              "args": [
+                {
+                  "property": "platform"
+                },
+                "{satellite}"
+              ]
+            },
+            {
+              "op": "t_intersects",
+              "args": [
+                {
+                  "interval": [
+                    {
+                      "property": "start_datetime"
+                    },
+                    {
+                      "property": "end_datetime"
+                    }
+                  ]
+                },
+                {
+                  "interval": [
+                    {
+                      "op": "-",
+                      "args": [
+                        "{start_datetime}",
+                        "{dTa}"
+                      ]
+                    },
+                    {
+                      "op": "+",
+                      "args": [
+                        "{end_datetime}",
+                        "{dTb}"
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        "sortby": [
+          {
+            "field": "created",
+            "direction": "desc"
+          }
+        ],
+        "limit": 1
+      }
+    },
+    {
+      "name": "LatestValIntersectWithoutSatellite",
       "parameters": [
         "product_type",
         "start_datetime",
