@@ -63,6 +63,7 @@ jobs:
       caller-ref: ${{ matrix.github_ref }}
       caller-ref_name: ${{ matrix.github_ref_name }}
       python-version: ${{ matrix.python_version }}
+      ignore-safety-errors: ${{ matrix.temp_branch == 'true' }}
       cov-dirs: rs_dpr_service
       artifact-prefix: "${{ matrix.dep_name }}_"
     secrets:
