@@ -19,7 +19,8 @@ import copy
 import logging
 import os
 import pathlib
-from contextlib import asynccontextmanager
+import uuid
+from contextlib import asynccontextmanager, suppress
 from datetime import datetime
 from string import Template
 from time import sleep
@@ -33,6 +34,7 @@ from pygeoapi.api import API
 from pygeoapi.process.base import JobNotFoundError
 from pygeoapi.process.manager.postgresql import PostgreSQLManager
 from pygeoapi.provider.sql import get_engine  # pylint: disable=no-name-in-module
+from sqlalchemy.engine import Engine
 from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -45,6 +47,11 @@ from starlette.status import (  # pylint: disable=C0411
 )
 
 from rs_dpr_service.dask.call_dask import ClusterInfo
+from rs_dpr_service.instance_registry import (
+    list_processor_ids,
+    register_instance,
+    unregister_instance,
+)
 from rs_dpr_service.jobs_table import Base
 from rs_dpr_service.openapi_validation import (
     validate_request,
@@ -95,6 +102,13 @@ router = APIRouter(tags=["Processing service"])
 
 JOB_ATTRS_MAPPING = {"identifier": "jobID"}
 OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
+
+# How often this instance refreshes its row in the shared instance registry (see instance_registry.py).
+REGISTRY_HEARTBEAT_INTERVAL_SECONDS = int(os.environ.get("DPR_REGISTRY_HEARTBEAT_SECONDS", "10"))
+
+# An instance registry row is ignored by readers if it wasn't refreshed for longer than this. Should be
+# a few times REGISTRY_HEARTBEAT_INTERVAL_SECONDS to tolerate a couple of missed heartbeats.
+REGISTRY_STALE_AFTER_SECONDS = int(os.environ.get("DPR_REGISTRY_STALE_AFTER_SECONDS", "30"))
 
 logger = Logging.default(__name__)
 
@@ -180,6 +194,48 @@ def init_pygeoapi() -> API:
 api = init_pygeoapi()
 
 
+def get_instance_id() -> str:
+    """
+    Return a stable identifier for this instance, used as the primary key in the shared instance registry.
+
+    In cluster mode this is the pod name (the HOSTNAME env var is set by Kubernetes). Fall back to a random
+    id in local mode, where several instances are not expected to run against the same database anyway.
+    """
+    return os.environ.get("HOSTNAME") or f"local-{uuid.uuid4()}"
+
+
+def local_processor_ids() -> list[str]:
+    """Return the ids of the processors exposed by *this* instance, from the (already filtered) pygeoapi config."""
+    return [api.config["resources"][resource]["processor"]["name"] for resource in api.config["resources"]]
+
+
+def init_instance_registry() -> Engine | None:
+    """
+    Create the SQLAlchemy engine used to read/write the shared instance registry, or None if unavailable.
+
+    Reuses the same PostgreSQL connection parameters as init_db(). Errors are caught and logged: the
+    instance registry is a best-effort optimization, not a hard dependency. If it can't be reached,
+    GET /dpr/processes simply falls back to listing the processors exposed by the local instance only.
+    """
+    try:
+        manager_def = api.config["manager"]
+        connection = manager_def["connection"]
+        return get_engine(driver_name="postgresql+psycopg2", **connection)
+    except (SQLAlchemyError, KeyError, TypeError) as error:
+        logger.warning(f"Could not initialize the instance registry, {error}")
+        return None
+
+
+async def registry_heartbeat_loop(engine: Engine, instance_id: str, processor_ids: list[str]) -> None:
+    """Periodically refresh this instance's row so peers know it is still alive. Runs until cancelled."""
+    while True:
+        await asyncio.sleep(REGISTRY_HEARTBEAT_INTERVAL_SECONDS)
+        try:
+            await asyncio.to_thread(register_instance, engine, instance_id, processor_ids)
+        except SQLAlchemyError as error:
+            logger.warning(f"Instance registry heartbeat failed: {error}")
+
+
 # Filelock to be added ?
 def init_db(pause: int = 3, timeout: int | None = None) -> PostgreSQLManager:
     """Initialize the PostgreSQL database connection and sets up required table and ENUM type.
@@ -246,11 +302,41 @@ async def app_lifespan(fastapi_app: FastAPI):
     # fastapi_app.extra["db_table"] = db.table("jobs")
     # fastapi_app.extra["dask_cluster"] = cluster
 
+    # Register this instance in the shared instance registry, used to aggregate GET /dpr/processes
+    # across every running instance. Skipped when init_db() itself was skipped (e.g. in unit tests).
+    heartbeat_task = None
+    instance_id = get_instance_id()
+    if process_manager is not None:
+        registry_engine = init_instance_registry()
+        if registry_engine is not None:
+            processor_ids = local_processor_ids()
+            try:
+                await asyncio.to_thread(register_instance, registry_engine, instance_id, processor_ids)
+                fastapi_app.extra["registry_engine"] = registry_engine
+                heartbeat_task = asyncio.create_task(
+                    registry_heartbeat_loop(registry_engine, instance_id, processor_ids),
+                )
+            except SQLAlchemyError as error:
+                logger.warning(f"Could not register this instance in the instance registry: {error}")
+
     # Yield control back to the application (this is where the app will run)
     yield
 
     # Shutdown logic (cleanup)
     logger.info("Shutting down the application...")
+
+    if heartbeat_task is not None:
+        heartbeat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await heartbeat_task
+
+    registry_engine = fastapi_app.extra.get("registry_engine")
+    if registry_engine is not None:
+        try:
+            await asyncio.to_thread(unregister_instance, registry_engine, instance_id)
+        except SQLAlchemyError as error:
+            logger.warning(f"Could not unregister this instance from the instance registry: {error}")
+
     logger.info("Application gracefully stopped...")
 
 
@@ -279,20 +365,30 @@ def build_cluster_info(data: dict) -> ClusterInfo:
 # Endpoint to return the names of the available processors
 @router.get("/dpr/processes")
 async def get_processes(request: Request):
-    """Returns list of all available processes from config."""
+    """
+    Returns list of all available processes.
+
+    This instance may only expose a subset of the processors deployed in the cluster (see
+    DPR_ENABLED_PROCESSORS). When the shared instance registry is available, the response is the
+    aggregated list of processors exposed by every running instance, not just this one. Otherwise (e.g.
+    the registry is unreachable, or in local mode) it falls back to the processors exposed locally.
+    """
+    registry_engine = app.extra.get("registry_engine")
+    if registry_engine is not None:
+        try:
+            processor_ids = await asyncio.to_thread(list_processor_ids, registry_engine, REGISTRY_STALE_AFTER_SECONDS)
+        except SQLAlchemyError as error:
+            logger.warning(f"Could not read the instance registry, falling back to local processes only: {error}")
+            processor_ids = local_processor_ids()
+    else:
+        processor_ids = local_processor_ids()
+
     processes = {
-        "processes": [],
+        "processes": [{"id": processor_id, "version": "1.0.0"} for processor_id in processor_ids],
         "links": [
             {"href": str(request.url), "rel": "self", "type": "application/json", "title": "List of processes"},
         ],
     }
-    for resource in api.config["resources"]:
-        processes["processes"].append(
-            {
-                "id": api.config["resources"][resource]["processor"]["name"],
-                "version": "1.0.0",
-            },
-        )
     validate_response(request, processes)
     return JSONResponse(status_code=HTTP_200_OK, content=processes)
 
