@@ -211,20 +211,6 @@
               "dTb": 150
             }
           }
-        },
-        {
-          "order": 4,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValCoverWithoutSatellite",
-            "parameters": {
-              "product_type": "S00_ADF_IERSB",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 12,
-              "dTb": 150
-            }
-          }
         }
       ]
     },
@@ -671,72 +657,6 @@
                   "property": "platform"
                 },
                 "{satellite}"
-              ]
-            },
-            {
-              "op": "t_contains",
-              "args": [
-                {
-                  "interval": [
-                    {
-                      "property": "start_datetime"
-                    },
-                    {
-                      "property": "end_datetime"
-                    }
-                  ]
-                },
-                {
-                  "interval": [
-                    {
-                      "op": "-",
-                      "args": [
-                        "{start_datetime}",
-                        "{dTa}"
-                      ]
-                    },
-                    {
-                      "op": "+",
-                      "args": [
-                        "{end_datetime}",
-                        "{dTb}"
-                      ]
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        },
-        "sortby": [
-          {
-            "field": "created",
-            "direction": "desc"
-          }
-        ],
-        "limit": 1
-      }
-    },
-    {
-      "name": "LatestValCoverWithoutSatellite",
-      "parameters": [
-        "product_type",
-        "start_datetime",
-        "end_datetime",
-        "dTa",
-        "dTb"
-      ],
-      "stac": {
-        "filter": {
-          "op": "and",
-          "args": [
-            {
-              "op": "=",
-              "args": [
-                {
-                  "property": "product:type"
-                },
-                "{product_type}"
               ]
             },
             {
