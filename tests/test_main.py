@@ -254,6 +254,38 @@ def test_get_processes_endpoint(client):
     assert {process["id"] for process in payload["processes"]} == set(main_module.processor_types)
 
 
+def test_get_processes_aggregates_via_registry_when_available(client, mocker):
+    """When the instance registry is reachable, the response reflects every registered instance."""
+    client.app.extra["registry_engine"] = mocker.Mock()
+    mocker.patch(
+        "rs_dpr_service.main.list_processor_ids",
+        return_value=["conv_safe_zarr", "s1_l0", "s3_l0"],
+    )
+
+    response = client.get("/dpr/processes")
+
+    assert response.status_code == 200
+    assert {process["id"] for process in response.json()["processes"]} == {
+        "conv_safe_zarr",
+        "s1_l0",
+        "s3_l0",
+    }
+
+
+def test_get_processes_falls_back_to_local_when_registry_read_fails(client, mocker):
+    """If the instance registry can't be read, fall back to the processes exposed by this instance."""
+    client.app.extra["registry_engine"] = mocker.Mock()
+    mocker.patch(
+        "rs_dpr_service.main.list_processor_ids",
+        side_effect=main_module.SQLAlchemyError("db down"),
+    )
+
+    response = client.get("/dpr/processes")
+
+    assert response.status_code == 200
+    assert {process["id"] for process in response.json()["processes"]} == set(main_module.processor_types)
+
+
 def test_get_resource_endpoint_returns_404_for_unknown_resource(client):
     """Test the endpoint response when the requested process does not exist."""
     response = client.get("/dpr/processes/unknown-process")
