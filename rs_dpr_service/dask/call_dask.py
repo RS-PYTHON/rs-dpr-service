@@ -508,7 +508,7 @@ class ProcessorCaller:
 
     @staticmethod
     def _collect_storage_options(payload_contents: dict) -> list[dict]:
-        io = payload_contents.get("I/O", payload_contents.get("io", {}))
+        io = payload_contents.get("io", {})
         result = []
         for product in io.get("input_products", []):
             if so := product.get("reader_params", product.get("store_params", {})).get("storage_options"):
@@ -644,7 +644,7 @@ class ProcessorCaller:
 
             # For each input or output product
             start_time = time.time()
-            for io_key, io_value in payload_contents.get("I/O", payload_contents.get("io", {})).items():
+            for io_key, io_value in payload_contents.get("io", {}).items():
                 for product in io_value:
                     self.handle_local_product(io_key, product)
             self.exec_times.append(("Download input files", time.time() - start_time))
