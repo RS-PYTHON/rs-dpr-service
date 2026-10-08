@@ -403,31 +403,41 @@ class ProcessorCaller:
         payload_subpath = self.data["payload_subpath"]
         self.s3_report_dir = self.data["s3_report_dir"]
 
-        # Get S3 file handler.
-        from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
-            AnyPath,
-        )
+        # Check if s3_config_dir is a local path or S3 path
+        is_local = not s3_config_dir.startswith(("s3://", "S3://"))
 
-        self.s3 = AnyPath(
-            s3_config_dir,
-            key=os.environ["S3_ACCESSKEY"],
-            secret=os.environ["S3_SECRETKEY"],
-            client_kwargs={
-                "endpoint_url": os.environ["S3_ENDPOINT"],
-                "region_name": os.environ["S3_REGION"],
-            },
-        )
+        if is_local:
+            # Local path: use it directly without downloading from S3
+            local_config_dir = s3_config_dir
+            self.s3 = None
+        else:
+            # S3 path: download the configuration folder from the S3 bucket
+            from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
+                AnyPath,
+            )
+
+            self.s3 = AnyPath(
+                s3_config_dir,
+                key=os.environ["S3_ACCESSKEY"],
+                secret=os.environ["S3_SECRETKEY"],
+                client_kwargs={
+                    "endpoint_url": os.environ["S3_ENDPOINT"],
+                    "region_name": os.environ["S3_REGION"],
+                },
+            )
+
+            # Download the configuration folder from the S3 bucket into a local temp folder.
+            # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
+            downloaded_dir: AnyPath | str = self.s3.get(recursive=True)
+            if isinstance(downloaded_dir, AnyPath):
+                if hasattr(downloaded_dir, "fs_path"):  # CPM >= 3.0.0rc4
+                    local_config_dir = downloaded_dir.fs_path
+                else:
+                    local_config_dir = downloaded_dir.path
+            else:
+                local_config_dir = downloaded_dir
 
         logger.info(f"[JOB:{self.job_id}] The dpr processing task started in {s3_config_dir}")
-
-        # Download the configuration folder from the S3 bucket into a local temp folder.
-        # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
-        local_config_dir: AnyPath | str = self.s3.get(recursive=True)
-        if isinstance(local_config_dir, AnyPath):
-            if hasattr(local_config_dir, "fs_path"):  # CPM >= 3.0.0rc4
-                local_config_dir = local_config_dir.fs_path
-            else:
-                local_config_dir = local_config_dir.path
 
         # Payload path and parent dir
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
