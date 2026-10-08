@@ -26,8 +26,6 @@ import os
 import sys
 
 import eopf  # type: ignore
-from eopf.common.file_utils import AnyPath  # type: ignore
-from eopf.config import EOConfiguration  # type: ignore
 from eopf.store.convert import convert  # type: ignore
 
 
@@ -43,9 +41,6 @@ def main():
         print(f"Failed to decode config JSON: {e}", file=sys.stderr)
         sys.exit(1)
 
-    # do not use dask cluster
-    EOConfiguration()["store__convert__use_multithreading"] = False
-
     # Converting a legacy product stored in a s3 bucket (safe format) into new Zarr format
     safe_uri = cfg["safe_uri"]
     zarr_uri = cfg["zarr_uri"]
@@ -58,9 +53,16 @@ def main():
         },
     }
     try:
-        safe = AnyPath(safe_uri, **s3_cfg)
-        zarr = AnyPath(zarr_uri, **s3_cfg)
-        convert(safe, zarr)
+        # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
+        # Zarr v2: the on-demand flow reads the root .zattrs.
+        convert(
+            safe_uri,
+            zarr_uri,
+            source_store_kwargs={"storage_options": s3_cfg},
+            target_store_kwargs={"storage_options": s3_cfg, "zarr_format": 2},
+            stage_source=True,
+            stage_target=True,
+        )
 
         print(
             json.dumps(
