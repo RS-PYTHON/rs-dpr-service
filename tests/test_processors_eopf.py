@@ -81,7 +81,7 @@ async def test_eopf_processors_get_tasktable_loads_the_expected_tasktable_file(
 ):
     """Test each EOPF processor get_tasktable() loads the expected tasktable file."""
     # Instantiation still builds the shared Dask cluster handler, even though get_tasktable() is local here.
-    expected_tasktable = {"filename": expected_filename}
+    expected_tasktable = {"file": expected_filename}
     # Mock the loader so the test verifies which tasktable filename the processor selects.
     load_tasktable = mocker.patch(
         "rs_dpr_service.processors.eopf_processors._load_tasktable",

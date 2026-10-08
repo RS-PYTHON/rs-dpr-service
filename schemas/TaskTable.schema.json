@@ -30,10 +30,8 @@
                 "external_modules": {
                     "type": "array",
                     "items": {
-                        "type": "string",
-                        "pattern": "^[a-zA-Z0-9_./]+$"
-                    },
-                    "uniqueItems": true
+                        "$ref": "#/$defs/ExternalModule"
+                    }
                 },
                 "units": {
                     "type": "array",
@@ -42,10 +40,8 @@
                     }
                 },
                 "io": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/$defs/Io"
-                    }
+                    "type": "object",
+                    "$ref": "#/$defs/Io"
                 },
                 "queries": {
                     "type": "array",
@@ -72,57 +68,157 @@
             "type": "object",
             "additionalProperties": false,
             "properties": {
-                "name": {
-                    "$ref": "#/$defs/NonEmptyIdentifier"
-                },
-                "type": {
-                    "type": "string",
-                    "enum": [
-                        "folder",
-                        "filename",
-                        "regex"
-                    ]
-                },
-                "store_type": {
-                    "type": "string",
-                    "enum": [
-                        "safe",
-                        "zarr",
-                        "cadu"
-                    ]
-                },
-                "store_params": {
-                    "$ref": "#/$defs/StoreParams"
-                },
-                "opening_mode": {
-                    "type": "string",
-                    "enum": [
-                        "CREATE",
-                        "CREATE_OVERWRITE",
-                        "UPDATE"
-                    ],
-                    "default": "CREATE"
-                },
-                "multiplicity": {
-                    "type": "string",
-                    "enum": [
-                        "one_per_input",
-                        "single"
-                    ],
-                    "default": "single"
-                },
-                "alternatives": {
+                "input": {
                     "type": "array",
-                    "items": {
-                        "$ref": "#/$defs/Alternative"
-                    }
+                    "$ref": "#/$defs/IoInput"
+                },
+                "output": {
+                    "type": "array",
+                    "$ref": "#/$defs/IoOutput"
+                },
+                "adfs": {
+                    "type": "array",
+                    "$ref": "#/$defs/IoAdfs"
                 }
             },
             "required": [
-                "name",
-                "type"
+                "input"
             ],
             "title": "Io"
+        },
+        "IoInput": {
+            "type": "array",
+            "items": {
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "$ref": "#/$defs/NonEmptyIdentifier"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "folder",
+                            "file",
+                            "regex"
+                        ]
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "cpm_safe",
+                            "cpm_zarr",
+                            "cadu",
+                            "s3_cache"
+                        ]
+                    },
+                    "regex_expression": {
+                        "type": "string",
+                        "description": "Python regular expression. Can be used with type regex.",
+                        "maxLength": 1024
+                    },
+                    "regex_multiplicity": {
+                        "type": "string",
+                        "description": "Can be used with type regex.",
+                        "enum": [
+                            "exactly_one",
+                            "more_than_one"
+                        ],
+                        "default": "more_than_one"
+                    },
+                    "reader_params": {
+                        "$ref": "#/$defs/ReaderParams"
+                    }
+                },
+                "required": [
+                    "name",
+                    "type"
+                ]
+            },
+            "title": "IoInput"
+        },
+        "IoOutput": {
+            "type": "array",
+            "items": {
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "$ref": "#/$defs/NonEmptyIdentifier"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "folder",
+                            "file",
+                            "cache"
+                        ]
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "cpm_zarr",
+                            "fast_zarr",
+                            "s3_cache"
+                        ]
+                    },
+                    "writer_params": {
+                        "$ref": "#/$defs/WriterParams"
+                    }
+                },
+                "required": [
+                    "name",
+                    "type",
+                    "engine"
+                ]
+            },
+            "title": "IoOutput"
+        },
+        "IoAdfs": {
+            "type": "array",
+            "items": {
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "$ref": "#/$defs/NonEmptyIdentifier"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "folder",
+                            "file"
+                        ]
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "cpm_safe",
+                            "cpm_zarr"
+                        ]
+                    },
+                    "folder_multiplicity": {
+                        "type": "string",
+                        "description": "Can be used with type folder.",
+                        "enum": [
+                            "one_per_input",
+                            "single"
+                        ],
+                        "default": "single"
+                    },
+                    "adfs_params": {
+                        "$ref": "#/$defs/AdfsParams"
+                    },
+                    "alternatives": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/$defs/Alternative"
+                        }
+                    }
+                },
+                "required": [
+                    "name",
+                    "type"
+                ]
+            },
+            "title": "IoAdfs"
         },
         "Alternative": {
             "type": "object",
@@ -192,30 +288,56 @@
                 "satellite": {
                     "type": "string",
                     "maxLength": 128
+                },
+                "item_id": {
+                    "type": "string",
+                    "maxLength": 128
                 }
             },
             "title": "Parameters"
         },
-        "StoreParams": {
+        "ReaderParams": {
             "type": "object",
-            "additionalProperties": false,
+            "additionalProperties": true,
             "properties": {
-                "consolidate": {
-                    "type": "boolean"
-                },
-                "regex": {
-                    "type": "string",
-                    "maxLength": 1024
-                },
-                "multiplicity": {
+                "mode": {
                     "type": "string",
                     "enum": [
-                        "more_than_one",
-                        "exactly_one"
+                        "r"
                     ]
+                },
+                "use_obstore": {
+                    "type": "boolean",
+                    "default": true
                 }
             },
-            "title": "StoreParams"
+            "title": "ReaderParams"
+        },
+        "AdfsParams": {
+            "type": "object",
+            "additionalProperties": true,
+            "title": "AdfsParams"
+        },
+        "WriterParams": {
+            "type": "object",
+            "additionalProperties": true,
+            "properties": {
+                "mode": {
+                    "type": "string",
+                    "enum": [
+                        "w",
+                        "w-"
+                    ]
+                },
+                "compute": {
+                    "type": "boolean"
+                },
+                "use_obstore": {
+                    "type": "boolean",
+                    "default": true
+                }
+            },
+            "title": "WriterParams"
         },
         "Pipeline": {
             "type": "object",
@@ -314,7 +436,8 @@
                             "end_datetime",
                             "dTa",
                             "dTb",
-                            "satellite"
+                            "satellite",
+                            "item_id"
                         ]
                     },
                     "uniqueItems": true,
@@ -384,6 +507,34 @@
                 }
             },
             "title": "ConfigurationPath"
+        },
+        "ExternalModule": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "name": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[a-zA-Z0-9_./]+$"
+                },
+                "alias": {
+                    "type": "string",
+                    "maxLength": 1024,
+                    "pattern": "^[a-zA-Z0-9_./]+$"
+                },
+                "star_import": {
+                    "type": "boolean"
+                },
+                "folder": {
+                    "type": "string",
+                    "Length": 1024,
+                    "pattern": "^[a-zA-Z0-9_./]+$"
+                }
+            },
+            "required": [
+                "name"
+            ],
+            "title": "ExternalModule"
         },
         "Unit": {
             "type": "object",
