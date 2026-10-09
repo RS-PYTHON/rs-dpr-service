@@ -653,28 +653,11 @@ def test_flush_log_batch_does_nothing_for_an_empty_batch(mocker):
     logger_info.assert_not_called()
 
 
-# ---- handle_experimental_config ----
-
-
-def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker):
-    """Test handle_experimental_config() falls back to the 'io' key when 'I/O' is absent."""
-    caller = _make_processor_caller(mocker)
-    caller.data = {"experimental_config": {"local_files": {"local_dir": "/data/local"}}}
-    handle_local_product = mocker.patch.object(caller, "handle_local_product")
-
-    product = {"path": "s3://bucket/product"}
-    payload = {"io": {"input_products": [product]}}
-
-    caller.handle_experimental_config(payload)
-
-    handle_local_product.assert_called_once_with("input_products", product)
-
-
 # ---- _collect_storage_options ----
 
 
 def test_collect_storage_options_returns_empty_when_no_io_section():
-    """Returns an empty list when the payload has no I/O section."""
+    """Returns an empty list when the payload has no io section."""
     assert not call_dask.ProcessorCaller._collect_storage_options({})  # pylint: disable=protected-access
 
 
@@ -684,7 +667,7 @@ def test_collect_storage_options_gathers_all_sections():
     so_out = {"key": "k2", "secret": "s2"}  # nosec
     so_adf = {"key": "k3", "secret": "s3"}  # nosec
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {"storage_options": so_in}}],
             "output_products": [{"writer_params": {"storage_options": so_out}}],
             "adfs": [{"adf_params": {"storage_options": so_adf}}],
@@ -697,7 +680,7 @@ def test_collect_storage_options_gathers_all_sections():
 def test_collect_storage_options_skips_items_without_storage_options():
     """Items whose params dict has no storage_options key are excluded."""
     payload: dict[str, object] = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {}}],
             "output_products": [{"writer_params": {}}],
             "adfs": [{"adf_params": {}}],
@@ -710,7 +693,7 @@ def test_collect_storage_options_falls_back_to_store_params():
     """Uses store_params when reader_params / writer_params / adf_params are absent."""
     so = {"key": "k"}
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"store_params": {"storage_options": so}}],
             "output_products": [{"store_params": {"storage_options": so}}],
             "adfs": [{"store_params": {"storage_options": so}}],
@@ -718,14 +701,6 @@ def test_collect_storage_options_falls_back_to_store_params():
     }
     result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
     assert result == [so, so, so]
-
-
-def test_collect_storage_options_uses_lowercase_io_key_fallback():
-    """Falls back to the 'io' key when 'I/O' is absent."""
-    so = {"key": "k"}
-    payload = {"io": {"input_products": [{"reader_params": {"storage_options": so}}]}}
-    result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
-    assert result == [so]
 
 
 # ---- write_secret_conf_files ----
@@ -757,7 +732,7 @@ def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_
     """Logs an error and writes nothing when differing credentials are found across products."""
     caller = _make_processor_caller(mocker)
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [
                 {
                     "reader_params": {
@@ -797,7 +772,7 @@ def test_write_secret_conf_files_nominal(mocker, tmp_path):
         "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
     }
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {"storage_options": creds}}],
             "output_products": [{"writer_params": {"storage_options": creds}}],
             "adfs": [{"adf_params": {"storage_options": creds}}],
@@ -827,7 +802,7 @@ def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
         "secret": "s",  # nosec
         "client_kwargs": {"endpoint_url": "u", "region_name": "r"},
     }
-    payload = {"I/O": {"input_products": [{"reader_params": {"storage_options": creds}}]}}
+    payload = {"io": {"input_products": [{"reader_params": {"storage_options": creds}}]}}
 
     caller.write_secret_conf_files(["secrets.json"], payload, str(payload_dir / "payload.yaml"))
 

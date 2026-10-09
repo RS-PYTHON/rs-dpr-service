@@ -16,6 +16,7 @@
 
 import os
 
+from dask.system import CPU_COUNT
 from pydantic import BaseModel
 
 
@@ -32,10 +33,11 @@ class ExperimentalConfig(BaseModel):
         The Dask Gateway should be set with a single worker, else we face unexpected behaviour. The EOPF LocalCluster
         will run inside this single worker.
 
-        If enabled in local mode, the RSPY Dask Gateway is not used. We use only the EOPF LocalCluster. Your local mode
-        should use the docker image ghcr.io/rs-python/dask-gateway-server/eopf/localcluster and not
-        ghcr.io/rs-python/rs-dpr-service because it contains both the rs-dpr-service and the processor source code
-        and dependencies. We use this mode to be able to debug and put breakpoints in the EOPF and processor source
+        If enabled in local mode, the RSPY Dask Gateway is not used. We use only the EOPF LocalCluster.
+        Your local mode should use the docker image ghcr.io/rs-python/dask/<proc>/localcluster and not
+        ghcr.io/rs-python/rs-dpr-service_<version> because it contains both the rs-dpr-service and
+        the processor source code and dependencies.
+        We use this mode to be able to debug and put breakpoints in the EOPF and processor source
         code.
         """
 
@@ -45,10 +47,10 @@ class ExperimentalConfig(BaseModel):
         # Dask LocalCluster configuration, see: https://distributed.dask.org/en/latest/api.html#distributed.LocalCluster
 
         # Number of workers (=processes) to start. Default is CPU_COUNT.
-        n_workers: int | None = None
+        n_workers: int = CPU_COUNT
 
         # Sets the memory limit *per worker (=process)*
-        memory_limit: str | float | int | None = "auto"
+        memory_limit: str | float | int | None = "10GiB"
 
         # Number of threads per each worker (=process).
         # Should always be 1 because the processors are not thread-safe.
