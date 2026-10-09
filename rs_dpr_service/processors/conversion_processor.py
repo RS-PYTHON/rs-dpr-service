@@ -41,7 +41,7 @@ class ConversionProcessor(GenericProcessor):
         super().__init__(
             db_process_manager=db_process_manager,
             cluster_info=cluster_info,
-            local_mode_address="DASK_GATEWAY_L0_ADDRESS",
+            local_mode_address="DASK_GATEWAY_CPM3_ADDRESS",
         )
 
     def _check_s3_config(self):
@@ -105,6 +105,9 @@ class ConversionProcessor(GenericProcessor):
         Asynchronously execute the conversion process.
         """
         try:
+            zarr_format = data.get("zarr_format", 2)
+            if not isinstance(zarr_format, int) or zarr_format not in (2, 3):
+                raise ValueError("zarr_format must be 2 or 3")
             s3_fs = self._check_s3_config()
             self._check_input_output_uris(s3_fs, data)
             self._check_write_permission(s3_fs, data["output_zarr_dir_path"])
@@ -139,6 +142,7 @@ class ConversionProcessor(GenericProcessor):
                 "zarr_uri": zarr_uri,
                 "safe_s3_config": data.get("safe_s3_config", {}),
                 "zarr_s3_config": data.get("zarr_s3_config", {}),
+                "zarr_format": data.get("zarr_format", 2),
             }
             future = dask_client.submit(convert_safe_to_zarr, cfg)
             self.job_logger.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
