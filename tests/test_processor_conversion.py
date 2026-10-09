@@ -146,6 +146,7 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         "zarr_uri": "s3://zarr-bucket/out/product.zarr",
         "safe_s3_config": {"safe": "config"},
         "zarr_s3_config": {"zarr": "config"},
+        "zarr_format": 2,
     }
     future.result.assert_called_once_with()
     # ConversionProcessor.manage_dask_tasks() and GenericProcessor.start_processor() both close the client.
