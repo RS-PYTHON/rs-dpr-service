@@ -54,12 +54,12 @@ def main():
     }
     try:
         # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
-        # Zarr v2: the on-demand flow reads the root .zattrs.
         convert(
             safe_uri,
             zarr_uri,
             source_store_kwargs={"storage_options": s3_cfg},
-            target_store_kwargs={"storage_options": s3_cfg, "zarr_format": 2},
+            target_store_kwargs={"storage_options": s3_cfg,
+                                 "zarr_format": cfg.get("zarr_format", 2)},
             stage_source=True,
             stage_target=True,
         )
