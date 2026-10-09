@@ -48,6 +48,7 @@ from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
 from opentelemetry.trace.span import Span, SpanContext
+from packaging.version import Version
 from pip._internal.operations import freeze
 
 from rs_dpr_service.utils import settings
@@ -376,7 +377,6 @@ class ProcessorCaller:
                     f"[JOB:{self.job_id}] "
                     f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
                 )
-
                 self.init()
 
                 start_time = time.time()
@@ -394,6 +394,7 @@ class ProcessorCaller:
                 record_error(span, e)
                 raise
 
+    # pylint: disable=import-outside-toplevel
     def init(self):
         """
         Init from the dask pod.
@@ -404,9 +405,8 @@ class ProcessorCaller:
         self.s3_report_dir = self.data["s3_report_dir"]
 
         # Get S3 file handler.
-        from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
-            AnyPath,
-        )
+        import eopf
+        from eopf.common.file_utils import AnyPath
 
         self.s3 = AnyPath(
             s3_config_dir,
@@ -448,12 +448,22 @@ class ProcessorCaller:
         # Customize the payload file values
         self.customize_payload_file(payload_file)
 
+        # Init the command that will be used to trigger the processor
         self.command = [
             "eopf_otel",
             "trigger",
             "local",
             payload_file,
         ]
+
+        # Validate the payload file (only in newest versions)
+        if Version(eopf.__version__) >= Version("3.1.0rc1"):
+            from eopf.cli.cli_triggering_triggers import validate_payload_command
+
+            validate_payload_command.main(
+                args=[payload_file, "--level", "preflight"],
+                standalone_mode=False,  # raise instead of sys.exit()
+            )
 
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
