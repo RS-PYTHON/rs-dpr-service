@@ -218,6 +218,22 @@ def test_execute_marks_job_failed_when_conversion_validation_fails(
     assert processor.job_logger.status == JobStatus.failed
 
 
+@pytest.mark.parametrize("zarr_format", [7, "2"])
+def test_execute_rejects_invalid_zarr_format(mocker, zarr_format):
+    """Reject invalid Zarr formats before accessing S3."""
+    processor = _build_processor(mocker)
+    check_s3_config = mocker.patch.object(processor, "_check_s3_config")
+    data = _valid_conversion_payload()
+    data["zarr_format"] = zarr_format
+
+    result = _drive_execute(processor, data)
+
+    assert result == ("application/json", {"failed": processor.job_logger.job_id})
+    assert processor.job_logger.status == JobStatus.failed
+    assert processor.job_logger.message == "zarr_format must be 2 or 3"
+    check_s3_config.assert_not_called()
+
+
 def test_execute_marks_job_failed_when_conversion_dask_client_is_missing(mocker, monkeypatch):
     """Test execute() when conversion manage_dask_tasks() receives no Dask client."""
     _set_conversion_env(monkeypatch)
