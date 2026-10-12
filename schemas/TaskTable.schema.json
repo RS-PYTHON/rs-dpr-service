@@ -388,8 +388,7 @@
             "required": [
                 "unit_name",
                 "step_id",
-                "input_products",
-                "output_products"
+                "input_products"
             ],
             "title": "Step"
         },
@@ -402,7 +401,7 @@
                         "const": "pipeline_input"
                     },
                     {
-                        "pattern": "^[^\\.]+\\.[^\\.]+$"
+                        "pattern": "^[^\\.]+(\\.[^\\.]+)?\\.[^\\.]+$"
                     }
                 ]
             },
@@ -574,8 +573,7 @@
                 "name",
                 "module",
                 "resources_min",
-                "input_products",
-                "output_products"
+                "input_products"
             ],
             "title": "Unit"
         },
