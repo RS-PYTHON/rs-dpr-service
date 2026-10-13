@@ -80,7 +80,7 @@
     },
     {
       "name": "S3OLCIL2",
-      "type": "filename",
+      "type": "folder",
       "store_type": "zarr",
       "store_params": {
         "consolidate": true
