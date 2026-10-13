@@ -908,8 +908,10 @@ class ProcessorCaller:
         """Code to run at the end of the processor."""
 
         try:
-            # Upload the reports dir to the s3 bucket
-            if self.s3:
+            # Upload the reports dir to the s3 bucket (only for S3 paths)
+            # For local paths, self.s3 is None (set in init()), so this block is skipped.
+            # Reports remain in the local shared disk.
+            if self.s3 and self.s3_report_dir.lower().startswith("s3://"):
                 logger.info(f"[JOB:{self.job_id}] Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
                 self.s3._fs.put(  # pylint: disable=protected-access
                     self.local_report_dir,
