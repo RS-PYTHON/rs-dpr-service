@@ -1,15 +1,12 @@
 {
-  "$schema": "./../schemas/TaskTable.schema.json",
+  "$schema": "./../2. schema/TaskTable.schema.json",
   "tasktable": {
     "name": "s3-l0",
     "version": "1.0",
-    "specification_version": "1.0_draftJ",
-    "update_datetime": "2026-04-24T15:00:00Z",
+    "specification_version": "2.0_draftA",
+    "update_datetime": "2026-11-09T15:00:00Z",
     "configuration_path": {}
   },
-  "external_modules": [
-    "l0.cadu_processing.cadu_store"
-  ],
   "external_variables": [
     "start_datetime",
     "end_datetime",
@@ -66,69 +63,79 @@
       ]
     }
   ],
-  "io": [
-    {
-      "name": "S3ACADUS",
-      "type": "filename",
-      "store_type": "cadu"
-    },
-    {
-      "name": "osf",
-      "type": "filename",
-      "store_type": "safe",
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 0,
-          "query": {
-            "name": "LatestValCover",
-            "parameters": {
-              "product_type": "AX___OSF_AX",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-	      "satellite": "{external_variable.satellite}",
-              "dTa": 6000,
-              "dTb": 6000
+  "io": {
+    "input": [
+      {
+        "name": "S3ACADUS",
+        "type": "file",
+        "engine": "cadu"
+      }
+    ],
+    "adfs": [
+      {
+        "name": "osf",
+        "type": "file",
+        "engine": "cpm_safe",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 0,
+            "query": {
+              "name": "LatestValCover",
+              "parameters": {
+                "product_type": "AX___OSF_AX",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "satellite": "{external_variable.satellite}",
+                "dTa": 6000,
+                "dTb": 6000
+              }
             }
           }
-        }
-      ]
-    },
-    {
-      "name": "fro",
-      "type": "filename",
-      "store_type": "safe",
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 0,
-          "query": {
-            "name": "LatestValCover",
-            "parameters": {
-              "product_type": "AX___FRO_AX",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-	      "satellite": "{external_variable.satellite}",
-              "dTa": 7000,
-              "dTb": 7000
+        ]
+      },
+      {
+        "name": "fro",
+        "type": "file",
+        "engine": "cpm_safe",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 0,
+            "query": {
+              "name": "LatestValCover",
+              "parameters": {
+                "product_type": "AX___FRO_AX",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "satellite": "{external_variable.satellite}",
+                "dTa": 7000,
+                "dTb": 7000
+              }
             }
           }
+        ]
+      }
+    ],
+    "output": [
+      {
+        "name": "S03ISPS",
+        "type": "folder",
+        "engine": "cpm_zarr",
+        "writer_params": {
+          "mode": "w"
         }
-      ]
-    },
-    {
-      "name": "S03ISPS",
-      "type": "folder",
-      "store_type": "zarr",
-      "opening_mode": "CREATE_OVERWRITE"
-    },
-    {
-      "name": "S03CACHE",
-      "type": "folder",
-      "store_type": "zarr",
-      "opening_mode": "CREATE_OVERWRITE"
-    }
-  ],
+      },
+      {
+        "name": "S03CACHE",
+        "type": "folder",
+        "engine": "cpm_zarr",
+        "writer_params": {
+          "mode": "w"
+        }
+      }
+    ]
+  },
   "queries": [
     {
       "name": "LatestValCover",
@@ -136,7 +143,7 @@
         "product_type",
         "start_datetime",
         "end_datetime",
-	"satellite",
+        "satellite",
         "dTa",
         "dTb"
       ],
@@ -156,11 +163,11 @@
             {
               "op": "=",
               "args": [
-                 {
+                {
                   "property": "platform"
-                 },
-                 "{satellite}"
-               ]
+                },
+                "{satellite}"
+              ]
             },
             {
               "op": "t_contains",
@@ -221,6 +228,11 @@
           "output_products": {
             "S03ISPS": "pipeline_output",
             "S03CACHE": "pipeline_internal"
+          },
+          "parameters": {
+            "temporary_path": "./S3_D_TDS_1/output/tmp",
+            "acquisition_report_output_path": "./S3_D_TDS_1/output/default/Report/",
+            "ignore_output": "S03CACHE"
           }
         }
       ]
