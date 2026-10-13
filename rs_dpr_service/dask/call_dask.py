@@ -785,7 +785,7 @@ class ProcessorCaller:
 
             logger.info(
                 f"[JOB:{self.job_id}] Trigger EOPF processing with command '{self.command}' "
-                "in working directory '{self.working_dir}'",
+                f"in working directory '{self.working_dir}'",
             )
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
@@ -918,7 +918,9 @@ class ProcessorCaller:
                     self.s3_report_dir,
                     recursive=True,
                 )
-
+            else:
+                logger.debug(f"The upload is not performed: local path = {self.local_report_dir} |"
+                             f"s3 path = {self.s3_report_dir}")
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
