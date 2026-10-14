@@ -52,7 +52,7 @@ include = [
 
 # NOTE: the python and dask version will be overriden locally by the ci/cd
 # when building binaries specific to these versions.
-python = "==3.13.12"
+python = "==3.13.16"
 dask = {extras = ["distributed"], version = "2026.3.0"}
 
 pygeoapi = "^0.21"
