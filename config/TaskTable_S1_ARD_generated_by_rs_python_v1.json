@@ -680,7 +680,7 @@
             "slcs": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -693,7 +693,7 @@
             "DEM": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -707,7 +707,7 @@
             "simulation_ref": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         }
       ]
@@ -726,7 +726,7 @@
             "slcs": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True",
+            "recompute": true,
             "reference_date": "{external_variable.reference_date}"
           }
         },
@@ -740,7 +740,7 @@
             "DEM": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -754,7 +754,7 @@
             "simulation_ref": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -785,7 +785,7 @@
             "slcs": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True",
+            "recompute": true,
             "reference_date": "{external_variable.reference_date}"
           }
         },
@@ -799,7 +799,7 @@
             "DEM": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -813,7 +813,7 @@
             "simulation_ref": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -855,7 +855,7 @@
             "slcs": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True",
+            "recompute": true,
             "reference_date": "{external_variable.reference_date}"
           }
         },
@@ -869,7 +869,7 @@
             "DEM": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
@@ -883,7 +883,7 @@
             "simulation_ref": "pipeline_internal"
           },
           "parameters": {
-            "recompute": "True"
+            "recompute": true
           }
         },
         {
