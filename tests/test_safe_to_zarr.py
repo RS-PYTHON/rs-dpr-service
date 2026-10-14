@@ -104,8 +104,8 @@ def test_main_with_invalid_json_exits(monkeypatch, mocker):
 
 def test_main_success(monkeypatch, mocker):
     """Convert SAFE to Zarr and print the success payload."""
-    # Keep EOConfiguration, AnyPath, and convert observable without importing real EOPF.
-    eo_config, any_path, convert = install_fake_eopf_dependencies(monkeypatch, mocker)
+    # Observe the conversion call without importing real EOPF.
+    _, _, convert = install_fake_eopf_dependencies(monkeypatch, mocker)
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
     monkeypatch.setenv("S3_ACCESSKEY", "access")
     monkeypatch.setenv("S3_SECRETKEY", "secret")
@@ -119,7 +119,6 @@ def test_main_success(monkeypatch, mocker):
         run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg)])
 
     assert stderr.getvalue() == ""
-    assert eo_config["store__convert__use_multithreading"] is False
 
     expected_s3_cfg = {
         "key": "access",
@@ -129,14 +128,14 @@ def test_main_success(monkeypatch, mocker):
             "region_name": "eu-west-1",
         },
     }
-    # AnyPath receives the S3 credentials assembled from the environment.
-    safe = {"path": cfg["safe_uri"], "kwargs": expected_s3_cfg}
-    zarr = {"path": cfg["zarr_uri"], "kwargs": expected_s3_cfg}
-    assert any_path.call_args_list == [
-        mocker.call(cfg["safe_uri"], **expected_s3_cfg),
-        mocker.call(cfg["zarr_uri"], **expected_s3_cfg),
-    ]
-    convert.assert_called_once_with(safe, zarr)
+    convert.assert_called_once_with(
+        cfg["safe_uri"],
+        cfg["zarr_uri"],
+        source_store_kwargs={"storage_options": expected_s3_cfg},
+        target_store_kwargs={"storage_options": expected_s3_cfg, "zarr_format": 2},
+        stage_source=True,
+        stage_target=True,
+    )
 
     result = json.loads(stdout.getvalue())
     assert result == {
