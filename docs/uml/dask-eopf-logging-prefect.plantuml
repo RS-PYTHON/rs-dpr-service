@@ -1,0 +1,50 @@
+' Copyright 2023-2026 Airbus, CS Group
+'
+' Licensed under the Apache License, Version 2.0 (the "License");
+' you may not use this file except in compliance with the License.
+' You may obtain a copy of the License at
+'
+'     http://www.apache.org/licenses/LICENSE-2.0
+'
+' Unless required by applicable law or agreed to in writing, software
+' distributed under the License is distributed on an "AS IS" BASIS,
+' WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+' See the License for the specific language governing permissions and
+' limitations under the License.
+
+@startuml dask-eopf-logging-prefect
+skinparam shadowing false
+skinparam defaultFontName Arial
+skinparam sequence {
+  ParticipantBackgroundColor #E0F2F1
+  ParticipantBorderColor #00796B
+  LifeLineBorderColor #00796B
+}
+
+actor John
+participant "Prefect UI" as ui
+participant "Prefect flow run\n(process-generic)" as flow
+participant "Envoy Gateway" as gateway
+participant "rs-dpr-service\n(instance of the processor)" as dpr
+participant "Dask worker" as worker
+participant "EOPF\n(subprocess)" as eopf
+
+John -> ui : run a processing flow
+ui -> flow ++ : start the flow run
+flow -> flow : generate the payload file
+flow -> gateway ++ : POST /dpr/processes/{processor}/execution
+gateway -> dpr ++ : route to the rs-dpr-service instance\nthat serves this processor
+dpr --> flow : job ID
+dpr -> worker ++ : dask_client.submit()
+worker -> eopf ++ : run the processor
+eopf --> worker : stdout, stderr (logs)
+worker --> dpr : forward the logs
+flow -> gateway : GET /dpr/jobs/{job_id}/logs
+gateway -> dpr : route to the same instance
+dpr --> flow : logs stream (text/event-stream)
+flow --> ui : flow run logs
+eopf --> worker -- : exit code
+worker --> dpr -- : result
+flow -> dpr : GET /dpr/jobs/{job_id}
+dpr --> flow -- : status: successful
+@enduml

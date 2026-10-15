@@ -1,12 +1,16 @@
 # Cancel a DPR run
 
-After triggering a run of the processor, you can go to the Prefect flow run UI and you will see this warning:
+A DPR processor run can last several hours. To stop it, cancel the processor job in rs-dpr-service: this stops the
+processor on the Dask cluster and makes the Prefect flow run fail.
 
-![Display curl command](../../images/cancel_dpr_run/cancel_dpr_run1.png)
+After triggering a run of the processor, go to the Prefect flow run page: the logs show the command to cancel the
+DPR job:
 
-If you copy/paste it in any local terminal:
+![Display curl command](../images/cancel_dpr_run/cancel_dpr_run1.png)
 
-![Run curl command](../../images/cancel_dpr_run/cancel_dpr_run2.png)
+Copy and paste it in any terminal (it uses your API key):
+
+![Run curl command](../images/cancel_dpr_run/cancel_dpr_run2.png)
 
 The flow will be cancelled. The Prefect logs will show:
 
@@ -26,11 +30,11 @@ Finished in state Failed("Task run encountered an exception RuntimeError: Except
 Process for flow run 'upbeat-avocet' exited with status code: 1
 ```
 
-To cancel the DPR run, instead of copy/pasting the curl command, you can also go to the Swagger page and enter the job id in the `/dpr/jobs/{job_id} Delete Job Endpoint`:
+Instead of the `curl` command, you can also use the [Swagger page](https://rspy.ops.rs-python.eu/docs#/Processing%20service): enter the job identifier in the `DELETE /dpr/jobs/{job_id}` endpoint:
 
-![Cancel from Swagger](../../images/cancel_dpr_run/cancel_dpr_run3.png)
+![Cancel from Swagger](../images/cancel_dpr_run/cancel_dpr_run3.png)
 
-But be careful to enter the DPR job ID, because there are other job ids in the prefect logs, e.g. for the staging:
+Be careful to enter the identifier of the DPR job: the Prefect logs contain other job identifiers, e.g. those of the staging jobs:
 ```
 job_status: {
   'status': 'running',
@@ -47,4 +51,6 @@ job_status: {
 ----- Staging from 'mockup-station-adgs.processing.svc.cluster.local' job '556363bf-c74d-41cf-931d-1972fe8a7b87': RUNNING
 ```
 
-If you enter a staging job ID, you'll have a message saying the job was deleted successfully, but it will have no effect on the DPR run.
+If you enter the identifier of a staging job, the staging job is deleted, but the DPR run is not cancelled.
+
+With Python, use `rs_client.get_dpr_client().delete_job("<job id>")`.
