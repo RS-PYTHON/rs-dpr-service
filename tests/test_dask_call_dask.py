@@ -670,6 +670,196 @@ def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker):
     handle_local_product.assert_called_once_with("input_products", product)
 
 
+# ---- handle_local_product ----
+
+
+@pytest.fixture(name="local_product_context")
+def fixture_local_product_context(mocker, tmp_path):
+    """Stub worker-only dependencies while keeping local filesystem operations real."""
+    caller = _make_processor_caller(mocker)
+    caller.experimental_config = call_dask.ExperimentalConfig(
+        local_files=call_dask.ExperimentalConfig.LocalFiles(local_dir=str(tmp_path)),
+    )
+    filesystem = mocker.Mock()
+    filesystem_class = mocker.patch("s3fs.S3FileSystem", return_value=filesystem)
+    resolve_env_vars = mocker.Mock(side_effect=lambda product: product.copy())
+    env_utils = types.ModuleType("eopf.common.env_utils")
+    setattr(env_utils, "resolve_env_vars", resolve_env_vars)
+    mocker.patch.dict(
+        sys.modules,
+        {
+            "eopf": types.ModuleType("eopf"),
+            "eopf.common": types.ModuleType("eopf.common"),
+            "eopf.common.env_utils": env_utils,
+        },
+    )
+    return caller, filesystem_class, resolve_env_vars
+
+
+def _create_local_product(path, kind):
+    """Create existing product variants, including links whose targets must survive."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if kind == "file":
+        path.write_text("existing product", encoding="utf-8")
+    elif kind == "directory":
+        path.mkdir()
+        (path / "chunk").write_text("existing chunk", encoding="utf-8")
+    elif kind in ("symlink", "broken-symlink"):
+        target = path.with_name("link-target")
+        if kind == "symlink":
+            target.write_text("link target", encoding="utf-8")
+        path.symlink_to(target)
+
+
+def test_handle_local_product_without_experimental_config(local_product_context):
+    """Leave the product untouched when experimental configuration is disabled."""
+    caller, filesystem_class, resolve_env_vars = local_product_context
+    caller.experimental_config = None
+    product = {"path": "s3://bucket/product"}
+
+    caller.handle_local_product("input_products", product)
+
+    assert product == {"path": "s3://bucket/product"}
+    resolve_env_vars.assert_not_called()
+    filesystem_class.assert_not_called()
+    assert caller.to_be_uploaded == []
+
+
+@pytest.mark.parametrize("product", [{}, {"path": None}, {"path": ""}, {"path": "/local/product"}])
+def test_handle_local_product_skips_missing_or_local_paths(local_product_context, product):
+    """Do not access S3 or rewrite products with missing or already-local paths."""
+    caller, filesystem_class, resolve_env_vars = local_product_context
+    original = product.copy()
+
+    caller.handle_local_product("input_products", product)
+
+    resolve_env_vars.assert_called_once_with(original)
+    filesystem_class.assert_not_called()
+    assert product == original
+    assert caller.to_be_uploaded == []
+
+
+@pytest.mark.parametrize("io_key", ["input_products", "adfs"])
+@pytest.mark.parametrize("overwrite", [False, True])
+@pytest.mark.parametrize("kind", ["absent", "file", "directory", "symlink", "broken-symlink"])
+def test_handle_local_product_downloads_inputs(local_product_context, tmp_path, io_key, overwrite, kind):
+    """Reuse existing inputs unless overwrite is enabled, and download missing inputs."""
+    caller, filesystem_class, _ = local_product_context
+    caller.experimental_config.local_files.overwrite_input = overwrite
+    local_path = tmp_path / "bucket" / "nested" / "product"
+    _create_local_product(local_path, kind)
+    storage_options = {"anon": True}
+    product = {
+        "path": "s3://bucket/nested/product",
+        "store_params": {"storage_options": storage_options},
+    }
+    should_download = overwrite or kind in ("absent", "broken-symlink")
+
+    def download(s3_path, destination, recursive):
+        """Check removal and parent creation before simulating an S3 download."""
+        assert s3_path == "s3://bucket/nested/product"
+        assert destination == local_path
+        assert recursive is True
+        assert destination.parent.is_dir()
+        assert not destination.exists()
+        if overwrite:
+            assert not destination.is_symlink()
+
+    filesystem = filesystem_class.return_value
+    filesystem.get.side_effect = download
+
+    caller.handle_local_product(io_key, product)
+
+    filesystem_class.assert_called_once_with(**storage_options)
+    if should_download:
+        filesystem.get.assert_called_once_with("s3://bucket/nested/product", local_path, recursive=True)
+    else:
+        filesystem.get.assert_not_called()
+        assert local_path.exists()
+    if kind == "symlink":
+        assert local_path.with_name("link-target").read_text(encoding="utf-8") == "link target"
+    assert product == {"path": str(local_path), "store_params": {"storage_options": storage_options}}
+    assert caller.to_be_uploaded == []
+
+
+@pytest.mark.parametrize("upload", [False, True])
+@pytest.mark.parametrize("kind", ["absent", "file", "directory", "symlink", "broken-symlink"])
+def test_handle_local_product_removes_outputs_and_schedules_upload(local_product_context, tmp_path, upload, kind):
+    """Always remove old outputs and only queue uploads when explicitly enabled."""
+    caller, filesystem_class, _ = local_product_context
+    caller.experimental_config.local_files.upload_output = upload
+    local_path = tmp_path / "bucket" / "product"
+    _create_local_product(local_path, kind)
+    product = {"path": "s3://bucket/product", "store_params": {"storage_options": {"anon": True}}}
+
+    caller.handle_local_product("output_products", product)
+
+    filesystem_class.assert_called_once_with(anon=True)
+    filesystem_class.return_value.get.assert_not_called()
+    assert not local_path.exists()
+    assert not local_path.is_symlink()
+    if kind == "symlink":
+        assert local_path.with_name("link-target").read_text(encoding="utf-8") == "link target"
+    assert product["path"] == str(local_path)
+    expected_uploads = [(filesystem_class.return_value, str(local_path), "s3://bucket/product")] if upload else []
+    assert caller.to_be_uploaded == expected_uploads
+
+
+def test_handle_local_product_rejects_secret_alias(local_product_context):
+    """Report unsupported secret aliases before creating an S3 client or changing paths."""
+    caller, filesystem_class, _ = local_product_context
+    product = {"path": "s3://bucket/product", "store_params": {"s3_secret_alias": "bucket-secret"}}
+
+    with pytest.raises(RuntimeError, match="handle bucket credentials from a 'secrets.json' file"):
+        caller.handle_local_product("input_products", product)
+
+    filesystem_class.assert_not_called()
+    assert product["path"] == "s3://bucket/product"
+    assert caller.to_be_uploaded == []
+
+
+@pytest.mark.parametrize("s3_path", ["s3://bucket/product", "S3://bucket/product", "s3:/bucket/product"])
+def test_handle_local_product_uses_resolved_environment(local_product_context, tmp_path, s3_path):
+    """Resolve paths and credentials without replacing the original store parameters."""
+    caller, filesystem_class, resolve_env_vars = local_product_context
+    product = {
+        "path": "${PRODUCT_PATH}",
+        "store_params": {"storage_options": {"endpoint_url": "${S3_ENDPOINT}"}},
+    }
+    resolve_env_vars.side_effect = None
+    resolve_env_vars.return_value = {
+        "path": s3_path,
+        "store_params": {"storage_options": {"endpoint_url": "https://s3.test"}},
+    }
+
+    caller.handle_local_product("input_products", product)
+
+    resolve_env_vars.assert_called_once_with(product)
+    filesystem_class.assert_called_once_with(endpoint_url="https://s3.test")
+    filesystem_class.return_value.get.assert_called_once_with(
+        s3_path,
+        tmp_path / "bucket" / "product",
+        recursive=True,
+    )
+    assert product == {
+        "path": str(tmp_path / "bucket" / "product"),
+        "store_params": {"storage_options": {"endpoint_url": "${S3_ENDPOINT}"}},
+    }
+
+
+def test_handle_local_product_propagates_download_error(local_product_context):
+    """Do not rewrite the payload as if downloading had succeeded when S3 fails."""
+    caller, filesystem_class, _ = local_product_context
+    filesystem_class.return_value.get.side_effect = OSError("download failed")
+    product = {"path": "s3://bucket/product", "store_params": {"storage_options": {}}}
+
+    with pytest.raises(OSError, match="download failed"):
+        caller.handle_local_product("input_products", product)
+
+    assert product["path"] == "s3://bucket/product"
+    assert caller.to_be_uploaded == []
+
+
 # ---- _collect_storage_options ----
 
 
