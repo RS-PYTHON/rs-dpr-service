@@ -123,6 +123,7 @@ disable = [
     "too-many-instance-attributes",
     "too-many-positional-arguments",
     "too-many-statements",
+    "too-many-lines",
 ]
 ignore-paths = '^docs/.*$'
 

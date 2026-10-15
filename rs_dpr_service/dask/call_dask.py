@@ -404,30 +404,41 @@ class ProcessorCaller:
         payload_subpath = self.data["payload_subpath"]
         self.s3_report_dir = self.data["s3_report_dir"]
 
-        # Get S3 file handler.
-        import eopf
-        from eopf.common.file_utils import AnyPath
+        # Check if s3_config_dir is a local path or S3 path
+        is_local = not s3_config_dir.startswith(("s3://", "S3://"))
 
-        self.s3 = AnyPath(
-            s3_config_dir,
-            key=os.environ["S3_ACCESSKEY"],
-            secret=os.environ["S3_SECRETKEY"],
-            client_kwargs={
-                "endpoint_url": os.environ["S3_ENDPOINT"],
-                "region_name": os.environ["S3_REGION"],
-            },
-        )
+        if is_local:
+            # Local path: use it directly without downloading from S3
+            local_config_dir = s3_config_dir
+            self.s3 = None
+        else:
+            # S3 path: download the configuration folder from the S3 bucket
+            from eopf.common.file_utils import (  # pylint: disable=import-outside-toplevel
+                AnyPath,
+            )
+
+            self.s3 = AnyPath(
+                s3_config_dir,
+                key=os.environ["S3_ACCESSKEY"],
+                secret=os.environ["S3_SECRETKEY"],
+                client_kwargs={
+                    "endpoint_url": os.environ["S3_ENDPOINT"],
+                    "region_name": os.environ["S3_REGION"],
+                },
+            )
+
+            # Download the configuration folder from the S3 bucket into a local temp folder.
+            # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
+            downloaded_dir: AnyPath | str = self.s3.get(recursive=True)
+            if isinstance(downloaded_dir, AnyPath):
+                if hasattr(downloaded_dir, "fs_path"):  # CPM >= 3.0.0rc4
+                    local_config_dir = downloaded_dir.fs_path
+                else:
+                    local_config_dir = downloaded_dir.path
+            else:
+                local_config_dir = downloaded_dir
 
         logger.info(f"[JOB:{self.job_id}] The dpr processing task started in {s3_config_dir}")
-
-        # Download the configuration folder from the S3 bucket into a local temp folder.
-        # NOTE: AnyPath.get returns either a str with old eopf versions, or another AnyPath with newest versions.
-        local_config_dir: AnyPath | str = self.s3.get(recursive=True)
-        if isinstance(local_config_dir, AnyPath):
-            if hasattr(local_config_dir, "fs_path"):  # CPM >= 3.0.0rc4
-                local_config_dir = local_config_dir.fs_path
-            else:
-                local_config_dir = local_config_dir.path
 
         # Payload path and parent dir
         payload_file = osp.realpath(osp.join(local_config_dir, payload_subpath))
@@ -457,6 +468,8 @@ class ProcessorCaller:
         ]
 
         # Validate the payload file (only in newest versions)
+        import eopf  # pylint: disable=import-outside-toplevel
+
         if Version(eopf.__version__) >= Version("3.1.0rc1"):
             from eopf.cli.cli_triggering_triggers import validate_payload_command
 
@@ -793,7 +806,7 @@ class ProcessorCaller:
 
             logger.info(
                 f"[JOB:{self.job_id}] Trigger EOPF processing with command '{self.command}' "
-                "in working directory '{self.working_dir}'",
+                f"in working directory '{self.working_dir}'",
             )
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
 
@@ -916,15 +929,21 @@ class ProcessorCaller:
         """Code to run at the end of the processor."""
 
         try:
-            # Upload the reports dir to the s3 bucket
-            if self.s3:
+            # Upload the reports dir to the s3 bucket (only for S3 paths)
+            # For local paths, self.s3 is None (set in init()), so this block is skipped.
+            # Reports remain in the local shared disk.
+            if self.s3 and self.s3_report_dir.lower().startswith("s3://"):
                 logger.info(f"[JOB:{self.job_id}] Upload reports {self.local_report_dir!r} to {self.s3_report_dir!r}")
                 self.s3._fs.put(  # pylint: disable=protected-access
                     self.local_report_dir,
                     self.s3_report_dir,
                     recursive=True,
                 )
-
+            else:
+                logger.debug(
+                    f"The upload is not performed: local path = {self.local_report_dir} |"
+                    f"s3 path = {self.s3_report_dir}",
+                )
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
