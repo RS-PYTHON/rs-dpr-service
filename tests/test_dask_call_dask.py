@@ -295,6 +295,150 @@ def test_processor_caller_get_tasktable_uses_normal_import_path_for_mockup(mocke
     assert result == {"mockup": True}
 
 
+@pytest.fixture(name="init_context")
+def fixture_init_context(mocker, monkeypatch, tmp_path):
+    """Prepare real configuration files and stub only worker storage and payload customization."""
+    caller = _make_processor_caller(mocker)
+    config_dir = tmp_path / "config"
+    payload_dir = config_dir / "nested"
+    payload_dir.mkdir(parents=True)
+    payload_file = payload_dir / "payload.yaml"
+    payload_file.write_text("workflow: []\n", encoding="utf-8")
+    reports_dir = payload_dir / "reports"
+    reports_dir.mkdir()
+    (reports_dir / "old.processor.log").write_text("old report", encoding="utf-8")
+    monkeypatch.chdir(tmp_path)
+    for key in ("S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION"):
+        monkeypatch.setenv(key, caller.caller_env[key])
+
+    anypath_init = mocker.Mock()
+    download = mocker.Mock(return_value=str(config_dir))
+
+    class FakeAnyPath:
+        """Model the worker's AnyPath type and its download method."""
+
+        def __init__(self, *args, **kwargs):
+            anypath_init(*args, **kwargs)
+
+        def get(self, **kwargs):
+            """Return the configured download result without contacting S3."""
+            return download(**kwargs)
+
+    file_utils = types.ModuleType("eopf.common.file_utils")
+    monkeypatch.setattr(file_utils, "AnyPath", FakeAnyPath, raising=False)
+    mocker.patch.dict(
+        sys.modules,
+        {
+            "eopf": types.ModuleType("eopf"),
+            "eopf.common": types.ModuleType("eopf.common"),
+            "eopf.common.file_utils": file_utils,
+        },
+    )
+
+    def customize(payload_path):
+        """Ensure initialization prepares the filesystem before payload customization."""
+        assert payload_path == str(payload_file)
+        assert Path.cwd() == payload_dir
+        assert reports_dir.is_dir()
+        assert not list(reports_dir.iterdir())
+
+    customize_payload = mocker.patch.object(caller, "customize_payload_file", side_effect=customize)
+    caller.data = {
+        "s3_config_dir": str(config_dir),
+        "payload_subpath": "nested/../nested/payload.yaml",
+        "s3_report_dir": "s3://bucket/job-reports",
+    }
+    return SimpleNamespace(
+        caller=caller,
+        config_dir=config_dir,
+        payload_dir=payload_dir,
+        payload_file=payload_file,
+        reports_dir=reports_dir,
+        anypath_class=FakeAnyPath,
+        anypath_init=anypath_init,
+        download=download,
+        customize_payload=customize_payload,
+    )
+
+
+@pytest.mark.parametrize(
+    "config_source",
+    ["local-absolute", "local-relative", "s3-string", "s3-fs-path", "s3-legacy-path", "s3-uppercase"],
+)
+def test_processor_caller_init_prepares_payload_and_reports(init_context, config_source):
+    """Initialize local configurations and all supported EOPF download return formats."""
+    ctx = init_context
+    caller = ctx.caller
+    is_s3 = config_source.startswith("s3")
+    if config_source == "local-relative":
+        caller.data["s3_config_dir"] = "config"
+    elif is_s3:
+        caller.data["s3_config_dir"] = "S3://bucket/config" if config_source == "s3-uppercase" else "s3://bucket/config"
+        if config_source in ("s3-fs-path", "s3-legacy-path"):
+            downloaded_dir = object.__new__(ctx.anypath_class)
+            if config_source == "s3-fs-path":
+                downloaded_dir.fs_path = str(ctx.config_dir)
+                downloaded_dir.path = "must-not-use-legacy-path"
+            else:
+                downloaded_dir.path = str(ctx.config_dir)
+            ctx.download.return_value = downloaded_dir
+    caller.s3 = object()
+
+    caller.init()
+
+    if is_s3:
+        ctx.anypath_init.assert_called_once_with(
+            caller.data["s3_config_dir"],
+            key=caller.caller_env["S3_ACCESSKEY"],
+            secret=caller.caller_env["S3_SECRETKEY"],
+            client_kwargs={
+                "endpoint_url": caller.caller_env["S3_ENDPOINT"],
+                "region_name": caller.caller_env["S3_REGION"],
+            },
+        )
+        ctx.download.assert_called_once_with(recursive=True)
+        assert isinstance(caller.s3, ctx.anypath_class)
+    else:
+        ctx.anypath_init.assert_not_called()
+        ctx.download.assert_not_called()
+        assert caller.s3 is None
+    assert caller.s3_report_dir == "s3://bucket/job-reports"
+    assert caller.working_dir == str(ctx.payload_dir)
+    assert caller.local_report_dir == str(ctx.reports_dir)
+    assert caller.log_path == str(ctx.reports_dir / "payload.processor.log")
+    ctx.customize_payload.assert_called_once_with(str(ctx.payload_file))
+    assert caller.command == ["eopf_otel", "trigger", "local", str(ctx.payload_file)]
+    assert ctx.payload_file.read_text(encoding="utf-8") == "workflow: []\n"
+
+
+def test_processor_caller_init_propagates_download_error(init_context):
+    """Abort initialization without changing directories or reports when downloading fails."""
+    ctx = init_context
+    ctx.caller.data["s3_config_dir"] = "s3://bucket/config"
+    ctx.download.side_effect = OSError("configuration download failed")
+    original_dir = Path.cwd()
+
+    with pytest.raises(OSError, match="configuration download failed"):
+        ctx.caller.init()
+
+    assert Path.cwd() == original_dir
+    assert (ctx.reports_dir / "old.processor.log").read_text(encoding="utf-8") == "old report"
+    ctx.customize_payload.assert_not_called()
+    assert ctx.caller.command == []
+
+
+def test_processor_caller_init_propagates_customization_error(init_context):
+    """Do not prepare a processor command if payload customization fails."""
+    ctx = init_context
+    ctx.customize_payload.side_effect = ValueError("invalid payload")
+
+    with pytest.raises(ValueError, match="invalid payload"):
+        ctx.caller.init()
+
+    ctx.customize_payload.assert_called_once_with(str(ctx.payload_file))
+    assert ctx.caller.command == []
+
+
 def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch):
     """Test ProcessorCaller.run_processor() copies env, runs init/trigger/finalize, and returns the result."""
     # Track env restoration even though copy_caller_env() writes directly into os.environ.
