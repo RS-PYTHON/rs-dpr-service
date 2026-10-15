@@ -44,17 +44,10 @@ deps=$(yq -o json $deps_file | jq -c '.deps[]')
 for dep in $deps; do
     python_version=$(jq -r '.python_version' <<< $dep)
     dask_version=$(jq -r '.dask_version' <<< $dep)
-    used_by=$(jq -r '.used_by[]' <<< $dep)
 
-    # Skip this set of versions if it is not used by the dpr processors
-    is_dpr=false
-    for usage in $used_by; do
-        if [[ $usage == "dpr" ]]; then
-            is_dpr=true
-            break
-        fi
-    done
-    if [[ $is_dpr == "false" ]]; then
+    # used_by is an array. Check if it does not contains the value "dpr".
+    # In this case, we this set of versions because if it is not used by the dpr processors.
+    if ! jq -e '.used_by | index("dpr")' <<< "${dep}" > /dev/null; then
         continue
     fi
 

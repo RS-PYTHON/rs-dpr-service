@@ -35,7 +35,7 @@ from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
 from rs_dpr_service.utils.init_opentelemetry import record_error, start_span
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
-from rs_dpr_service.utils.settings import LOCAL_MODE, ExperimentalConfig
+from rs_dpr_service.utils.settings import LOCAL_MODE, ExperimentalConfig, env_bool
 
 logger = Logging.default(__name__)
 
@@ -107,6 +107,11 @@ class GenericProcessor(BaseProcessor):
         """
         Asynchronously execute the dpr process in the dask cluster
         """
+        # Set experimental configuration from env var
+        if env_bool("DPR_LOCAL_CLUSTER", default=False):
+            data.setdefault("experimental_config", {})
+            data["experimental_config"].setdefault("local_cluster", {})
+            data["experimental_config"]["local_cluster"]["enabled"] = True
 
         logger.debug(f"Executing processor for {data}")
 

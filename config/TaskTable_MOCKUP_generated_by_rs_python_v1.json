@@ -88,69 +88,79 @@
             ]
         }
     ],
-    "io": [
-        {
-            "name": "S3BCADUS",
-            "type": "folder",
-            "store_type": "zarr"
-        },
-        {
-            "name": "osf",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "AX___OSF_AX",
-                            "satellite": "{external_variable.satellite}",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "dTa": 0,
-                            "dTb": 0
+    "io": {
+        "input": [
+            {
+                "name": "S3BCADUS",
+                "type": "folder",
+                "engine": "cpm_zarr"
+            }
+        ],
+        "adfs": [
+            {
+                "name": "osf",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "AX___OSF_AX",
+                                "satellite": "{external_variable.satellite}",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "dTa": 0,
+                                "dTb": 0
+                            }
                         }
                     }
-                }
-            ]
-        },
-        {
-            "name": "fro",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "AX___FRO_AX",
-                            "satellite": "{external_variable.satellite}",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "dTa": 7200,
-                            "dTb": 0
+                ]
+            },
+            {
+                "name": "fro",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "AX___FRO_AX",
+                                "satellite": "{external_variable.satellite}",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "dTa": 7200,
+                                "dTb": 0
+                            }
                         }
                     }
+                ]
+            }
+        ],
+        "output": [
+            {
+                "name": "S03MWRL0_",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
                 }
-            ]
-        },
-        {
-            "name": "S03MWRL0_",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        },
-        {
-            "name": "S03OLCL0_",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        }
-    ],
+            },
+            {
+                "name": "S03OLCL0_",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            }
+        ]
+    },
     "queries": [
         {
             "name": "LatestValCover",
@@ -169,9 +179,11 @@
                         {
                             "op": "=",
                             "args": [
-                                {"property": "platform"},
+                                {
+                                    "property": "platform"
+                                },
                                 "{satellite}"
-                                ]
+                            ]
                         },
                         {
                             "op": "=",
