@@ -919,8 +919,10 @@ class ProcessorCaller:
                     recursive=True,
                 )
             else:
-                logger.debug(f"The upload is not performed: local path = {self.local_report_dir} |"
-                             f"s3 path = {self.s3_report_dir}")
+                logger.debug(
+                    f"The upload is not performed: local path = {self.local_report_dir} |"
+                    f"s3 path = {self.s3_report_dir}",
+                )
             # Upload local output products to the s3 bucket
             start_time = time.time()
             for credentials, local_path, s3_path in self.to_be_uploaded:
