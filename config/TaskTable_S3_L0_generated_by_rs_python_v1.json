@@ -1,5 +1,5 @@
 {
-    "$schema": "./../2. schema/TaskTable.schema.json",
+    "$schema": "../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "s3-l0",
         "version": "1.0",
@@ -7,6 +7,12 @@
         "update_datetime": "2026-11-09T15:00:00Z",
         "configuration_path": {}
     },
+    "external_modules": [
+        {
+            "name": "l0.cadu_processing.cadu_reader",
+            "star_import": true
+        }
+    ],
     "external_variables": [
         "start_datetime",
         "end_datetime",
