@@ -808,7 +808,11 @@ def test_handle_local_product_removes_outputs_and_schedules_upload(local_product
 def test_handle_local_product_rejects_secret_alias(local_product_context):
     """Report unsupported secret aliases before creating an S3 client or changing paths."""
     caller, filesystem_class, _ = local_product_context
-    product = {"path": "s3://bucket/product", "store_params": {"s3_secret_alias": "bucket-secret"}}
+    # This is a dummy secret alias, not a credential.
+    product = {
+        "path": "s3://bucket/product",
+        "store_params": {"s3_secret_alias": "bucket-secret"},  # nosec B105
+    }
 
     with pytest.raises(RuntimeError, match="handle bucket credentials from a 'secrets.json' file"):
         caller.handle_local_product("input_products", product)
