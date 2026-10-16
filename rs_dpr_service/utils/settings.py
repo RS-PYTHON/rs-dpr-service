@@ -113,6 +113,12 @@ def set_dask_env(host_env: dict):
             "endpoint_url": host_env["S3_ENDPOINT"],
             "region_name": host_env["S3_REGION"],
         },
+        "csinput": {
+            "key": host_env["S3_ACCESSKEY"],
+            "secret": host_env["S3_SECRETKEY"],
+            "endpoint_url": host_env["S3_ENDPOINT"],
+            "region_name": host_env["S3_REGION"],
+        }
     }
     os.environ["S3_SECRETS_JSON_BASE64"] = base64.b64encode(json.dumps(data).encode()).decode()
 
