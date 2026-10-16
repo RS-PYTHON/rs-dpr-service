@@ -14,8 +14,6 @@
 
 """Store diverse objects and values used throughout the application."""
 
-import base64
-import json
 import os
 
 from dask.system import CPU_COUNT
@@ -100,27 +98,6 @@ def set_dask_env(host_env: dict):
     """Pass environment variables to the dask workers."""
     for name in ["S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION"]:
         os.environ[name] = host_env[name]
-    data = {
-        "s3input": {
-            "key": host_env["S3_ACCESSKEY"],
-            "secret": host_env["S3_SECRETKEY"],
-            "endpoint_url": host_env["S3_ENDPOINT"],
-            "region_name": host_env["S3_REGION"],
-        },
-        "s3output": {
-            "key": host_env["S3_ACCESSKEY"],
-            "secret": host_env["S3_SECRETKEY"],
-            "endpoint_url": host_env["S3_ENDPOINT"],
-            "region_name": host_env["S3_REGION"],
-        },
-        "csinput": {
-            "key": host_env["S3_ACCESSKEY"],
-            "secret": host_env["S3_SECRETKEY"],
-            "endpoint_url": host_env["S3_ENDPOINT"],
-            "region_name": host_env["S3_REGION"],
-        }
-    }
-    os.environ["S3_SECRETS_JSON_BASE64"] = base64.b64encode(json.dumps(data).encode()).decode()
 
 
 # True if the 'RSPY_LOCAL_MODE' environemnt variable is set to 1, true or yes (case insensitive).

@@ -490,14 +490,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert os.environ["AWS_ENDPOINT_URL_S3"] == "https://s3.test"
     assert os.environ["AWS_DEFAULT_REGION"] == "eu-west-1"
     assert os.environ["AWS_DEFAULT_OUTPUT"] == "json"
-    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {
-        "s3input": {
-            "key": "access-key",
-            "secret": "secret-key",
-            "endpoint_url": "https://s3.test",
-            "region_name": "eu-west-1",
-        },
-    }
+    assert os.environ["S3_SECRETS_JSON_BASE64"] == ""
     assert os.environ["OTEL_RESOURCE_ATTRIBUTES"] == "service.name=test"
     assert caller.exec_times[0][0] == "Run processor"
 
@@ -1156,3 +1149,53 @@ def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
 
     assert (payload_dir / "secrets.json").exists()
     assert not (tmp_path / "secrets.json").exists()
+
+
+@pytest.mark.parametrize("params_name", ["reader_params", "store_params"])
+def test_payload_s3_secrets_uses_input_credentials(monkeypatch, params_name):
+    """All three aliases use payload credentials, independent of host credentials."""
+    monkeypatch.setenv("S3_ACCESSKEY", "host-key")
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    credential = {
+        "key": "payload-key",
+        "secret": "payload-secret",
+        "endpoint_url": "https://payload.test",
+        "region_name": "gra",
+    }
+    options = {
+        "key": credential["key"],
+        "secret": credential["secret"],
+        "client_kwargs": {"endpoint_url": credential["endpoint_url"], "region_name": credential["region_name"]},
+    }
+    payload = {"io": {"input_products": [{params_name: {"storage_options": options}}]}}
+    call_dask.ProcessorCaller.set_payload_s3_secrets(payload)
+    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {
+        alias: credential for alias in ("s3input", "s3output", "csinput")
+    }
+
+
+def test_payload_s3_secrets_clears_previous_job_credentials(monkeypatch):
+    """A payload without input credentials must not reuse a previous job's secrets."""
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    call_dask.ProcessorCaller.set_payload_s3_secrets({})
+    assert "S3_SECRETS_JSON_BASE64" not in os.environ
+
+
+def test_payload_s3_secrets_rejects_ambiguous_inputs(monkeypatch):
+    """Different input credentials cannot silently share one alias."""
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    products = [
+        {
+            "reader_params": {
+                "storage_options": {
+                    "key": key,
+                    "secret": "secret",
+                    "client_kwargs": {"endpoint_url": "https://payload.test", "region_name": "gra"},
+                }
+            }
+        }
+        for key in ("first", "second")
+    ]
+    with pytest.raises(ValueError, match="Multiple input credential sets"):
+        call_dask.ProcessorCaller.set_payload_s3_secrets({"io": {"input_products": products}})
+    assert "S3_SECRETS_JSON_BASE64" not in os.environ

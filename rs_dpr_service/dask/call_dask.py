@@ -17,6 +17,7 @@ This module contains the code that is related to dask and/or sent to the dask wo
 Avoid import unnecessary dependencies here.
 """
 
+import base64
 import contextlib
 import importlib
 import json
@@ -488,6 +489,8 @@ class ProcessorCaller:
         with open(payload_file, encoding="utf-8") as opened:
             payload_contents = yaml.safe_load(opened)
 
+        self.set_payload_s3_secrets(payload_contents)
+
         # Write the Dask context configuration in the payload file.
         self.write_dask_context(payload_contents)
 
@@ -531,6 +534,32 @@ class ProcessorCaller:
         #         log_conf_contents["disable_existing_loggers"] = False
         #     with open(log_conf_file, "w+", encoding="utf-8") as opened:
         #         opened.write(yaml.safe_dump(log_conf_contents))
+
+    @staticmethod
+    def set_payload_s3_secrets(payload_contents: dict):
+        """Build processor S3 aliases from input credentials in the payload."""
+        os.environ.pop("S3_SECRETS_JSON_BASE64", None)
+        credentials = []
+        for product in payload_contents.get("io", {}).get("input_products", []):
+            params = product.get("reader_params") or product.get("store_params") or {}
+            storage_options = params.get("storage_options")
+            if not storage_options:
+                continue
+            client_kwargs = storage_options.get("client_kwargs") or {}
+            credential = {
+                "key": storage_options["key"],
+                "secret": storage_options["secret"],
+                "endpoint_url": client_kwargs["endpoint_url"],
+                "region_name": client_kwargs["region_name"],
+            }
+            if credential not in credentials:
+                credentials.append(credential)
+        if not credentials:
+            return
+        if len(credentials) > 1:
+            raise ValueError("Multiple input credential sets cannot be mapped to a single S3 alias set")
+        data = {alias: credentials[0] for alias in ("s3input", "s3output", "csinput")}
+        os.environ["S3_SECRETS_JSON_BASE64"] = base64.b64encode(json.dumps(data).encode()).decode()
 
     @staticmethod
     def _collect_storage_options(payload_contents: dict) -> list[dict]:
