@@ -308,6 +308,9 @@ class ProcessorCaller:
         # Reload this module to read updated env vars (local/cluster mode)
         reload(settings)
 
+        # Refresh S3 credentials, including the encoded secrets used by processors.
+        settings.set_dask_env(os.environ)
+
         # Init AWS env
         self.set_aws_env()
 

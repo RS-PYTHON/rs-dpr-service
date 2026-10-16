@@ -14,6 +14,7 @@
 
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
+import base64
 import json
 import os
 import sys
@@ -447,6 +448,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
         "S3_SECRETKEY",
         "S3_ENDPOINT",
         "S3_REGION",
+        "S3_SECRETS_JSON_BASE64",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_ENDPOINT_URL_S3",
@@ -488,6 +490,14 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert os.environ["AWS_ENDPOINT_URL_S3"] == "https://s3.test"
     assert os.environ["AWS_DEFAULT_REGION"] == "eu-west-1"
     assert os.environ["AWS_DEFAULT_OUTPUT"] == "json"
+    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {
+        "s3input": {
+            "key": "access-key",
+            "secret": "secret-key",
+            "endpoint_url": "https://s3.test",
+            "region_name": "eu-west-1",
+        },
+    }
     assert os.environ["OTEL_RESOURCE_ATTRIBUTES"] == "service.name=test"
     assert caller.exec_times[0][0] == "Run processor"
 
