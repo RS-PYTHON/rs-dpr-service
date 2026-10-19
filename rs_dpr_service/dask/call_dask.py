@@ -552,13 +552,19 @@ class ProcessorCaller:
                 "endpoint_url": client_kwargs["endpoint_url"],
                 "region_name": client_kwargs["region_name"],
             }
+            os.environ['S3_KEY'] = storage_options["key"]
+            os.environ['S3_SECRET'] = storage_options["secret"]
+            os.environ['S3_URL'] = client_kwargs["endpoint_url"]
+            os.environ['S3_REGION'] = client_kwargs["region_name"]
             if credential not in credentials:
                 credentials.append(credential)
         if not credentials:
             return
         if len(credentials) > 1:
             raise ValueError("Multiple input credential sets cannot be mapped to a single S3 alias set")
-        data = {alias: credentials[0] for alias in ("s3input", "s3output", "csinput")}
+
+        # Later update with s3output and csinput
+        data = {"s3input": credentials[0]}
         os.environ["S3_SECRETS_JSON_BASE64"] = base64.b64encode(json.dumps(data).encode()).decode()
 
     @staticmethod
