@@ -140,7 +140,9 @@
                                 "product_type": "ADF_L0CFG",
                                 "start_datetime": "{external_variable.start_datetime}",
                                 "end_datetime": "{external_variable.end_datetime}",
-                                "satellite": "{external_variable.satellite}"
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 0,
+                                "dTb": 0
                             }
                         }
                     }
