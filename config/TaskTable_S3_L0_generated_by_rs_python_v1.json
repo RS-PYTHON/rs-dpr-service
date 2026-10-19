@@ -50,6 +50,11 @@
                     "name": "fro",
                     "mode": "always",
                     "mandatory": false
+                },
+                {
+                    "name": "adf_l0cfg",
+                    "mode": "always",
+                    "mandatory": false
                 }
             ],
             "output_products": [
@@ -117,6 +122,23 @@
                                 "satellite": "{external_variable.satellite}",
                                 "dTa": 7000,
                                 "dTb": 7000
+                            }
+                        }
+                    }
+                ]
+            },
+            {
+                "name": "adf_l0cfg",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "ADF_L0CFG"
                             }
                         }
                     }
@@ -238,7 +260,47 @@
                     "parameters": {
                         "temporary_path": "./S3_D_TDS_1/output/tmp",
                         "acquisition_report_output_path": "./S3_D_TDS_1/output/default/Report/",
-                        "ignore_output": "S03CACHE"
+                        "ignore_output": "S03CACHE",
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
                     }
                 }
             ]
