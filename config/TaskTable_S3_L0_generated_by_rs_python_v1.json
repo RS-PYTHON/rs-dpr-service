@@ -137,7 +137,10 @@
                         "query": {
                             "name": "LatestValCover",
                             "parameters": {
-                                "product_type": "ADF_L0CFG"
+                                "product_type": "ADF_L0CFG",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "satellite": "{external_variable.satellite}"
                             }
                         }
                     }
