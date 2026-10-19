@@ -130,7 +130,6 @@
             {
                 "name": "adf_l0cfg",
                 "type": "file",
-                "engine": "cpm_safe",
                 "alternatives": [
                     {
                         "order": 1,
