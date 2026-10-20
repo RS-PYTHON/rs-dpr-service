@@ -32,6 +32,10 @@ jobs:
       contents: write # for the git push
     outputs:
       matrix: ${{ steps.configure-deps.outputs.matrix }}
+      temp_matrix: ${{ steps.configure-deps.outputs.temp_matrix }}
+      has_temp_branches: ${{ steps.configure-deps.outputs.has_temp_branches }}
+      python_version: ${{ steps.configure-deps.outputs.python_version }}
+      poetry_version: ${{ steps.configure-deps.outputs.poetry_version }}
     steps:
       - uses: actions/checkout@v6
       - id: configure-deps
@@ -51,20 +55,19 @@ jobs:
     with:
       matrix: ${{ needs.configure-deps.outputs.matrix }}
 
+  # All the code quality tools (pre-commit, license, Trivy, bandit, flake8, mypy, pylint, safety, pytest, SonarQube)
+  # are run only once, on the current branch (or pull request).
   check-code-quality:
     name: Check code quality
-    needs: [configure-deps, update-lock]
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
+    needs: configure-deps
     uses: RS-PYTHON/actions/.github/workflows/reusable-check-quality.yml@develop
     with:
       caller-repository: ${{ github.repository }}
-      caller-ref: ${{ matrix.github_ref }}
-      caller-ref_name: ${{ matrix.github_ref_name }}
-      python-version: ${{ matrix.python_version }}
+      caller-ref: ${{ github.ref }}
+      caller-ref_name: ${{ github.ref_name }}
+      python-version: ${{ needs.configure-deps.outputs.python_version }}
+      poetry-version: ${{ needs.configure-deps.outputs.poetry_version }}
       cov-dirs: rs_dpr_service
-      artifact-prefix: "${{ matrix.dep_name }}_"
     secrets:
       SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
@@ -72,9 +75,48 @@ jobs:
       contents: write # for apache/skywalking-eyes/header
       pull-requests: write # for apache/skywalking-eyes/header and phwt/sonarqube-quality-gate-action
 
+  # The temporary branches, with the other python and dask versions used by the processors, only run the pytests.
+  # The Docker images of all the versions are built by the publish-binaries.yml workflow.
+  run-pytests-temp-branches:
+    runs-on: ubuntu-latest
+    name: Run Pytest (${{ matrix.dep_name }})
+    needs: [configure-deps, update-lock]
+    if: ${{ needs.configure-deps.outputs.has_temp_branches == 'true' }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.configure-deps.outputs.temp_matrix) }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ matrix.github_ref }}
+
+      - uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+        with:
+          python-version: ${{ matrix.python_version }}
+          poetry-version: ${{ matrix.poetry_version }}
+
+      - name: Install and test
+        run: |
+          set -x
+          poetry install --with dev
+          poetry run -q opentelemetry-bootstrap -a install || true # install otel instrumentation packages for dependencies
+          poetry run pip list
+
+          # -ra: Show extra test summary info
+          # --durations=N Show N slowest setup/test durations (N=0 for all)
+          # --durations-min=N Minimal duration in seconds for inclusion in slowest list
+          # --error-for-skips Treat skipped tests as errors
+          poetry run pytest tests \
+            -ra \
+            --disable-pytest-warnings \
+            --color=yes \
+            --durations=0 \
+            --durations-min=0.05 \
+            --error-for-skips
+
   clean-temp-branches:
     name: Clean temporary branches
-    needs: [configure-deps, check-code-quality]
+    needs: [configure-deps, update-lock, run-pytests-temp-branches]
     if: always() # even if crashed or cancelled
     permissions:
       contents: write # for the git branch delete

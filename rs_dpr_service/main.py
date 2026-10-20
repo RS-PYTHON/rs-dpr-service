@@ -242,9 +242,9 @@ async def app_lifespan(fastapi_app: FastAPI):
     # Create jobs table
     process_manager = init_db()
 
-    fastapi_app.extra["process_manager"] = process_manager
-    # fastapi_app.extra["db_table"] = db.table("jobs")
-    # fastapi_app.extra["dask_cluster"] = cluster
+    fastapi_app.state.process_manager = process_manager
+    # fastapi_app.state.db_table = db.table("jobs")
+    # fastapi_app.state.dask_cluster = cluster
 
     # Yield control back to the application (this is where the app will run)
     yield
@@ -311,7 +311,7 @@ async def get_resource(request: Request, resource: str):
         processor_name = api.config["resources"][resource]["processor"]["name"]
         if processor_name in processor_types:
             processor_type = processor_types[processor_name]
-            task_table = await processor_type(app.extra["process_manager"], cluster_info).get_tasktable()
+            task_table = await processor_type(app.state.process_manager, cluster_info).get_tasktable()
             return JSONResponse(status_code=HTTP_200_OK, content=task_table)
 
 
@@ -404,7 +404,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
             if processor_name in processor_types:
                 processor_type = processor_types[processor_name]
                 # Asynchronously execute the dpr process in the dask cluster
-                _, dpr_status = await processor_type(app.extra["process_manager"], cluster_info).execute(
+                _, dpr_status = await processor_type(app.state.process_manager, cluster_info).execute(
                     valid_body,
                 )  # type: ignore
 
@@ -417,7 +417,7 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
                     "dismissed": HTTP_500_INTERNAL_SERVER_ERROR,
                 }
                 id_key = [status for status in status_dict if status in dpr_status][0]
-                formatted_job_data = format_job_data(app.extra["process_manager"].get_job(dpr_status[id_key]))
+                formatted_job_data = format_job_data(app.state.process_manager.get_job(dpr_status[id_key]))
                 validate_response(request, formatted_job_data, HTTP_201_CREATED)
                 span.set_status(StatusCode.OK, str(formatted_job_data))
                 return JSONResponse(status_code=HTTP_201_CREATED, content=formatted_job_data)
@@ -438,7 +438,7 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
 
     # Verify job exists
     try:
-        app.extra["process_manager"].get_job(job_id)
+        app.state.process_manager.get_job(job_id)
     except JobNotFoundError:
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
@@ -461,7 +461,7 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
                     try:
                         # Send a keepalive message to keep the connection alive (prevents proxy timeouts)
                         yield ": keepalive\n\n"
-                        job_status = app.extra["process_manager"].get_job(job_id)
+                        job_status = app.state.process_manager.get_job(job_id)
                         if job_status.get("status") in ["successful", "failed", "dismissed"]:
                             # job finished. drain remaining queue items (if any)
                             while not queue.empty():
@@ -484,7 +484,7 @@ async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(...
 async def get_job_status_endpoint(request: Request, job_id=Annotated[str, Path(..., title="The ID of the job")]):
     """Used to get status of processing job."""
     try:
-        job = app.extra["process_manager"].get_job(job_id)
+        job = app.state.process_manager.get_job(job_id)
     except JobNotFoundError:  # pylint: disable=W0718
         # Handle case when job_id is not found
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
@@ -500,7 +500,7 @@ async def get_jobs_endpoint(request: Request):
     """Returns the status of all jobs from database."""
     try:
         # Generate an output conform to OGC process specifications
-        formatted_jobs_data = format_jobs_data(app.extra["process_manager"].get_jobs())
+        formatted_jobs_data = format_jobs_data(app.state.process_manager.get_jobs())
         validate_response(request, formatted_jobs_data)
         return JSONResponse(status_code=HTTP_200_OK, content=formatted_jobs_data)
     except Exception as e:  # pylint: disable=W0718
@@ -518,12 +518,12 @@ async def delete_job_endpoint(request: Request, job_id=Annotated[str, Path(..., 
         cancel_event.set()
 
     try:
-        job = app.extra["process_manager"].get_job(job_id)
+        job = app.state.process_manager.get_job(job_id)
     # Handle case when job_id is not found
     except JobNotFoundError:  # pylint: disable=W0718
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
-    app.extra["process_manager"].delete_job(job_id)
+    app.state.process_manager.delete_job(job_id)
 
     # Create job response with a status message to confirm the job deletion
     job["message"] = f"Job {job_id} deleted successfully"

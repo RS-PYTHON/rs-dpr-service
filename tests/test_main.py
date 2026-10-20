@@ -264,7 +264,7 @@ def test_get_resource_endpoint_returns_404_for_unknown_resource(client):
 
 def test_get_resource_endpoint_returns_tasktable_for_mockup_process(client, mocker):
     """Test the endpoint response for a known process resource."""
-    client.app.extra["process_manager"] = mocker.Mock()
+    client.app.state.process_manager = mocker.Mock()
 
     response = client.get("/dpr/processes/mockup", params=asdict(get_cluster_info()))
 
@@ -311,7 +311,7 @@ def test_execute_process_endpoint_success(client, mocker):
     mocker.patch("rs_dpr_service.main.validate_response")
     process_manager = mocker.Mock()
     process_manager.get_job.return_value = job_record("job-1", status="accepted")
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
 
     class SuccessfulProcessor:
         """Fake processor used to test the success path."""
@@ -371,7 +371,7 @@ def test_execute_process_records_error_when_processor_execution_fails(client, mo
     start_span_mock.return_value.__exit__.return_value = False
     mocker.patch("rs_dpr_service.main.validate_request", return_value=asdict(get_cluster_info()))
     record_error = mocker.patch("rs_dpr_service.main.record_error")
-    client.app.extra["process_manager"] = mocker.Mock()
+    client.app.state.process_manager = mocker.Mock()
 
     class FailingProcessor:
         """Fake processor used to test the error path."""
@@ -399,7 +399,7 @@ def test_execute_process_records_error_when_processor_execution_fails(client, mo
 def test_get_job_status_endpoint_success(client, mocker):
     """Test the job status endpoint when the job exists."""
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_job.return_value = job_record("job-1")
 
     response = client.get("/dpr/jobs/job-1")
@@ -411,7 +411,7 @@ def test_get_job_status_endpoint_success(client, mocker):
 def test_get_job_status_endpoint_returns_404_for_unknown_job(client, mocker):
     """Test the job status endpoint when the job does not exist."""
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_job.side_effect = main_module.JobNotFoundError
 
     response = client.get("/dpr/jobs/unknown-job")
@@ -424,7 +424,7 @@ def test_get_job_status_endpoint_returns_404_for_unknown_job(client, mocker):
 async def test_get_job_logs_endpoint_returns_404_for_unknown_job(mocker):
     """Test the job logs endpoint when the job does not exist."""
     process_manager = mocker.Mock()
-    main_module.app.extra["process_manager"] = process_manager
+    main_module.app.state.process_manager = process_manager
     process_manager.get_job.side_effect = main_module.JobNotFoundError
 
     response = await main_module.get_job_logs_endpoint(mocker.Mock(), "unknown-job")
@@ -437,7 +437,7 @@ async def test_get_job_logs_endpoint_returns_404_for_unknown_job(mocker):
 async def test_get_job_logs_endpoint_streams_queued_log(mocker):
     """Test that job logs are streamed as SSE data and the queue is cleaned up."""
     process_manager = mocker.Mock()
-    main_module.app.extra["process_manager"] = process_manager
+    main_module.app.state.process_manager = process_manager
     process_manager.get_job.return_value = job_record("job-1")
     request = mocker.Mock()
     request.is_disconnected = AsyncMock(side_effect=[False, True])
@@ -470,7 +470,7 @@ async def test_get_job_logs_endpoint_sends_keepalive_until_job_finishes(mocker):
         raise TimeoutError
 
     process_manager = mocker.Mock()
-    main_module.app.extra["process_manager"] = process_manager
+    main_module.app.state.process_manager = process_manager
     process_manager.get_job.side_effect = [
         job_record("job-1", status="running"),
         job_record("job-1", status="successful"),
@@ -497,7 +497,7 @@ async def test_get_job_logs_endpoint_sends_keepalive_until_job_finishes(mocker):
 def test_get_jobs_endpoint_success(client, mocker):
     """Test the jobs endpoint when jobs are available."""
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_jobs.return_value = {"jobs": [job_record("job-1")], "numberMatched": 1}
 
     response = client.get("/dpr/jobs")
@@ -509,7 +509,7 @@ def test_get_jobs_endpoint_success(client, mocker):
 def test_get_jobs_endpoint_returns_404_on_error(client, mocker):
     """Test the jobs endpoint when get_jobs raises an exception."""
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_jobs.side_effect = Exception("get_jobs failed")
 
     response = client.get("/dpr/jobs")
@@ -524,7 +524,7 @@ def test_delete_job_endpoint_success(client, mocker):
     cancel_event.client = True
     mocker.patch("rs_dpr_service.main.distributed.Event", return_value=cancel_event)
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_job.return_value = copy.deepcopy(job_record("job-1"))
 
     response = client.delete("/dpr/jobs/job-1")
@@ -547,7 +547,7 @@ def test_delete_job_endpoint_returns_404_for_unknown_job(client, mocker):
     cancel_event.client = False
     mocker.patch("rs_dpr_service.main.distributed.Event", return_value=cancel_event)
     process_manager = mocker.Mock()
-    client.app.extra["process_manager"] = process_manager
+    client.app.state.process_manager = process_manager
     process_manager.get_job.side_effect = main_module.JobNotFoundError
 
     response = client.delete("/dpr/jobs/unknown-job")
@@ -559,7 +559,7 @@ def test_delete_job_endpoint_returns_404_for_unknown_job(client, mocker):
 
 def test_variable_processors(client, mocker, monkeypatch):
     """Test that only ceertain processors are exposed."""
-    client.app.extra["process_manager"] = mocker.Mock()
+    client.app.state.process_manager = mocker.Mock()
 
     monkeypatch.setenv(
         "DPR_ENABLED_PROCESSORS",

@@ -25,7 +25,7 @@ authors = ["ESA under contract with Airbus and CS <ops_coprs@airbus.com>"]
 readme = "README.md"
 homepage = "https://home.rs-python.eu/"
 repository = "https://github.com/RS-PYTHON/rs-dpr-service"
-documentation = "https://home.rs-python.eu/rs-documentation/rs-server/docs/doc/"
+documentation = "https://home.rs-python.eu/rs-documentation/rs-dpr-service/docs/doc/"
 keywords = ["stac", "copernicus", "sentinel", "processing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -59,14 +59,14 @@ pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
 uvicorn = ">=0.35.0"
 fastapi = ">=0.123.0"
-starlette = ">=0.46.0,<1.4.0"
+starlette = ">=1.4.1"
 geoalchemy2 = ">=0.18.0"
 SQLAlchemy = "^2.0.37"
 jsonpatch = "^1.33"
 dask-gateway = "2026.3.0"
 openapi-core = ">=0.22.0"
 bandit = "^1.8.3"
-mypy = "^1.15.0"
+mypy = "^2.4.0"
 flake8-pyproject = "^1.2.3"
 httpx = "^0.28.1"
 psycopg2 = "^2.9.11"
