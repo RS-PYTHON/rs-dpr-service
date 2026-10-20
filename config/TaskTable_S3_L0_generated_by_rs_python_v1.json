@@ -50,11 +50,6 @@
                     "name": "fro",
                     "mode": "always",
                     "mandatory": false
-                },
-                {
-                    "name": "adf_l0cfg",
-                    "mode": "always",
-                    "mandatory": false
                 }
             ],
             "output_products": [
@@ -122,27 +117,6 @@
                                 "satellite": "{external_variable.satellite}",
                                 "dTa": 7000,
                                 "dTb": 7000
-                            }
-                        }
-                    }
-                ]
-            },
-            {
-                "name": "adf_l0cfg",
-                "type": "file",
-                "alternatives": [
-                    {
-                        "order": 1,
-                        "timeout_seconds": 0,
-                        "query": {
-                            "name": "LatestValCover",
-                            "parameters": {
-                                "product_type": "ADF_L0CFG",
-                                "start_datetime": "{external_variable.start_datetime}",
-                                "end_datetime": "{external_variable.end_datetime}",
-                                "satellite": "{external_variable.satellite}",
-                                "dTa": 0,
-                                "dTb": 0
                             }
                         }
                     }
