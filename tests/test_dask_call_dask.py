@@ -327,10 +327,13 @@ def fixture_init_context(mocker, monkeypatch, tmp_path):
 
     file_utils = types.ModuleType("eopf.common.file_utils")
     monkeypatch.setattr(file_utils, "AnyPath", FakeAnyPath, raising=False)
+    eopf_module = types.ModuleType("eopf")
+    # Older than 3.1.0rc1: the payload validation is skipped
+    eopf_module.__version__ = "3.0.0"
     mocker.patch.dict(
         sys.modules,
         {
-            "eopf": types.ModuleType("eopf"),
+            "eopf": eopf_module,
             "eopf.common": types.ModuleType("eopf.common"),
             "eopf.common.file_utils": file_utils,
         },
@@ -355,6 +358,7 @@ def fixture_init_context(mocker, monkeypatch, tmp_path):
         payload_dir=payload_dir,
         payload_file=payload_file,
         reports_dir=reports_dir,
+        eopf_module=eopf_module,
         anypath_class=FakeAnyPath,
         anypath_init=anypath_init,
         download=download,
@@ -410,6 +414,27 @@ def test_processor_caller_init_prepares_payload_and_reports(init_context, config
     ctx.customize_payload.assert_called_once_with(str(ctx.payload_file))
     assert caller.command == ["eopf_otel", "trigger", "local", str(ctx.payload_file)]
     assert ctx.payload_file.read_text(encoding="utf-8") == "workflow: []\n"
+
+
+def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, mocker):
+    """The payload is validated at the preflight level when eopf is 3.1.0rc1 or newer."""
+    ctx = init_context
+    ctx.eopf_module.__version__ = "3.1.0"
+    validate_payload_command = mocker.Mock()
+    triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
+    triggers.validate_payload_command = validate_payload_command
+    mocker.patch.dict(
+        sys.modules,
+        {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
+    )
+    ctx.caller.s3 = object()
+
+    ctx.caller.init()
+
+    validate_payload_command.main.assert_called_once_with(
+        args=[str(ctx.payload_file), "--level", "preflight"],
+        standalone_mode=False,
+    )
 
 
 def test_processor_caller_init_propagates_download_error(init_context):
@@ -1153,9 +1178,12 @@ def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
 
 @pytest.mark.parametrize("params_name", ["reader_params", "store_params"])
 def test_payload_s3_secrets_uses_input_credentials(monkeypatch, params_name):
-    """All three aliases use payload credentials, independent of host credentials."""
+    """The s3input alias uses payload credentials, independent of host credentials."""
     monkeypatch.setenv("S3_ACCESSKEY", "host-key")
     monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    # Registered so that the variables set by set_payload_s3_secrets are restored after the test
+    for key in ("S3_KEY", "S3_SECRET", "S3_URL", "S3_REGION"):
+        monkeypatch.delenv(key, raising=False)
     credential = {
         "key": "payload-key",
         "secret": "payload-secret",
@@ -1169,9 +1197,11 @@ def test_payload_s3_secrets_uses_input_credentials(monkeypatch, params_name):
     }
     payload = {"io": {"input_products": [{params_name: {"storage_options": options}}]}}
     call_dask.ProcessorCaller.set_payload_s3_secrets(payload)
-    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {
-        alias: credential for alias in ("s3input", "s3output", "csinput")
-    }
+    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {"s3input": credential}
+    assert os.environ["S3_KEY"] == credential["key"]
+    assert os.environ["S3_SECRET"] == credential["secret"]
+    assert os.environ["S3_URL"] == credential["endpoint_url"]
+    assert os.environ["S3_REGION"] == credential["region_name"]
 
 
 def test_payload_s3_secrets_clears_previous_job_credentials(monkeypatch):
@@ -1191,8 +1221,8 @@ def test_payload_s3_secrets_rejects_ambiguous_inputs(monkeypatch):
                     "key": key,
                     "secret": "secret",
                     "client_kwargs": {"endpoint_url": "https://payload.test", "region_name": "gra"},
-                }
-            }
+                },
+            },
         }
         for key in ("first", "second")
     ]
