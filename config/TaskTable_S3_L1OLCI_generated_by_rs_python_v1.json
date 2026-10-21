@@ -354,12 +354,12 @@
         "output": [
             {
                 "name": "S03OLCEFR",
-                "type": "file",
+                "type": "folder",
                 "engine": "cpm_zarr"
             },
             {
                 "name": "S03OLCERR",
-                "type": "file",
+                "type": "folder",
                 "engine": "cpm_zarr"
             }
         ]

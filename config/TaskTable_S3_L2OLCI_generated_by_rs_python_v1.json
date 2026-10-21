@@ -193,7 +193,7 @@
     "output": [
       {
         "name": "S3OLCIL2",
-        "type": "file",
+        "type": "folder",
         "engine": "cpm_zarr"
       }
     ]
