@@ -236,9 +236,6 @@
                         "S03CACHE": "pipeline_internal"
                     },
                     "parameters": {
-                        "temporary_path": "./S3_D_TDS_1/output/tmp",
-                        "acquisition_report_output_path": "./S3_D_TDS_1/output/default/Report/",
-                        "ignore_output": "S03CACHE",
                         "cadu_chunk_size": {
                             "navatt": 10000,
                             "olci": 10000,
