@@ -337,7 +337,7 @@
                 },
                 "description": {
                     "type": "string",
-                    "maxLength": 256
+                    "maxLength": 2048
                 },
                 "steps": {
                     "type": "array",

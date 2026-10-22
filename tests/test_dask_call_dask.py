@@ -329,7 +329,7 @@ def fixture_init_context(mocker, monkeypatch, tmp_path):
     monkeypatch.setattr(file_utils, "AnyPath", FakeAnyPath, raising=False)
     eopf_module = types.ModuleType("eopf")
     # Older than 3.1.0rc1: the payload validation is skipped
-    eopf_module.__version__ = "3.0.0"
+    monkeypatch.setattr(eopf_module, "__version__", "3.0.0", raising=False)
     mocker.patch.dict(
         sys.modules,
         {
@@ -422,7 +422,7 @@ def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, 
     ctx.eopf_module.__version__ = "3.1.0"
     validate_payload_command = mocker.Mock()
     triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
-    triggers.validate_payload_command = validate_payload_command
+    mocker.patch.object(triggers, "validate_payload_command", validate_payload_command, create=True)
     mocker.patch.dict(
         sys.modules,
         {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
@@ -1186,7 +1186,7 @@ def test_payload_s3_secrets_uses_input_credentials(monkeypatch, params_name):
         monkeypatch.delenv(key, raising=False)
     credential = {
         "key": "payload-key",
-        "secret": "payload-secret",
+        "secret": "payload-secret",  # nosec B105
         "endpoint_url": "https://payload.test",
         "region_name": "gra",
     }
@@ -1219,7 +1219,7 @@ def test_payload_s3_secrets_rejects_ambiguous_inputs(monkeypatch):
             "reader_params": {
                 "storage_options": {
                     "key": key,
-                    "secret": "secret",
+                    "secret": "secret",  # nosec B105
                     "client_kwargs": {"endpoint_url": "https://payload.test", "region_name": "gra"},
                 },
             },
