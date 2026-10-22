@@ -1,5 +1,5 @@
 {
-    "$schema": "./../schemas/TaskTable.schema.json",
+    "$schema": "../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "s1-l0",
         "version": "1.0.1",
@@ -13,7 +13,10 @@
         "satellite"
     ],
     "external_modules": [
-        "l0.cadu_processing.cadu_store"
+        {
+            "name": "l0.cadu_processing.cadu_store",
+            "star_import": true
+        }
     ],
     "units": [
         {
@@ -87,121 +90,123 @@
             ]
         }
     ],
-    "io": [
-        {
-            "name": "S1CADUS",
-            "type": "filename",
-            "store_type": "cadu"
-        },
-        {
-            "name": "osf",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "MPL_ORBSCT",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "satellite": "{external_variable.satellite}",
-                            "dTa": 0,
-                            "dTb": 0
+    "io": {
+        "input": [
+            {
+                "name": "S1CADUS",
+                "type": "file",
+                "engine": "cadu"
+            }
+        ],
+        "adfs": [
+            {
+                "name": "osf",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "MPL_ORBSCT",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 0,
+                                "dTb": 0
+                            }
                         }
                     }
-                }
-            ]
-        },
-        {
-            "name": "fro",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "MPL_ORBRES",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "satellite": "{external_variable.satellite}",
-                            "dTa": 345600,
-                            "dTb": 0
+                ]
+            },
+            {
+                "name": "fro",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "MPL_ORBRES",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 345600,
+                                "dTb": 0
+                            }
                         }
                     }
-                }
-            ]
-        },
-        {
-            "name": "fpo",
-            "type": "filename",
-            "store_type": "safe",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "LatestValCover",
-                        "parameters": {
-                            "product_type": "MPL_ORBPRE",
-                            "start_datetime": "{external_variable.start_datetime}",
-                            "end_datetime": "{external_variable.end_datetime}",
-                            "satellite": "{external_variable.satellite}",
-                            "dTa": 345600,
-                            "dTb": 0
+                ]
+            },
+            {
+                "name": "fpo",
+                "type": "file",
+                "engine": "cpm_safe",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "LatestValCover",
+                            "parameters": {
+                                "product_type": "MPL_ORBPRE",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 345600,
+                                "dTb": 0
+                            }
                         }
                     }
-                }
-            ]
-        },
-        {
-            "name": "calibration",
-            "type": "filename",
-            "store_type": "zarr",
-            "alternatives": [
-                {
-                    "order": 1,
-                    "timeout_seconds": 0,
-                    "query": {
-                        "name": "SatelliteFilter",
-                        "parameters": {
-                            "product_type": "ADF_CALIB",
-                            "satellite": "{external_variable.satellite}"
+                ]
+            },
+            {
+                "name": "calibration",
+                "type": "file",
+                "engine": "cpm_zarr",
+                "alternatives": [
+                    {
+                        "order": 1,
+                        "timeout_seconds": 0,
+                        "query": {
+                            "name": "SatelliteFilter",
+                            "parameters": {
+                                "product_type": "ADF_CALIB",
+                                "satellite": "{external_variable.satellite}"
+                            }
                         }
                     }
-                }
-            ]
-        },
-        {
-            "name": "S01SARRAW",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        },
-        {
-            "name": "S01GPSRAW",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        },
-        {
-            "name": "S01HKMRAW",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        },
-        {
-            "name": "S01AISRAW",
-            "type": "folder",
-            "store_type": "zarr",
-            "opening_mode": "CREATE_OVERWRITE"
-        }
-    ],
+                ]
+            }
+        ],
+        "output": [
+            {
+                "name": "S01SARRAW",
+                "type": "folder",
+                "engine": "cpm_zarr"
+            },
+            {
+                "name": "S01GPSRAW",
+                "type": "folder",
+                "engine": "cpm_zarr"
+            },
+            {
+                "name": "S01HKMRAW",
+                "type": "folder",
+                "engine": "cpm_zarr"
+            },
+            {
+                "name": "S01AISRAW",
+                "type": "folder",
+                "engine": "cpm_zarr"
+            }
+        ]
+    },
     "queries": [
         {
             "name": "LatestValCover",

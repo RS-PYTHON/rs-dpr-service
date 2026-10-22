@@ -1,5 +1,5 @@
 {
-    "$schema": "./../2. schema/TaskTable.schema.json",
+    "$schema": "../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "s3-olci-l1-eo",
         "version": "??",

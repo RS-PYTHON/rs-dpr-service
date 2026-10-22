@@ -552,10 +552,10 @@ class ProcessorCaller:
                 "endpoint_url": client_kwargs["endpoint_url"],
                 "region_name": client_kwargs["region_name"],
             }
-            os.environ['S3_KEY'] = storage_options["key"]
-            os.environ['S3_SECRET'] = storage_options["secret"]
-            os.environ['S3_URL'] = client_kwargs["endpoint_url"]
-            os.environ['S3_REGION'] = client_kwargs["region_name"]
+            os.environ["S3_KEY"] = storage_options["key"]
+            os.environ["S3_SECRET"] = storage_options["secret"]
+            os.environ["S3_URL"] = client_kwargs["endpoint_url"]
+            os.environ["S3_REGION"] = client_kwargs["region_name"]
             if credential not in credentials:
                 credentials.append(credential)
         if not credentials:

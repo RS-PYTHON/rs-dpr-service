@@ -66,25 +66,14 @@
         },
         "Io": {
             "type": "object",
-            "additionalProperties": false,
-            "properties": {
-                "input": {
-                    "type": "array",
-                    "$ref": "#/$defs/IoInput"
+            "anyOf": [
+                {
+                    "$ref": "#/$defs/GroupedIo"
                 },
-                "output": {
-                    "type": "array",
-                    "$ref": "#/$defs/IoOutput"
-                },
-                "adfs": {
-                    "type": "array",
-                    "$ref": "#/$defs/IoAdfs"
+                {
+                    "$ref": "#/$defs/NamedIo"
                 }
-            },
-            "required": [
-                "input"
-            ],
-            "title": "Io"
+            ]
         },
         "IoInput": {
             "type": "array",
@@ -715,6 +704,103 @@
         "StrictlyPositiveNumber": {
             "type": "number",
             "exclusiveMinimum": 0
+        },
+        "GroupedIo": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+                "input": {
+                    "type": "array",
+                    "$ref": "#/$defs/IoInput"
+                },
+                "output": {
+                    "type": "array",
+                    "$ref": "#/$defs/IoOutput"
+                },
+                "adfs": {
+                    "type": "array",
+                    "$ref": "#/$defs/IoAdfs"
+                }
+            },
+            "required": [
+                "input"
+            ],
+            "title": "Io"
+        },
+        "NamedIo": {
+            "type": "object",
+            "propertyNames": {
+                "$ref": "#/$defs/NonEmptyIdentifier"
+            },
+            "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                    "name": {
+                        "$ref": "#/$defs/NonEmptyIdentifier"
+                    },
+                    "type": {
+                        "type": "string",
+                        "enum": [
+                            "folder",
+                            "file",
+                            "regex",
+                            "cache"
+                        ]
+                    },
+                    "engine": {
+                        "type": "string",
+                        "enum": [
+                            "cpm_safe",
+                            "cpm_zarr",
+                            "cadu",
+                            "s3_cache",
+                            "fast_zarr"
+                        ]
+                    },
+                    "regex_expression": {
+                        "type": "string",
+                        "description": "Python regular expression. Can be used with type regex.",
+                        "maxLength": 1024
+                    },
+                    "regex_multiplicity": {
+                        "type": "string",
+                        "description": "Can be used with type regex.",
+                        "enum": [
+                            "exactly_one",
+                            "more_than_one"
+                        ],
+                        "default": "more_than_one"
+                    },
+                    "reader_params": {
+                        "$ref": "#/$defs/ReaderParams"
+                    },
+                    "writer_params": {
+                        "$ref": "#/$defs/WriterParams"
+                    },
+                    "folder_multiplicity": {
+                        "type": "string",
+                        "description": "Can be used with type folder.",
+                        "enum": [
+                            "one_per_input",
+                            "single"
+                        ],
+                        "default": "single"
+                    },
+                    "adfs_params": {
+                        "$ref": "#/$defs/AdfsParams"
+                    },
+                    "alternatives": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/$defs/Alternative"
+                        }
+                    }
+                },
+                "required": [
+                    "type"
+                ]
+            }
         }
     }
 }
