@@ -236,6 +236,7 @@
                         "S03CACHE": "pipeline_internal"
                     },
                     "parameters": {
+                        "acquisition_report_output_path": "./acquisition_report_output_path",
                         "cadu_chunk_size": {
                             "navatt": 10000,
                             "olci": 10000,
