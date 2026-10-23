@@ -501,13 +501,18 @@ class ProcessorCaller:
         # Display the payload file contents in the log and log file
         with open(payload_file, encoding="utf-8") as opened:
 
+            # Hide secrets from the payload
             self.payload_contents = yaml.safe_load(opened)
             dumped = self.hide_secrets(json.dumps(self.payload_contents, indent=2))
+            dumped = yaml.dump(json.loads(dumped), default_flow_style=False, sort_keys=False)  # back to yaml
+
             message = f"Dask cluster label: {self.cluster_info.cluster_label!r}\n"
             message += f"Dask cluster instance: {self.cluster_info.cluster_instance!r}\n"
             message += f"Payload file contents: {payload_file!r}\n{dumped}\n"
 
             logger.debug(f"[JOB:{self.job_id}] {message}")
+
+            raise RuntimeError(message)
 
             with open(self.log_path, "w", encoding="utf-8") as log_file:
                 log_file.write(message)
