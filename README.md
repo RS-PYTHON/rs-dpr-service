@@ -7,9 +7,10 @@ The web service of [RS-Python](https://home.rs-python.eu/), the Copernicus Refer
 ## Overview
 
 - `GET /dpr/processes/{processor}` returns the [task table](https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/processor-orchestration-guide/tasktables.html)
-  of a processor. The task tables are in the [config](https://github.com/RS-PYTHON/rs-dpr-service/tree/develop/config) folder.
-- `POST /dpr/processes/{processor}/execution` runs a processor on a Dask cluster, with an EOPF payload file, and
-  returns a job identifier.
+  of a processor. The task tables, in the EOPF CPM v3 format, are in the [config](https://github.com/RS-PYTHON/rs-dpr-service/tree/develop/config)
+  folder and are validated against the [schemas/TaskTable.schema.json](schemas/TaskTable.schema.json) schema.
+- `POST /dpr/processes/{processor}/execution` runs a processor on a Dask cluster, with an EOPF CPM v3 payload file,
+  and returns a job identifier.
 - `GET /dpr/jobs/{job_id}`, `GET /dpr/jobs/{job_id}/logs` and `DELETE /dpr/jobs/{job_id}` follow, stream the logs of
   and cancel a job.
 

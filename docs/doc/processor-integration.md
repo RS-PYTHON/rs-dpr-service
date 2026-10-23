@@ -52,7 +52,8 @@ The difference with the environment of the processor developers is the use of th
 Check that the task table of the processor is compliant with the task table specification of the baseline. If it is
 not, raise an issue to the processor team and, if possible, fix it on the RS-Python side to go on (the task tables
 used by RS-Python are in the [config](https://github.com/RS-PYTHON/rs-dpr-service/tree/develop/config) folder of
-rs-dpr-service; see [Task tables and payload file](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/flows/tasktable-payload.md)).
+rs-dpr-service, they must be valid against its [task table schema](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/schemas/TaskTable.schema.json),
+which is checked by the CI; see [Task tables and payload file](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/flows/tasktable-payload.md)).
 
 ### Step 4: check the auxiliary files
 
