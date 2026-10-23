@@ -72,7 +72,7 @@ flowchart LR
 
 1. rs-dpr-service connects to the Dask cluster of the processor and submits a single task, that runs the EOPF
    triggering command (`eopf trigger` with the payload file) in a sub-process of a Dask worker, and forwards its
-   logs.
+   logs. Before running the command, this task prepares the payload file (see [Payload file](#payload-file)).
 2. EOPF reads the payload file and runs the processing units of the processor: it submits their tasks to the same
    Dask cluster, that distributes them on its workers. The workers read the inputs and write the outputs directly
    in the object storage.
@@ -82,6 +82,27 @@ rs-dpr-service pod. Here it runs on a worker of the Dask cluster, because the EO
 (memory, processor dependencies) to run in the web service.
 
 The cancellation of a job sets a Dask event that makes the worker kill the EOPF sub-process.
+
+### Payload file
+
+The payload files follow the format of EOPF CPM v3. Before triggering the processor, the Dask worker:
+
+- writes the Dask cluster to use in the `context_managers` section of the payload, with the
+  `eopf.dask_utils.dask_context_manager.DaskContext` context manager (Dask Gateway address, cluster instance and
+  authentication),
+- exports the S3 credentials of the input products (`storage_options` of their `reader_params`) as environment
+  variables for the processor: `S3_KEY`, `S3_SECRET`, `S3_URL`, `S3_REGION`, and `S3_SECRETS_JSON_BASE64` that
+  defines the `s3input` alias. All the input products must use the same credentials,
+- validates the payload file with the EOPF `validate-payload` command (`preflight` level), if the EOPF version is
+  3.1.0rc1 or later. An invalid payload stops the job before the processing starts.
+
+## Task tables
+
+The task tables of the [config](https://github.com/RS-PYTHON/rs-dpr-service/tree/develop/config) folder follow the
+EOPF CPM v3 format: their `io` section is split into `input`, `adfs` and `output` lists, each product defining its
+`engine` (e.g. `cpm_zarr`, `cpm_safe`) and its `reader_params` or `writer_params`. They are all validated by the CI
+against the JSON schema [schemas/TaskTable.schema.json](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/schemas/TaskTable.schema.json),
+referenced by their `$schema` property.
 
 ## Deployment
 
@@ -100,8 +121,10 @@ For tests and debugging, the request body can contain an `experimental_config` s
 [settings.py](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/rs_dpr_service/utils/settings.py)):
 
 - `local_cluster`: run the processor with a Dask `LocalCluster` created by EOPF inside a single worker of the Dask
-  cluster (or, in local mode, inside the rs-dpr-service container, which allows to put breakpoints in the EOPF and
-  processor code),
+  cluster (or, in local mode, inside the `ghcr.io/rs-python/dask/<processor>/localcluster` container, which contains
+  both rs-dpr-service and the processor and allows to put breakpoints in the EOPF and processor code). By default,
+  the `LocalCluster` has one worker per CPU, with 10 GiB of memory and a single thread per worker. It can also be
+  enabled for all the jobs with the `DPR_LOCAL_CLUSTER=true` environment variable of rs-dpr-service,
 - `local_files`: with a `LocalCluster`, download the inputs from the object storage to a local folder, run the
   processor on the local files, then upload the outputs.
 
