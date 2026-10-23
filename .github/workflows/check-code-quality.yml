@@ -136,5 +136,5 @@ jobs:
             schema=$(jq -r '."$schema"' "$file")
             schema=$(realpath "$(dirname "$file")/$schema")
             echo "Validating $file with schema $schema"
-            echo pipx run check-jsonschema --schemafile "$schema" "$file"
+            pipx run check-jsonschema --schemafile "$schema" "$file"
           done
