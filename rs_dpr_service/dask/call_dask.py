@@ -17,6 +17,7 @@ This module contains the code that is related to dask and/or sent to the dask wo
 Avoid import unnecessary dependencies here.
 """
 
+import base64
 import contextlib
 import importlib
 import json
@@ -48,6 +49,7 @@ from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
 from opentelemetry.trace.span import Span, SpanContext
+from packaging.version import Version
 from pip._internal.operations import freeze
 
 from rs_dpr_service.utils import settings
@@ -376,7 +378,6 @@ class ProcessorCaller:
                     f"[JOB:{self.job_id}] "
                     f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
                 )
-
                 self.init()
 
                 start_time = time.time()
@@ -394,6 +395,7 @@ class ProcessorCaller:
                 record_error(span, e)
                 raise
 
+    # pylint: disable=import-outside-toplevel
     def init(self):
         """
         Init from the dask pod.
@@ -458,6 +460,7 @@ class ProcessorCaller:
         # Customize the payload file values
         self.customize_payload_file(payload_file)
 
+        # Init the command that will be used to trigger the processor
         self.command = [
             "eopf_otel",
             "trigger",
@@ -465,12 +468,25 @@ class ProcessorCaller:
             payload_file,
         ]
 
+        # Validate the payload file (only in newest versions)
+        import eopf  # pylint: disable=import-outside-toplevel
+
+        if Version(eopf.__version__) >= Version("3.1.0rc1"):
+            from eopf.cli.cli_triggering_triggers import validate_payload_command
+
+            validate_payload_command.main(
+                args=[payload_file, "--level", "preflight"],
+                standalone_mode=False,  # raise instead of sys.exit()
+            )
+
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
 
         # Read the payload file contents
         with open(payload_file, encoding="utf-8") as opened:
             payload_contents = yaml.safe_load(opened)
+
+        self.set_payload_s3_secrets(payload_contents)
 
         # Write the Dask context configuration in the payload file.
         self.write_dask_context(payload_contents)
@@ -517,8 +533,40 @@ class ProcessorCaller:
         #         opened.write(yaml.safe_dump(log_conf_contents))
 
     @staticmethod
+    def set_payload_s3_secrets(payload_contents: dict):
+        """Build processor S3 aliases from input credentials in the payload."""
+        os.environ.pop("S3_SECRETS_JSON_BASE64", None)
+        credentials = []
+        for product in payload_contents.get("io", {}).get("input_products", []):
+            params = product.get("reader_params") or product.get("store_params") or {}
+            storage_options = params.get("storage_options")
+            if not storage_options:
+                continue
+            client_kwargs = storage_options.get("client_kwargs") or {}
+            credential = {
+                "key": storage_options["key"],
+                "secret": storage_options["secret"],
+                "endpoint_url": client_kwargs["endpoint_url"],
+                "region_name": client_kwargs["region_name"],
+            }
+            os.environ["S3_KEY"] = storage_options["key"]
+            os.environ["S3_SECRET"] = storage_options["secret"]
+            os.environ["S3_URL"] = client_kwargs["endpoint_url"]
+            os.environ["S3_REGION"] = client_kwargs["region_name"]
+            if credential not in credentials:
+                credentials.append(credential)
+        if not credentials:
+            return
+        if len(credentials) > 1:
+            raise ValueError("Multiple input credential sets cannot be mapped to a single S3 alias set")
+
+        # Later update with s3output and csinput
+        data = {"s3input": credentials[0]}
+        os.environ["S3_SECRETS_JSON_BASE64"] = base64.b64encode(json.dumps(data).encode()).decode()
+
+    @staticmethod
     def _collect_storage_options(payload_contents: dict) -> list[dict]:
-        io = payload_contents.get("I/O", payload_contents.get("io", {}))
+        io = payload_contents.get("io", {})
         result = []
         for product in io.get("input_products", []):
             if so := product.get("reader_params", product.get("store_params", {})).get("storage_options"):
@@ -609,14 +657,20 @@ class ProcessorCaller:
 
         payload_contents.update(
             {
-                "dask_context": {
-                    "cluster_type": "gateway",
-                    "cluster_config": {
-                        "address": self.dask_gateway_address,
-                        "reuse_cluster": self.cluster_info.cluster_instance,
-                        "auth": auth,
+                "context_managers": [
+                    {
+                        "module": "eopf.dask_utils.dask_context_manager",
+                        "context_manager": "DaskContext",
+                        "parameters": {
+                            "cluster_type": "gateway",
+                            "cluster_config": {
+                                "address": self.dask_gateway_address,
+                                "reuse_cluster": self.cluster_info.cluster_instance,
+                                "auth": auth,
+                            },
+                        },
                     },
-                },
+                ],
             },
         )
 
@@ -629,24 +683,26 @@ class ProcessorCaller:
             return
 
         # Hard replace the dask gateway configuration with a LocalCluster
-        if self.experimental_config.local_cluster.enabled and (dask_context := payload_contents.get("dask_context")):
-            dask_context["cluster_type"] = "local"
-            if cluster_config := dask_context["cluster_config"]:
-                cluster_config.pop("address", None)
-                cluster_config.pop("reuse_cluster", None)
-                cluster_config.pop("auth", None)
-                cluster_config.pop("workers", None)
+        if self.experimental_config.local_cluster.enabled:
+            for manager in payload_contents["context_managers"]:
+                parameters = manager.get("parameters", {})
+                parameters["cluster_type"] = "local"
+                if cluster_config := parameters.get("cluster_config", {}):
+                    cluster_config.pop("address", None)
+                    cluster_config.pop("reuse_cluster", None)
+                    cluster_config.pop("auth", None)
+                    cluster_config.pop("workers", None)
 
-                cluster_config["n_workers"] = self.experimental_config.local_cluster.n_workers
-                cluster_config["memory_limit"] = self.experimental_config.local_cluster.memory_limit
-                cluster_config["threads_per_worker"] = self.experimental_config.local_cluster.threads_per_worker
+                    cluster_config["n_workers"] = self.experimental_config.local_cluster.n_workers
+                    cluster_config["memory_limit"] = self.experimental_config.local_cluster.memory_limit
+                    cluster_config["threads_per_worker"] = self.experimental_config.local_cluster.threads_per_worker
 
         # Read/write on the local disk rather than on the S3 bucket. Only works with a LocalCluster.
         if self.experimental_config.local_files.local_dir:
 
             # For each input or output product
             start_time = time.time()
-            for io_key, io_value in payload_contents.get("I/O", payload_contents.get("io", {})).items():
+            for io_key, io_value in payload_contents.get("io", {}).items():
                 for product in io_value:
                     self.handle_local_product(io_key, product)
             self.exec_times.append(("Download input files", time.time() - start_time))

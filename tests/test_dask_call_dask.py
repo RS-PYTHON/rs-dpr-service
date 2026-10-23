@@ -14,6 +14,7 @@
 
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
+import base64
 import json
 import os
 import sys
@@ -326,10 +327,13 @@ def fixture_init_context(mocker, monkeypatch, tmp_path):
 
     file_utils = types.ModuleType("eopf.common.file_utils")
     monkeypatch.setattr(file_utils, "AnyPath", FakeAnyPath, raising=False)
+    eopf_module = types.ModuleType("eopf")
+    # Older than 3.1.0rc1: the payload validation is skipped
+    monkeypatch.setattr(eopf_module, "__version__", "3.0.0", raising=False)
     mocker.patch.dict(
         sys.modules,
         {
-            "eopf": types.ModuleType("eopf"),
+            "eopf": eopf_module,
             "eopf.common": types.ModuleType("eopf.common"),
             "eopf.common.file_utils": file_utils,
         },
@@ -354,6 +358,7 @@ def fixture_init_context(mocker, monkeypatch, tmp_path):
         payload_dir=payload_dir,
         payload_file=payload_file,
         reports_dir=reports_dir,
+        eopf_module=eopf_module,
         anypath_class=FakeAnyPath,
         anypath_init=anypath_init,
         download=download,
@@ -411,6 +416,27 @@ def test_processor_caller_init_prepares_payload_and_reports(init_context, config
     assert ctx.payload_file.read_text(encoding="utf-8") == "workflow: []\n"
 
 
+def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, mocker):
+    """The payload is validated at the preflight level when eopf is 3.1.0rc1 or newer."""
+    ctx = init_context
+    ctx.eopf_module.__version__ = "3.1.0"
+    validate_payload_command = mocker.Mock()
+    triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
+    mocker.patch.object(triggers, "validate_payload_command", validate_payload_command, create=True)
+    mocker.patch.dict(
+        sys.modules,
+        {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
+    )
+    ctx.caller.s3 = object()
+
+    ctx.caller.init()
+
+    validate_payload_command.main.assert_called_once_with(
+        args=[str(ctx.payload_file), "--level", "preflight"],
+        standalone_mode=False,
+    )
+
+
 def test_processor_caller_init_propagates_download_error(init_context):
     """Abort initialization without changing directories or reports when downloading fails."""
     ctx = init_context
@@ -447,6 +473,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
         "S3_SECRETKEY",
         "S3_ENDPOINT",
         "S3_REGION",
+        "S3_SECRETS_JSON_BASE64",
         "AWS_ACCESS_KEY_ID",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_ENDPOINT_URL_S3",
@@ -488,6 +515,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert os.environ["AWS_ENDPOINT_URL_S3"] == "https://s3.test"
     assert os.environ["AWS_DEFAULT_REGION"] == "eu-west-1"
     assert os.environ["AWS_DEFAULT_OUTPUT"] == "json"
+    assert os.environ["S3_SECRETS_JSON_BASE64"] == ""
     assert os.environ["OTEL_RESOURCE_ATTRIBUTES"] == "service.name=test"
     assert caller.exec_times[0][0] == "Run processor"
 
@@ -797,23 +825,6 @@ def test_flush_log_batch_does_nothing_for_an_empty_batch(mocker):
     logger_info.assert_not_called()
 
 
-# ---- handle_experimental_config ----
-
-
-def test_handle_experimental_config_uses_lowercase_io_key_fallback(mocker):
-    """Test handle_experimental_config() falls back to the 'io' key when 'I/O' is absent."""
-    caller = _make_processor_caller(mocker)
-    caller.data = {"experimental_config": {"local_files": {"local_dir": "/data/local"}}}
-    handle_local_product = mocker.patch.object(caller, "handle_local_product")
-
-    product = {"path": "s3://bucket/product"}
-    payload = {"io": {"input_products": [product]}}
-
-    caller.handle_experimental_config(payload)
-
-    handle_local_product.assert_called_once_with("input_products", product)
-
-
 # ---- handle_local_product ----
 
 
@@ -1012,7 +1023,7 @@ def test_handle_local_product_propagates_download_error(local_product_context):
 
 
 def test_collect_storage_options_returns_empty_when_no_io_section():
-    """Returns an empty list when the payload has no I/O section."""
+    """Returns an empty list when the payload has no io section."""
     assert not call_dask.ProcessorCaller._collect_storage_options({})  # pylint: disable=protected-access
 
 
@@ -1022,7 +1033,7 @@ def test_collect_storage_options_gathers_all_sections():
     so_out = {"key": "k2", "secret": "s2"}  # nosec
     so_adf = {"key": "k3", "secret": "s3"}  # nosec
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {"storage_options": so_in}}],
             "output_products": [{"writer_params": {"storage_options": so_out}}],
             "adfs": [{"adf_params": {"storage_options": so_adf}}],
@@ -1035,7 +1046,7 @@ def test_collect_storage_options_gathers_all_sections():
 def test_collect_storage_options_skips_items_without_storage_options():
     """Items whose params dict has no storage_options key are excluded."""
     payload: dict[str, object] = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {}}],
             "output_products": [{"writer_params": {}}],
             "adfs": [{"adf_params": {}}],
@@ -1048,7 +1059,7 @@ def test_collect_storage_options_falls_back_to_store_params():
     """Uses store_params when reader_params / writer_params / adf_params are absent."""
     so = {"key": "k"}
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"store_params": {"storage_options": so}}],
             "output_products": [{"store_params": {"storage_options": so}}],
             "adfs": [{"store_params": {"storage_options": so}}],
@@ -1056,14 +1067,6 @@ def test_collect_storage_options_falls_back_to_store_params():
     }
     result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
     assert result == [so, so, so]
-
-
-def test_collect_storage_options_uses_lowercase_io_key_fallback():
-    """Falls back to the 'io' key when 'I/O' is absent."""
-    so = {"key": "k"}
-    payload = {"io": {"input_products": [{"reader_params": {"storage_options": so}}]}}
-    result = call_dask.ProcessorCaller._collect_storage_options(payload)  # pylint: disable=protected-access
-    assert result == [so]
 
 
 # ---- write_secret_conf_files ----
@@ -1095,7 +1098,7 @@ def test_write_secret_conf_files_errors_on_multiple_credential_sets(mocker, tmp_
     """Logs an error and writes nothing when differing credentials are found across products."""
     caller = _make_processor_caller(mocker)
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [
                 {
                     "reader_params": {
@@ -1135,7 +1138,7 @@ def test_write_secret_conf_files_nominal(mocker, tmp_path):
         "client_kwargs": {"endpoint_url": "https://s3.test", "region_name": "eu-west"},
     }
     payload = {
-        "I/O": {
+        "io": {
             "input_products": [{"reader_params": {"storage_options": creds}}],
             "output_products": [{"writer_params": {"storage_options": creds}}],
             "adfs": [{"adf_params": {"storage_options": creds}}],
@@ -1165,9 +1168,64 @@ def test_write_secret_conf_files_written_next_to_payload(mocker, tmp_path):
         "secret": "s",  # nosec
         "client_kwargs": {"endpoint_url": "u", "region_name": "r"},
     }
-    payload = {"I/O": {"input_products": [{"reader_params": {"storage_options": creds}}]}}
+    payload = {"io": {"input_products": [{"reader_params": {"storage_options": creds}}]}}
 
     caller.write_secret_conf_files(["secrets.json"], payload, str(payload_dir / "payload.yaml"))
 
     assert (payload_dir / "secrets.json").exists()
     assert not (tmp_path / "secrets.json").exists()
+
+
+@pytest.mark.parametrize("params_name", ["reader_params", "store_params"])
+def test_payload_s3_secrets_uses_input_credentials(monkeypatch, params_name):
+    """The s3input alias uses payload credentials, independent of host credentials."""
+    monkeypatch.setenv("S3_ACCESSKEY", "host-key")
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    # Registered so that the variables set by set_payload_s3_secrets are restored after the test
+    for key in ("S3_KEY", "S3_SECRET", "S3_URL", "S3_REGION"):
+        monkeypatch.delenv(key, raising=False)
+    credential = {
+        "key": "payload-key",
+        "secret": "payload-secret",  # nosec B105
+        "endpoint_url": "https://payload.test",
+        "region_name": "gra",
+    }
+    options = {
+        "key": credential["key"],
+        "secret": credential["secret"],
+        "client_kwargs": {"endpoint_url": credential["endpoint_url"], "region_name": credential["region_name"]},
+    }
+    payload = {"io": {"input_products": [{params_name: {"storage_options": options}}]}}
+    call_dask.ProcessorCaller.set_payload_s3_secrets(payload)
+    assert json.loads(base64.b64decode(os.environ["S3_SECRETS_JSON_BASE64"])) == {"s3input": credential}
+    assert os.environ["S3_KEY"] == credential["key"]
+    assert os.environ["S3_SECRET"] == credential["secret"]
+    assert os.environ["S3_URL"] == credential["endpoint_url"]
+    assert os.environ["S3_REGION"] == credential["region_name"]
+
+
+def test_payload_s3_secrets_clears_previous_job_credentials(monkeypatch):
+    """A payload without input credentials must not reuse a previous job's secrets."""
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    call_dask.ProcessorCaller.set_payload_s3_secrets({})
+    assert "S3_SECRETS_JSON_BASE64" not in os.environ
+
+
+def test_payload_s3_secrets_rejects_ambiguous_inputs(monkeypatch):
+    """Different input credentials cannot silently share one alias."""
+    monkeypatch.setenv("S3_SECRETS_JSON_BASE64", "stale")
+    products = [
+        {
+            "reader_params": {
+                "storage_options": {
+                    "key": key,
+                    "secret": "secret",  # nosec B105
+                    "client_kwargs": {"endpoint_url": "https://payload.test", "region_name": "gra"},
+                },
+            },
+        }
+        for key in ("first", "second")
+    ]
+    with pytest.raises(ValueError, match="Multiple input credential sets"):
+        call_dask.ProcessorCaller.set_payload_s3_secrets({"io": {"input_products": products}})
+    assert "S3_SECRETS_JSON_BASE64" not in os.environ

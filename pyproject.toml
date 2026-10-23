@@ -53,7 +53,7 @@ include = [
 # NOTE: the python and dask version will be overriden locally by the ci/cd
 # when building binaries specific to these versions.
 python = "==3.13.16"
-dask = {extras = ["distributed"], version = "2026.3.0"}
+dask = {extras = ["distributed"], version = "2026.7.1"}
 
 pygeoapi = "^0.21"
 flask = "^3.1.1" # for pygeoapi
@@ -123,9 +123,10 @@ disable = [
     "too-many-arguments",
     "too-many-branches",
     "too-many-instance-attributes",
+    "too-many-lines",
+    "too-many-locals",
     "too-many-positional-arguments",
     "too-many-statements",
-    "too-many-lines",
 ]
 ignore-paths = '^docs/.*$'
 

@@ -1,5 +1,5 @@
 {
-  "$schema": "./../schemas/TaskTable.schema_cpm3.json",
+  "$schema": "../schemas/TaskTable.schema.json",
   "tasktable": {
     "name": "s2-msi",
     "version": "0.1.0",
@@ -2220,1140 +2220,1003 @@
       ]
     }
   ],
-  "io": [
-    {
-      "name": "l0_input",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
+  "io": {
+    "input": [
+      {
+        "name": "l0_input",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1b_input",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1c_input",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1b_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1c_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "AllL0cComplementary_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "AllRadiometricCorrectionL1B_out",
+        "type": "file",
+        "engine": "cpm_zarr"
       }
-    },
-    {
-      "name": "l1b_input",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
+    ],
+    "adfs": [
+      {
+        "name": "BLIND",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_BLIND",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "CLOIN",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_CLOIN",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "CLOPA",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_CLOPA",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "DATAT",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_DATAT",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GEO2P",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_GEO2P",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GPARA",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_GPARA",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GPARE",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_GPARE",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GSGCP",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_GSGCP",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "INTDP",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_INTDP",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "MRLUT",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_MRLUT",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "PRDLO",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_PRDLO",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RABCA",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RABCA",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RBINN",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RBINN",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RCRCO",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RCRCO",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RDEFI",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RDEFI",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RDEPI",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RDEPI",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RDENT",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RDENT",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "REQOG",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_REQOG",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "REOB2",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_REOB2",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RESAM",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RESAM",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RL2NC",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RL2NC",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RNOMO",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RNOMO",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RPARA",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RPARA",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RSWIR",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_RSWIR",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "RWAFI",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_RWAFI",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "SADMP",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_SADMP",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "SPAMO",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_SPAMO",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "TILEP",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_TILEP",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "VDIRP",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02B_ADF_VDIRP",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2ACF",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2ACF",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2ASC",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2ASC",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2AAC",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2AAC",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2ALC",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2ALC",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2AWB",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2AWB",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2ASN",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2ASN",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2AGS",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2AGS",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "L2ALU",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S02__ADF_L2ALU",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "CAMSA",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_CAMSA",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "ECMWF",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_ECMWF",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GEOI8",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_GEOI8",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "GETAS",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_GETAS",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "DEM90",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_DEM90",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "DEM30",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "S00__ADF_DEM30",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
+      },
+      {
+        "name": "UTM_DEM",
+        "type": "file",
+        "engine": "cpm_zarr",
+        "alternatives": [
+          {
+            "order": 1,
+            "timeout_seconds": 180,
+            "query": {
+              "name": "LatestValIntersect",
+              "parameters": {
+                "product_type": "UTM_DEM",
+                "start_datetime": "{external_variable.start_datetime}",
+                "end_datetime": "{external_variable.end_datetime}",
+                "dTa": 0,
+                "dTb": 0
+              }
+            }
+          }
+        ]
       }
-    },
-    {
-      "name": "l1c_input",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
+    ],
+    "output": [
+      {
+        "name": "l1a_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1b_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l1c_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "l2a_output",
+        "type": "folder",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "AllL0cComplementary_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "AllRadiometricCorrectionL1B_out",
+        "type": "file",
+        "engine": "cpm_zarr"
       }
-    },
-    {
-      "name": "l1a_output",
-      "type": "folder",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "opening_mode": "CREATE_OVERWRITE"
-    },
-    {
-      "name": "l1b_output",
-      "type": "folder",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "opening_mode": "CREATE_OVERWRITE"
-    },
-    {
-      "name": "l1c_output",
-      "type": "folder",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "opening_mode": "CREATE_OVERWRITE"
-    },
-    {
-      "name": "l2a_output",
-      "type": "folder",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "opening_mode": "CREATE_OVERWRITE"
-    },
-    {
-      "name": "BLIND",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_BLIND",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "CLOIN",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_CLOIN",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "CLOPA",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_CLOPA",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "DATAT",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_DATAT",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GEO2P",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_GEO2P",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GPARA",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_GPARA",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GPARE",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_GPARE",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GSGCP",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_GSGCP",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "INTDP",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_INTDP",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "MRLUT",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_MRLUT",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "PRDLO",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_PRDLO",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RABCA",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RABCA",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RBINN",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RBINN",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RCRCO",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RCRCO",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RDEFI",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RDEFI",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RDEPI",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RDEPI",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RDENT",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RDENT",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "REQOG",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_REQOG",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "REOB2",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_REOB2",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RESAM",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RESAM",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RL2NC",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RL2NC",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RNOMO",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RNOMO",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RPARA",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RPARA",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RSWIR",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_RSWIR",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "RWAFI",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_RWAFI",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "SADMP",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_SADMP",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "SPAMO",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_SPAMO",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "TILEP",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_TILEP",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "VDIRP",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02B_ADF_VDIRP",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2ACF",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2ACF",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2ASC",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2ASC",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2AAC",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2AAC",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2ALC",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2ALC",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2AWB",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2AWB",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2ASN",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2ASN",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2AGS",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2AGS",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "L2ALU",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S02__ADF_L2ALU",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "CAMSA",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_CAMSA",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "ECMWF",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_ECMWF",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GEOI8",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_GEOI8",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "GETAS",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_GETAS",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "DEM90",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_DEM90",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "DEM30",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "S00__ADF_DEM30",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "UTM_DEM",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      },
-      "alternatives": [
-        {
-          "order": 1,
-          "timeout_seconds": 180,
-          "query": {
-            "name": "LatestValIntersect",
-            "parameters": {
-              "product_type": "UTM_DEM",
-              "start_datetime": "{external_variable.start_datetime}",
-              "end_datetime": "{external_variable.end_datetime}",
-              "dTa": 0,
-              "dTb": 0
-            }
-          }
-        }
-      ]
-    },
-    {
-      "name": "AllL0cComplementary_out",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    },
-    {
-      "name": "AllRadiometricCorrectionL1B_out",
-      "type": "file",
-      "engine": "cpm_zarr",
-      "store_params": {
-        "consolidate": true
-      }
-    }
-  ],
+    ]
+  },
   "queries": [
     {
       "name": "ValIntersect",
