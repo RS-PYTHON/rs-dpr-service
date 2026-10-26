@@ -13,10 +13,6 @@
         "satellite"
     ],
     "external_modules": [
-        {
-            "name": "l0.cadu_processing.cadu_store",
-            "star_import": true
-        }
     ],
     "units": [
         {
