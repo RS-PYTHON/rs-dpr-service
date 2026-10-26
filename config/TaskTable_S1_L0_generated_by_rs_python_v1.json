@@ -333,6 +333,39 @@
                         "S01GPSRAW": "pipeline_output",
                         "S01HKMRAW": "pipeline_output",
                         "S01AISRAW": "pipeline_output"
+                    },
+                    "parameters": {
+                        "acquisition_report_output_path": "./acquisition_report_output_path",
+                        "cadu_chunk_size": {
+                            "sar": 10000,
+                            "hktm": 10000,
+                            "ais": 10000,
+                            "gps": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "sar": 30000,
+                            "iw": 30000,
+                            "ew": 30000,
+                            "sm": 30000,
+                            "rf": 30000,
+                            "wv": 30000,
+                            "s1": 30000,
+                            "s2": 30000,
+                            "s3": 30000,
+                            "s4": 30000,
+                            "s5": 30000,
+                            "s6": 30000,
+                            "n1": 30000,
+                            "n2": 30000,
+                            "n3": 30000,
+                            "n4": 30000,
+                            "n5": 30000,
+                            "n6": 30000,
+                            "ais": 30000,
+                            "gps": 30000,
+                            "hktm_tf": 30000
+                        }
                     }
                 }
             ]
