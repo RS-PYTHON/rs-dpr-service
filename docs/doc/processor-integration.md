@@ -81,11 +81,12 @@ collect its location, its format and the credentials needed, and configure them 
 Split the [parameters of `process-generic`](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/advanced/customise-dpr-flow.md#parameters-of-process-generic)
 into:
 
-- the **default parameters**, that don't change in the nominal case: pipeline, priority, workflow, processor name
-  and version, processing mode, owner, Dask cluster, auxiliary and generated products mappings. They are stored in
-  the [default settings](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/advanced/customise-dpr-flow.md#default-settings-of-the-processing-flows)
-  Prefect variable of the mission,
-- the **specific parameters** of each run: the input products defined in the task table.
+- the **default parameters**, that don't change in the nominal case: processor name and version, pipeline,
+  priority, processing mode, Dask cluster, input collections, auxiliary and generated products mappings. They are
+  stored in the [default settings](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/advanced/customise-dpr-flow.md#default-settings-of-the-processing-flows)
+  Prefect variable of the processing, `<processing_id>-default-setting`,
+- the **specific parameters** of each run, that are parameters of the flow: the owner (`env_args`), the input
+  products defined in the task table, and the workflow (`force_systematic`).
 
 ### Step 7: check the storage configuration
 
@@ -97,8 +98,10 @@ Check the [storage configuration](https://github.com/RS-PYTHON/rs-client-librari
 
 ### Step 8: create and run the specific flow
 
-Develop the Prefect flow dedicated to the processor, that computes the specific parameters and calls
-`process-generic` (see e.g. the [Sentinel-3 flows](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/flows/sentinel3-flows.md)),
+Develop the Prefect flow dedicated to the processor, that reads the default settings, computes the specific
+parameters and calls `process-generic` (see
+[Write a processing flow](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/advanced/customise-dpr-flow.md#write-a-processing-flow)
+and e.g. the [Sentinel-3 flows](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/flows/sentinel3-flows.md)),
 then:
 
 1. run the flow from Prefect,
