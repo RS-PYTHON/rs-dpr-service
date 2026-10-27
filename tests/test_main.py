@@ -18,9 +18,11 @@ Implement tests that are common to several services.
 NOTE: COPY-PASTED FROM pytest_common_tests.py in RS-SERVER.
 """
 
+import asyncio
 import contextlib
 import copy
 import json
+import logging
 from dataclasses import asdict
 from datetime import datetime
 from importlib import reload
@@ -433,65 +435,104 @@ async def test_get_job_logs_endpoint_returns_404_for_unknown_job(mocker):
     assert json.loads(response.body) == "Job with ID unknown-job not found"
 
 
+def logs_request(mocker, disconnected, last_event_id=None):
+    """Return a mocked request for the job logs endpoint."""
+    request = mocker.Mock()
+    request.headers = {"last-event-id": last_event_id} if last_event_id is not None else {}
+    if isinstance(disconnected, list):
+        request.is_disconnected = AsyncMock(side_effect=disconnected)
+    else:
+        request.is_disconnected = AsyncMock(return_value=disconnected)
+    return request
+
+
+def emit_job_log(message: str):
+    """Emit a job log the same way dask_client.forward_logging does."""
+    logging.getLogger("rs_dpr_service.dask.call_dask").info(message)
+
+
 @pytest.mark.asyncio
-async def test_get_job_logs_endpoint_streams_queued_log(mocker):
-    """Test that job logs are streamed as SSE data and the queue is cleaned up."""
+async def test_get_job_logs_endpoint_streams_buffered_and_new_logs(mocker):
+    """Test that logs emitted before and after the connection are streamed as SSE events with IDs."""
     process_manager = mocker.Mock()
     main_module.app.state.process_manager = process_manager
     process_manager.get_job.return_value = job_record("job-1")
-    request = mocker.Mock()
-    request.is_disconnected = AsyncMock(side_effect=[False, True])
-    main_module.job_log_handler.queues.clear()
+    main_module.job_log_handler.clear("job-1")
+    emit_job_log("[JOB:job-1] Processing started")
 
-    response = await main_module.get_job_logs_endpoint(request, "job-1")
-    queue = main_module.job_log_handler.queues["job-1"][0]
-    queue.put_nowait("Processing started")
+    response = await main_module.get_job_logs_endpoint(logs_request(mocker, [False, False, True]), "job-1")
     body_iterator = response.body_iterator
 
     try:
         assert response.status_code == 200
         assert response.media_type == "text/event-stream"
-        assert await anext(body_iterator) == "data: Processing started\n\n"
+        assert response.headers["x-accel-buffering"] == "no"
+        assert await anext(body_iterator) == f"retry: {main_module.LOGS_SSE_RETRY_MS}\n: connected\n\n"
+        assert await anext(body_iterator) == "id: 0\ndata: Processing started\n\n"
+
+        # Emit a multiline log from another thread, like the dask client IO thread does
+        await asyncio.to_thread(emit_job_log, "[JOB:job-1] line 1\nline 2")
+        assert await anext(body_iterator) == "id: 1\ndata: line 1\ndata: line 2\n\n"
         with pytest.raises(StopAsyncIteration):
             await anext(body_iterator)
-        assert "job-1" not in main_module.job_log_handler.queues
+        assert main_module.job_log_handler._jobs["job-1"].waiters == set()  # pylint: disable=protected-access
     finally:
         with contextlib.suppress(Exception):
             await body_iterator.aclose()
-        main_module.job_log_handler.queues.pop("job-1", None)
+        main_module.job_log_handler.clear("job-1")
+
+
+@pytest.mark.asyncio
+async def test_get_job_logs_endpoint_resumes_from_last_event_id(mocker):
+    """Test that a reconnecting client only receives the logs after its Last-Event-ID."""
+    process_manager = mocker.Mock()
+    main_module.app.state.process_manager = process_manager
+    process_manager.get_job.return_value = job_record("job-1")
+    main_module.job_log_handler.clear("job-1")
+    for i in range(3):
+        emit_job_log(f"[JOB:job-1] log {i}")
+
+    response = await main_module.get_job_logs_endpoint(logs_request(mocker, [False, True], "0"), "job-1")
+    body_iterator = response.body_iterator
+
+    try:
+        await anext(body_iterator)  # connected message
+        assert await anext(body_iterator) == "id: 1\ndata: log 1\n\n"
+        assert await anext(body_iterator) == "id: 2\ndata: log 2\n\n"
+        with pytest.raises(StopAsyncIteration):
+            await anext(body_iterator)
+    finally:
+        with contextlib.suppress(Exception):
+            await body_iterator.aclose()
+        main_module.job_log_handler.clear("job-1")
 
 
 @pytest.mark.asyncio
 async def test_get_job_logs_endpoint_sends_keepalive_until_job_finishes(mocker):
     """Test that the log stream emits keepalive messages and stops for terminal jobs."""
-
-    async def timeout_wait_for(awaitable, timeout):  # pylint: disable=unused-argument
-        awaitable.close()
-        raise TimeoutError
-
     process_manager = mocker.Mock()
     main_module.app.state.process_manager = process_manager
     process_manager.get_job.side_effect = [
+        job_record("job-1", status="running"),  # job existence check
         job_record("job-1", status="running"),
         job_record("job-1", status="successful"),
     ]
-    request = mocker.Mock()
-    request.is_disconnected = AsyncMock(return_value=False)
-    mocker.patch("rs_dpr_service.main.asyncio.wait_for", side_effect=timeout_wait_for)
-    main_module.job_log_handler.queues.clear()
+    mocker.patch.object(main_module, "LOGS_SSE_KEEPALIVE_SECONDS", 0.01)
+    main_module.job_log_handler.clear("job-1")
 
-    response = await main_module.get_job_logs_endpoint(request, "job-1")
+    response = await main_module.get_job_logs_endpoint(logs_request(mocker, False), "job-1")
     body_iterator = response.body_iterator
 
     try:
+        await anext(body_iterator)  # connected message
+        assert await anext(body_iterator) == ": keepalive\n\n"
         assert await anext(body_iterator) == ": keepalive\n\n"
         with pytest.raises(StopAsyncIteration):
             await anext(body_iterator)
-        assert "job-1" not in main_module.job_log_handler.queues
     finally:
         with contextlib.suppress(Exception):
             await body_iterator.aclose()
-        main_module.job_log_handler.queues.pop("job-1", None)
+        main_module.job_log_handler.clear("job-1")
 
 
 def test_get_jobs_endpoint_success(client, mocker):

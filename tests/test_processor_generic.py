@@ -352,10 +352,16 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
     )
 
     # Branch under test: the monitoring thread handoff raises and start_processor() marks the job failed.
+    async def fake_to_thread(func, *args, **kwargs):
+        """Fail only for the tasks monitoring thread, run the other blocking calls inline."""
+        if func == processor.manage_dask_tasks:  # pylint: disable=comparison-with-callable
+            raise RuntimeError("thread boom")
+        return func(*args, **kwargs)
+
     mocker.patch("rs_dpr_service.processors.generic_processor.asyncio.get_event_loop", return_value=FakeLoop())
     mocker.patch(
         "rs_dpr_service.processors.generic_processor.asyncio.to_thread",
-        side_effect=RuntimeError("thread boom"),
+        side_effect=fake_to_thread,
     )
 
     execute_coroutine = processor.execute({"input": "value"})

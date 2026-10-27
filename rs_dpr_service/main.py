@@ -99,6 +99,11 @@ OGC_UNCOMPLIANT_JOB_ATTRS = ["_sa_instance_state", "location", "mimetype"]
 logger = Logging.default(__name__)
 
 
+# Seconds without new logs before sending a keepalive message and checking the job status in the SSE log stream
+LOGS_SSE_KEEPALIVE_SECONDS = 2.0
+# Delay before the SSE client should try to reconnect after a connection error
+LOGS_SSE_RETRY_MS = 1000
+
 job_log_handler = JobLogHandler()
 job_log_handler.setLevel(logging.DEBUG)
 # Attach to the logger where dask_client.forward_logging sends worker logs
@@ -436,47 +441,68 @@ async def execute_process(request: Request, resource: str):  # pylint: disable=u
 async def get_job_logs_endpoint(request: Request, job_id=Annotated[str, Path(..., title="The ID of the job")]):
     """Used to stream logs of a processing job."""
 
-    # Verify job exists
+    # Verify job exists. Run the blocking DB call in a thread to not block the event loop.
     try:
-        app.state.process_manager.get_job(job_id)
+        await asyncio.to_thread(app.state.process_manager.get_job, job_id)
     except JobNotFoundError:
         return JSONResponse(status_code=HTTP_404_NOT_FOUND, content=f"Job with ID {job_id} not found")
 
-    queue: asyncio.Queue[str] = asyncio.Queue()
-    job_log_handler.queues.setdefault(job_id, []).append(queue)
+    # When reconnecting, the SSE client sends the ID of the last log it received, so we resume after it
+    try:
+        cursor = int(request.headers.get("last-event-id", -1)) + 1
+    except (TypeError, ValueError):
+        cursor = 0
+
+    def format_event(index: int, msg: str) -> str:
+        data = "".join(f"data: {line}\n" for line in msg.split("\n"))
+        return f"id: {index}\n{data}\n"
 
     async def log_generator():
+        # cursor is defined outside, in get_job_logs_endpoint main function. so use it
+        nonlocal cursor
+        new_log_event = job_log_handler.subscribe(job_id)
         try:
+            # Send something right away so the client and proxies know the stream is open
+            yield f"retry: {LOGS_SSE_RETRY_MS}\n: connected\n\n"
             while True:
                 if await request.is_disconnected():
                     break
 
+                # Clear before reading so a log arriving in between will wake us up
+                new_log_event.clear()
+                logs = job_log_handler.get_logs(job_id, cursor)
+                for index, msg in logs:
+                    yield format_event(index, msg)
+                    cursor = index + 1
+                if logs:
+                    continue
+
                 try:
-                    # Wait for log message
-                    msg = await asyncio.wait_for(queue.get(), timeout=2.0)
-                    for line in msg.split("\n"):
-                        yield f"data: {line}\n\n"
+                    await asyncio.wait_for(new_log_event.wait(), timeout=LOGS_SSE_KEEPALIVE_SECONDS)
                 except TimeoutError:
-                    # Check if job is still running
+                    # Send a keepalive message to keep the connection alive (prevents proxy timeouts)
+                    yield ": keepalive\n\n"
+                    # No logs received for a while: check if the job is still running
                     try:
-                        # Send a keepalive message to keep the connection alive (prevents proxy timeouts)
-                        yield ": keepalive\n\n"
-                        job_status = app.state.process_manager.get_job(job_id)
-                        if job_status.get("status") in ["successful", "failed", "dismissed"]:
-                            # job finished. drain remaining queue items (if any)
-                            while not queue.empty():
-                                yield f"data: {queue.get_nowait()}\n\n"
-                            break
+                        job_status = await asyncio.to_thread(app.state.process_manager.get_job, job_id)
                     except Exception as err:  # pylint: disable=broad-exception-caught
                         # Do not break the stream if there's a transient DB error
                         logger.warning(f"Error checking job status during log stream: {err}")
                         continue
+                    if job_status.get("status") in ["successful", "failed", "dismissed"]:
+                        # job finished. send remaining logs (if any)
+                        for index, msg in job_log_handler.get_logs(job_id, cursor):
+                            yield format_event(index, msg)
+                        break
         finally:
-            job_log_handler.queues[job_id].remove(queue)
-            if not job_log_handler.queues[job_id]:
-                del job_log_handler.queues[job_id]
+            job_log_handler.unsubscribe(job_id, new_log_event)
 
-    return StreamingResponse(log_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        log_generator(),
+        media_type="text/event-stream",
+        # Disable caching and proxy (nginx) buffering so the logs are sent in real time
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 # Endpoint to get the status of a job by job_id
