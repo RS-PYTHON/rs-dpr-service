@@ -15,6 +15,7 @@
 """S1L0 and S3L0 Processors"""
 
 import asyncio  # for handling asynchronous tasks
+import copy
 import os
 import traceback
 
@@ -145,7 +146,10 @@ class GenericProcessor(BaseProcessor):
                 status message).
                 Example: ("application/json", {"running": <job_id>})
         """
-        logger.debug(f"Starting main loop for {data}")
+        debug_data = copy.deepcopy(data)
+        if "jupyter_token" in debug_data:
+            debug_data["jupyter_token"] = f"{data['jupyter_token'][:2]}***{data['jupyter_token'][-3:]}"
+        logger.debug(f"Starting main loop for {debug_data}")
 
         try:
             experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
