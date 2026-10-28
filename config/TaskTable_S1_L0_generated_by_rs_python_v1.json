@@ -64,28 +64,232 @@
             ],
             "output_products": [
                 {
-                    "name": "S01SARRAW",
+                    "name": "S01SARISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^datatakeid_.*"
+                    "regex": "^S01SARISP($|_.*)"
                 },
                 {
-                    "name": "S01GPSRAW",
+                    "name": "S01HKMISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^gps$"
+                    "regex": "^S01HKMISP($|_.*)"
                 },
                 {
-                    "name": "S01HKMRAW",
+                    "name": "S01AISISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^hktm$"
+                    "regex": "^S01AISISP($|_.*)"
                 },
                 {
-                    "name": "S01AISRAW",
+                    "name": "S01GPSISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^ais_.*"
+                    "regex": "^S01GPSISP($|_.*)"
+                },
+                {
+                    "name": "S01SS1RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS1RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS1ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS1ANC($|_.*)"
+                },
+                {
+                    "name": "S01SS2RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS2RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS2ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS2ANC($|_.*)"
+                },
+                {
+                    "name": "S01SS3RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS3RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS3ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS3ANC($|_.*)"
+                },
+                {
+                    "name": "S01SS4RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS4RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS4ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS4ANC($|_.*)"
+                },
+                {
+                    "name": "S01SS5RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS5RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS5ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS5ANC($|_.*)"
+                },
+                {
+                    "name": "S01SS6RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS6RAW($|_.*)"
+                },
+                {
+                    "name": "S01SS6ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS6ANC($|_.*)"
+                },
+                {
+                    "name": "S01SIWRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SIWRAW($|_.*)"
+                },
+                {
+                    "name": "S01SIWANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SIWANC($|_.*)"
+                },
+                {
+                    "name": "S01SEWRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SEWRAW($|_.*)"
+                },
+                {
+                    "name": "S01SEWANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SEWANC($|_.*)"
+                },
+                {
+                    "name": "S01SWVRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SWVRAW($|_.*)"
+                },
+                {
+                    "name": "S01SWVANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SWVANC($|_.*)"
+                },
+                {
+                    "name": "S01SRFRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SRFRAW($|_.*)"
+                },
+                {
+                    "name": "S01SRFANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SRFANC($|_.*)"
+                },
+                {
+                    "name": "S01SENRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SENRAW($|_.*)"
+                },
+                {
+                    "name": "S01SENANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SENANC($|_.*)"
+                },
+                {
+                    "name": "S01SN1RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN1RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN1ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN1ANC($|_.*)"
+                },
+                {
+                    "name": "S01SN2RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN2RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN2ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN2ANC($|_.*)"
+                },
+                {
+                    "name": "S01SN3RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN3RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN3ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN3ANC($|_.*)"
+                },
+                {
+                    "name": "S01SN4RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN4RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN4ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN4ANC($|_.*)"
+                },
+                {
+                    "name": "S01SN5RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN5RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN5ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN5ANC($|_.*)"
+                },
+                {
+                    "name": "S01SN6RAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN6RAW($|_.*)"
+                },
+                {
+                    "name": "S01SN6ANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN6ANC($|_.*)"
                 }
             ]
         }
@@ -186,24 +390,308 @@
         ],
         "output": [
             {
-                "name": "S01SARRAW",
+                "name": "S01SARISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01GPSRAW",
+                "name": "S01HKMISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01HKMRAW",
+                "name": "S01AISISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01AISRAW",
+                "name": "S01GPSISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS1RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS1ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS2RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS2ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS3RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS3ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS4RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS4ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS5RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS5ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS6RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SS6ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SIWRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SIWANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SEWRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SEWANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SWVRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SWVANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SRFRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SRFANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SENRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SENANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN1RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN1ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN2RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN2ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN3RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN3ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN4RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN4ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN5RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN5ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN6RAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SN6ANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             }
         ]
     },
@@ -329,10 +817,44 @@
                         "S1CADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "S01SARRAW": "pipeline_output",
-                        "S01GPSRAW": "pipeline_output",
-                        "S01HKMRAW": "pipeline_output",
-                        "S01AISRAW": "pipeline_output"
+                        "S01SARISP": "pipeline_output",
+                        "S01HKMISP": "pipeline_output",
+                        "S01AISISP": "pipeline_output",
+                        "S01GPSISP": "pipeline_output",
+                        "S01SS1RAW": "pipeline_output",
+                        "S01SS1ANC": "pipeline_output",
+                        "S01SS2RAW": "pipeline_output",
+                        "S01SS2ANC": "pipeline_output",
+                        "S01SS3RAW": "pipeline_output",
+                        "S01SS3ANC": "pipeline_output",
+                        "S01SS4RAW": "pipeline_output",
+                        "S01SS4ANC": "pipeline_output",
+                        "S01SS5RAW": "pipeline_output",
+                        "S01SS5ANC": "pipeline_output",
+                        "S01SS6RAW": "pipeline_output",
+                        "S01SS6ANC": "pipeline_output",
+                        "S01SIWRAW": "pipeline_output",
+                        "S01SIWANC": "pipeline_output",
+                        "S01SEWRAW": "pipeline_output",
+                        "S01SEWANC": "pipeline_output",
+                        "S01SWVRAW": "pipeline_output",
+                        "S01SWVANC": "pipeline_output",
+                        "S01SRFRAW": "pipeline_output",
+                        "S01SRFANC": "pipeline_output",
+                        "S01SENRAW": "pipeline_output",
+                        "S01SENANC": "pipeline_output",
+                        "S01SN1RAW": "pipeline_output",
+                        "S01SN1ANC": "pipeline_output",
+                        "S01SN2RAW": "pipeline_output",
+                        "S01SN2ANC": "pipeline_output",
+                        "S01SN3RAW": "pipeline_output",
+                        "S01SN3ANC": "pipeline_output",
+                        "S01SN4RAW": "pipeline_output",
+                        "S01SN4ANC": "pipeline_output",
+                        "S01SN5RAW": "pipeline_output",
+                        "S01SN5ANC": "pipeline_output",
+                        "S01SN6RAW": "pipeline_output",
+                        "S01SN6ANC": "pipeline_output"
                     },
                     "parameters": {
                         "acquisition_report_output_path": "./acquisition_report_output_path",
