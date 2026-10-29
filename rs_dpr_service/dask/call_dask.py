@@ -206,6 +206,11 @@ class ProcessorCaller:
     NOTE: All methods except __init__ are run from the dask pod.
     """
 
+    # Number of subprocess output lines merged into a single forwarded log record, and the
+    # max time a buffered line waits before being flushed anyway.
+    _LOG_BATCH_SIZE = 50
+    _LOG_BATCH_INTERVAL_SECONDS = 1
+
     def __init__(
         self,
         caller_env: dict[str, str],
@@ -845,11 +850,6 @@ class ProcessorCaller:
                 f"in working directory '{self.working_dir}'",
             )
             self._launch_eopf_subprocess(span, self._prepare_env_with_trace_context())
-
-    # Number of subprocess output lines coalesced into a single forwarded log record, and the
-    # max time a buffered line waits before being flushed anyway.
-    _LOG_BATCH_SIZE = 50
-    _LOG_BATCH_INTERVAL_SECONDS = 1
 
     def _launch_eopf_subprocess(self, span: Span, env: dict[str, str]):
         """Trigger eopf-cpm execution in a subprocess"""

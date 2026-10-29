@@ -756,6 +756,54 @@ def test_launch_eopf_subprocess_flushes_a_partial_batch_after_an_idle_period(moc
     assert batch_calls == ["[JOB:job-1] first line", "[JOB:job-1] EOPF finished successfully with status code 0"]
 
 
+def test_launch_eopf_subprocess_keeps_lines_together_after_an_idle_period(mocker, monkeypatch, tmp_path):
+    """Test _launch_eopf_subprocess doesn't flush alone the first line received after a quiet period.
+
+    The time-based flush delay must start from the first buffered line, not from the last flush: else
+    the first line printed after a quiet period (e.g. a log with an empty message) is flushed alone, and
+    split from the next lines of the same log on the SSE log stream.
+    """
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+
+    fake_stdout = mocker.Mock()
+    fake_stdout.readline.side_effect = ["date - reader - INFO -\n", "Workflow execution report\n", ""]
+    fake_proc = mocker.MagicMock()
+    fake_proc.__enter__.return_value = fake_proc
+    fake_proc.__exit__.return_value = False
+    fake_proc.stdout = fake_stdout
+    fake_proc.pid = 1234
+    fake_proc.returncode = 0
+    fake_proc.wait.return_value = 0
+
+    # select() reports: two idle timeouts (the processor is quiet), then the two lines back to back, then EOF.
+    now = [0.0]
+    select_outcomes = iter([False, False, True, True, True])
+
+    def fake_select(rlist, wlist, xlist, timeout):  # pylint: disable=unused-argument
+        if next(select_outcomes):
+            return (rlist, [], [])
+        now[0] += timeout
+        return ([], [], [])
+
+    mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", side_effect=lambda: now[0])
+    mocker.patch("rs_dpr_service.dask.call_dask.select.select", side_effect=fake_select)
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    caller._launch_eopf_subprocess(mocker.Mock(), {})  # pylint: disable=protected-access
+
+    job_prefix = f"[JOB:{caller.job_id}]"
+    batch_calls = [call.args[0] for call in logger_info.call_args_list if call.args[0].startswith(job_prefix)]
+    assert batch_calls == [
+        "[JOB:job-1] date - reader - INFO -\nWorkflow execution report",
+        "[JOB:job-1] EOPF finished successfully with status code 0",
+    ]
+
+
 def test_should_flush_log_batch_returns_false_for_an_empty_batch(mocker):
     """Test _should_flush_log_batch() never flushes an empty batch, even long after the interval."""
     caller = _make_processor_caller(mocker)
