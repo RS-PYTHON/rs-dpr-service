@@ -58,6 +58,7 @@ from rs_dpr_service.utils.init_opentelemetry import (
     record_error,
     start_span,
 )
+from rs_dpr_service.utils.logging import EOPF_OUTPUT_LOG_ATTR
 from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 
 # Don't use rs_dpr_service.utils.logging, it's not forwarded to the client
@@ -932,7 +933,9 @@ class ProcessorCaller:
         """Log buffered subprocess output lines as a single record, then clear the buffer."""
         if batch:
             joined = "\n".join(batch)
-            logger.info(f"[JOB:{self.job_id}] {joined}")
+            # The EOPF lines already have their own "date - logger - LEVEL - " prefix: flag the record
+            # so the rs-dpr-service log stream sends them as they are.
+            logger.info(f"[JOB:{self.job_id}] {joined}", extra={EOPF_OUTPUT_LOG_ATTR: True})
             batch.clear()
 
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
