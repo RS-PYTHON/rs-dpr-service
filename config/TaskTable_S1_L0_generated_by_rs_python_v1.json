@@ -100,6 +100,12 @@
                     "regex": "^S01SS[1-6]ANC($|_.*)"
                 },
                 {
+                    "name": "S01SIWRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SIWRAW($|_.*)"
+                },
+                {
                     "name": "S01SIWANC",
                     "mode": "always",
                     "mandatory": false,
@@ -305,6 +311,14 @@
             },
             {
                 "name": "S01SSANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SIWRAW",
                 "type": "folder",
                 "engine": "cpm_zarr",
                 "writer_params": {
@@ -529,6 +543,7 @@
                         "S01GPSISP": "pipeline_output",
                         "S01SSRAW": "pipeline_output",
                         "S01SSANC": "pipeline_output",
+                        "S01SIWRAW": "pipeline_output",
                         "S01SIWANC": "pipeline_output",
                         "S01SEWRAW": "pipeline_output",
                         "S01SEWANC": "pipeline_output",
