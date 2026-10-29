@@ -41,6 +41,7 @@ from rs_dpr_service.main import (
     format_jobs_data,
     init_db,
 )
+from rs_dpr_service.utils.logging import EOPF_OUTPUT_LOG_ATTR
 
 from .conftest import get_cluster_info
 
@@ -447,8 +448,8 @@ def logs_request(mocker, disconnected, last_event_id=None):
 
 
 def emit_job_log(message: str):
-    """Emit a job log the same way dask_client.forward_logging does."""
-    logging.getLogger("rs_dpr_service.dask.call_dask").info(message)
+    """Emit a raw EOPF output job log the same way dask_client.forward_logging does."""
+    logging.getLogger("rs_dpr_service.dask.call_dask").info(message, extra={EOPF_OUTPUT_LOG_ATTR: True})
 
 
 @pytest.mark.asyncio

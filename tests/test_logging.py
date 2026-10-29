@@ -16,25 +16,58 @@
 
 import asyncio
 import logging
+import re
 import threading
 from unittest.mock import Mock, patch
 
 import pytest
 
-from rs_dpr_service.utils.logging import JobLogHandler
+from rs_dpr_service.utils.logging import EOPF_OUTPUT_LOG_ATTR, JobLogHandler
 
 
-def make_record(message: str) -> logging.LogRecord:
-    """Build a minimal log record for JobLogHandler."""
-    return logging.LogRecord(
+def make_record(message: str, level: int = logging.INFO, eopf_output: bool = True) -> logging.LogRecord:
+    """Build a minimal log record for JobLogHandler. By default, the record contains raw EOPF output."""
+    record = logging.LogRecord(
         name="rs_dpr_service.dask.call_dask",
-        level=logging.INFO,
+        level=level,
         pathname=__file__,
         lineno=1,
         msg=message,
         args=(),
         exc_info=None,
     )
+    if eopf_output:
+        setattr(record, EOPF_OUTPUT_LOG_ATTR, True)
+    return record
+
+
+def test_job_log_handler_prefixes_rs_dpr_service_logs_with_date_logger_and_level():
+    """The rs-dpr-service own logs keep their date, logger name and level, in the same format as EOPF."""
+    handler = JobLogHandler()
+    record = make_record("[JOB:job-1] Call 'ProcessorCaller.__init__' from '10.2.9.2'", logging.DEBUG, False)
+
+    handler.emit(record)
+
+    [(index, message)] = handler.get_logs("job-1")
+    assert index == 0
+    assert re.fullmatch(
+        r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2},\d{3} - rs_dpr_service\.dask\.call_dask - DEBUG - "
+        r"Call 'ProcessorCaller\.__init__' from '10\.2\.9\.2'",
+        message,
+    )
+
+
+def test_job_log_handler_keeps_eopf_output_unchanged():
+    """The EOPF output lines already have their own prefix, they are sent as they are."""
+    handler = JobLogHandler()
+    eopf_lines = (
+        "2026-10-28 08:29:14,634 - l0.s3.s3_l0_processor - INFO - Reading ADF\n"
+        "2026-10-28 08:29:14,635 - l0.s3.s3_l0_processor - WARNING - Unable to get dump granule position"
+    )
+
+    handler.emit(make_record(f"[JOB:job-1] {eopf_lines}"))
+
+    assert handler.get_logs("job-1") == [(0, eopf_lines)]
 
 
 def test_job_log_handler_buffers_job_logs_by_job_id():

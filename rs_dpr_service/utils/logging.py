@@ -21,6 +21,10 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from threading import Lock
 
+# Log record attribute set on the records containing raw EOPF subprocess output lines, which
+# already have their own "YYYY-MM-DD HH:MM:SS,mmm - logger - LEVEL - " prefix.
+EOPF_OUTPUT_LOG_ATTR = "eopf_output"
+
 
 class Logging:  # pylint: disable=too-few-public-methods
     """
@@ -135,6 +139,8 @@ class JobLogHandler(logging.Handler):
         self.max_messages_per_job = max_messages_per_job
         self._jobs: OrderedDict[str, _JobLogs] = OrderedDict()
         self._lock = Lock()
+        # Formats the record time as "YYYY-MM-DD HH:MM:SS,mmm"
+        self._prefix_formatter = logging.Formatter()
 
     def _get_or_create(self, job_id: str) -> _JobLogs:
         """Return the job logs, create them if missing. Must be called with the lock acquired."""
@@ -160,6 +166,10 @@ class JobLogHandler(logging.Handler):
                 return
             job_id = match.group(1)
             clean_msg = match.group(2)
+            if not getattr(record, EOPF_OUTPUT_LOG_ATTR, False):
+                # Use the same prefix as the EOPF logs so the clients can find the start and level of each log
+                timestamp = self._prefix_formatter.formatTime(record)
+                clean_msg = f"{timestamp} - {record.name} - {record.levelname} - {clean_msg}"
             with self._lock:
                 job_logs = self._get_or_create(job_id)
                 if len(job_logs.messages) == job_logs.messages.maxlen:
