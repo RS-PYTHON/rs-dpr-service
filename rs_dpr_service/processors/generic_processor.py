@@ -113,8 +113,10 @@ class GenericProcessor(BaseProcessor):
             data.setdefault("experimental_config", {})
             data["experimental_config"].setdefault("local_cluster", {})
             data["experimental_config"]["local_cluster"]["enabled"] = True
-
-        logger.debug(f"Executing processor for {data}")
+        debug_data = copy.deepcopy(data)
+        if "jupyter_token" in debug_data:
+            debug_data["jupyter_token"] = f"{data['jupyter_token'][:2]}***{data['jupyter_token'][-3:]}"
+        logger.debug(f"Executing processor for {debug_data}")
 
         self.job_logger.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
