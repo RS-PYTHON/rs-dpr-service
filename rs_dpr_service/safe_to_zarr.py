@@ -52,6 +52,9 @@ def main():
             "region_name": os.environ["S3_REGION"],
         },
     }
+    # EOPF uploads to S3 with obstore, which only allows https endpoints by default
+    if os.environ["S3_ENDPOINT"].startswith("http://"):
+        os.environ["AWS_ALLOW_HTTP"] = "true"
     try:
         # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
         convert(

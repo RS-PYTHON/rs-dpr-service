@@ -328,6 +328,12 @@ class ProcessorCaller:
 
         os.environ["AWS_DEFAULT_OUTPUT"] = "json"
 
+        # EOPF uploads to S3 with obstore, which only allows https endpoints by default
+        if os.environ["S3_ENDPOINT"].startswith("http://"):
+            os.environ["AWS_ALLOW_HTTP"] = "true"
+        else:
+            os.environ.pop("AWS_ALLOW_HTTP", None)
+
     def hide_secrets(self, log: str) -> str:
         """The logs print secrets in clear e.g 'key': '<my-secret>'... so we hide them with a regex"""
         for key in (

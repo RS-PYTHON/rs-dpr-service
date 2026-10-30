@@ -520,6 +520,40 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert caller.exec_times[0][0] == "Run processor"
 
 
+@pytest.mark.parametrize(
+    "endpoint, previous_allow_http, allow_http",
+    [
+        ("http://seaweedfs-s3:9000", None, "true"),
+        # Value left by a previous job with an http endpoint must be removed
+        ("https://s3.test", "true", None),
+    ],
+)
+def test_processor_caller_set_aws_env_allows_http_endpoints(
+    mocker,
+    monkeypatch,
+    endpoint,
+    previous_allow_http,
+    allow_http,
+):
+    """Test ProcessorCaller.set_aws_env() allows http endpoints for the EOPF obstore uploads."""
+    monkeypatch.setenv("S3_ACCESSKEY", "access-key")
+    monkeypatch.setenv("S3_SECRETKEY", "secret-key")
+    monkeypatch.setenv("S3_ENDPOINT", endpoint)
+    monkeypatch.setenv("S3_REGION", "eu-west-1")
+    if previous_allow_http:
+        monkeypatch.setenv("AWS_ALLOW_HTTP", previous_allow_http)
+    else:
+        monkeypatch.delenv("AWS_ALLOW_HTTP", raising=False)
+    for key in ("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "AWS_ENDPOINT_URL_S3", "AWS_DEFAULT_REGION"):
+        monkeypatch.setenv(key, "")
+    monkeypatch.delenv("AWS_DEFAULT_OUTPUT", raising=False)
+
+    _make_processor_caller(mocker).set_aws_env()
+
+    assert os.environ["AWS_ENDPOINT_URL_S3"] == endpoint
+    assert os.environ.get("AWS_ALLOW_HTTP") == allow_http
+
+
 def test_processor_caller_run_processor_finalizes_and_records_error_when_trigger_fails(mocker):
     """Test ProcessorCaller.run_processor() finalizes and records errors when trigger() fails."""
     caller = _make_processor_caller(mocker)
