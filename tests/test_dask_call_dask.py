@@ -692,6 +692,11 @@ def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainde
         "[JOB:job-1] last line",
         "[JOB:job-1] EOPF finished successfully with status code 0",
     ]
+    # Only the raw EOPF output records are flagged, so the log stream does not add a prefix to them
+    batch_extras = [
+        call.kwargs.get("extra") for call in logger_info.call_args_list if call.args[0].startswith(job_prefix)
+    ]
+    assert batch_extras == [{call_dask.EOPF_OUTPUT_LOG_ATTR: True}, {call_dask.EOPF_OUTPUT_LOG_ATTR: True}, None]
 
     # Every raw line (including the blank one) is still written to the local report file.
     assert Path(caller.log_path).read_text(encoding="utf-8") == "".join(body_lines)
@@ -811,7 +816,10 @@ def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
 
     caller._flush_log_batch(batch)  # pylint: disable=protected-access
 
-    logger_info.assert_called_once_with("[JOB:job-1] first line\nsecond line")
+    logger_info.assert_called_once_with(
+        "[JOB:job-1] first line\nsecond line",
+        extra={call_dask.EOPF_OUTPUT_LOG_ATTR: True},
+    )
     assert not batch
 
 

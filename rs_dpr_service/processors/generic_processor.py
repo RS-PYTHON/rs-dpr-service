@@ -15,6 +15,7 @@
 """S1L0 and S3L0 Processors"""
 
 import asyncio  # for handling asynchronous tasks
+import copy
 import os
 import traceback
 
@@ -112,8 +113,10 @@ class GenericProcessor(BaseProcessor):
             data.setdefault("experimental_config", {})
             data["experimental_config"].setdefault("local_cluster", {})
             data["experimental_config"]["local_cluster"]["enabled"] = True
-
-        logger.debug(f"Executing processor for {data}")
+        debug_data = copy.deepcopy(data)
+        if "jupyter_token" in debug_data:
+            debug_data["jupyter_token"] = f"{data['jupyter_token'][:2]}***{data['jupyter_token'][-3:]}"
+        logger.debug(f"Executing processor for {debug_data}")
 
         self.job_logger.log_job_execution(JobStatus.running, 0, "Processor execution started")
         # Start execution
@@ -145,7 +148,10 @@ class GenericProcessor(BaseProcessor):
                 status message).
                 Example: ("application/json", {"running": <job_id>})
         """
-        logger.debug(f"Starting main loop for {data}")
+        debug_data = copy.deepcopy(data)
+        if "jupyter_token" in debug_data:
+            debug_data["jupyter_token"] = f"{data['jupyter_token'][:2]}***{data['jupyter_token'][-3:]}"
+        logger.debug(f"Starting main loop for {debug_data}")
 
         try:
             experimental_config = ExperimentalConfig(**data.get("experimental_config", {}))
@@ -156,8 +162,10 @@ class GenericProcessor(BaseProcessor):
                 dask_client = None
 
             # Nominal case: run the eopf-cpm scheduler on a dedicated cluster pod, not locally.
+            # This call is blocking (connection to the dask gateway, cluster scaling, ...) so run it
+            # in a thread, else the event loop is frozen (e.g. the SSE log streams and health checks).
             else:
-                dask_client = self.cluster_handler.setup_dask_connection()
+                dask_client = await asyncio.to_thread(self.cluster_handler.setup_dask_connection)
         except KeyError as ke:
             return self.job_logger.log_job_execution(
                 JobStatus.failed,
@@ -194,7 +202,7 @@ class GenericProcessor(BaseProcessor):
 
         # cleanup by disconnecting the dask client
         if dask_client:
-            dask_client.close()
+            await asyncio.to_thread(dask_client.close)
 
         return self.job_logger.get_execute_result()
 

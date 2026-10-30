@@ -17,7 +17,13 @@
 import asyncio
 import logging
 import re
+from collections import OrderedDict, deque
+from dataclasses import dataclass, field
 from threading import Lock
+
+# Log record attribute set on the records containing raw EOPF subprocess output lines, which
+# already have their own "YYYY-MM-DD HH:MM:SS,mmm - logger - LEVEL - " prefix.
+EOPF_OUTPUT_LOG_ATTR = "eopf_output"
 
 
 class Logging:  # pylint: disable=too-few-public-methods
@@ -105,22 +111,112 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-class JobLogHandler(logging.Handler):
-    """Custom log handler that routes Dask worker logs to per job asyncio Queues for SSE streaming."""
+@dataclass
+class _JobLogs:
+    """Buffered log messages of a single job."""
 
-    def __init__(self):
+    messages: deque[str]
+    # Absolute index of messages[0] (> 0 when the oldest messages were dropped)
+    first_index: int = 0
+    waiters: set[tuple[asyncio.AbstractEventLoop, asyncio.Event]] = field(default_factory=set)
+
+
+class JobLogHandler(logging.Handler):
+    """
+    Custom log handler that stores Dask worker logs in per job buffers for SSE streaming.
+
+    emit() is called from the dask Client IO thread (see dask_client.forward_logging), not from the
+    asyncio event loop serving the SSE endpoint. asyncio objects are not thread-safe, so the buffers
+    are protected by a lock and the SSE subscribers are woken up with loop.call_soon_threadsafe.
+
+    Logs are kept in memory (bounded) even with no subscriber, so a client connecting late or
+    reconnecting after a network error can resume from its last received message index.
+    """
+
+    def __init__(self, max_jobs: int = 100, max_messages_per_job: int = 20_000):
         super().__init__()
-        self.queues: dict[str, list[asyncio.Queue[str]]] = {}
+        self.max_jobs = max_jobs
+        self.max_messages_per_job = max_messages_per_job
+        self._jobs: OrderedDict[str, _JobLogs] = OrderedDict()
+        self._lock = Lock()
+        # Formats the record time as "YYYY-MM-DD HH:MM:SS,mmm"
+        self._prefix_formatter = logging.Formatter()
+
+    def _get_or_create(self, job_id: str) -> _JobLogs:
+        """Return the job logs, create them if missing. Must be called with the lock acquired."""
+        job_logs = self._jobs.get(job_id)
+        if job_logs is None:
+            job_logs = _JobLogs(messages=deque(maxlen=self.max_messages_per_job))
+            self._jobs[job_id] = job_logs
+            # Evict the oldest jobs that nobody is listening to
+            for old_id in list(self._jobs):
+                if len(self._jobs) <= self.max_jobs:
+                    break
+                if old_id != job_id and not self._jobs[old_id].waiters:
+                    del self._jobs[old_id]
+        else:
+            self._jobs.move_to_end(job_id)
+        return job_logs
 
     def emit(self, record):
         try:
             msg = self.format(record)
             match = re.search(r"\[JOB:([^\]]+)\]\s*(.*)", msg, re.DOTALL)
-            if match:
-                job_id = match.group(1)
-                clean_msg = match.group(2)
-                for q in self.queues.get(job_id, []):
-                    # use put_nowait to avoid blocking the logging thread
-                    q.put_nowait(clean_msg)
+            if not match:
+                return
+            job_id = match.group(1)
+            clean_msg = match.group(2)
+            if not getattr(record, EOPF_OUTPUT_LOG_ATTR, False):
+                # Use the same prefix as the EOPF logs so the clients can find the start and level of each log
+                timestamp = self._prefix_formatter.formatTime(record)
+                clean_msg = f"{timestamp} - {record.name} - {record.levelname} - {clean_msg}"
+            with self._lock:
+                job_logs = self._get_or_create(job_id)
+                if len(job_logs.messages) == job_logs.messages.maxlen:
+                    job_logs.first_index += 1
+                job_logs.messages.append(clean_msg)
+                waiters = list(job_logs.waiters)
+            for loop, event in waiters:
+                try:
+                    loop.call_soon_threadsafe(event.set)
+                except RuntimeError:  # the event loop is closed
+                    pass
         except Exception:  # pylint: disable=broad-exception-caught
             self.handleError(record)
+
+    def get_logs(self, job_id: str, start: int = 0) -> list[tuple[int, str]]:
+        """Return the (index, message) of the buffered job logs with an index >= start."""
+        with self._lock:
+            job_logs = self._jobs.get(job_id)
+            if job_logs is None:
+                return []
+            skip = max(0, start - job_logs.first_index)
+            return [(job_logs.first_index + i, message) for i, message in enumerate(job_logs.messages) if i >= skip]
+
+    def subscribe(self, job_id: str) -> asyncio.Event:
+        """
+        Return an asyncio Event that is set each time a new log is received for the job.
+        Must be called from the event loop that will wait on the Event.
+        """
+        event = asyncio.Event()
+        with self._lock:
+            self._get_or_create(job_id).waiters.add((asyncio.get_running_loop(), event))
+        return event
+
+    def unsubscribe(self, job_id: str, event: asyncio.Event):
+        """Unregister an Event returned by subscribe()"""
+        with self._lock:
+            job_logs = self._jobs.get(job_id)
+            if job_logs is not None:
+                job_logs.waiters = {waiter for waiter in job_logs.waiters if waiter[1] is not event}
+
+    def clear(self, job_id: str):
+        """Remove the buffered logs of a job."""
+        with self._lock:
+            self._jobs.pop(job_id, None)
+
+    @property
+    def job_ids(self) -> list[str]:
+        """Return the IDs of the jobs that have buffered logs."""
+        with self._lock:
+            return list(self._jobs)
