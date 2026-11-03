@@ -258,12 +258,14 @@
                         "order": 1,
                         "timeout_seconds": 0,
                         "query": {
-                            "name": "SatelliteFilter",
+                            "name": "LatestValCover",
                             "parameters": {
                                 "product_type": "ADF_CALIB",
                                 "start_datetime": "{external_variable.start_datetime}",
                                 "end_datetime": "{external_variable.end_datetime}",
-                                "satellite": "{external_variable.satellite}"
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 345600,
+                                "dTb": 0
                             }
                         }
                     }
