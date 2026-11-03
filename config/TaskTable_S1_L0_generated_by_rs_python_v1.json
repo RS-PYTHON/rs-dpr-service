@@ -261,6 +261,8 @@
                             "name": "SatelliteFilter",
                             "parameters": {
                                 "product_type": "ADF_CALIB",
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
                                 "satellite": "{external_variable.satellite}"
                             }
                         }
@@ -463,6 +465,27 @@
                                 },
                                 {
                                     "interval": [
+                                        "{start_datetime}",
+                                        "{end_datetime}"
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "op": "t_contains",
+                            "args": [
+                                {
+                                    "interval": [
+                                        {
+                                            "property": "start_datetime"
+                                        },
+                                        {
+                                            "property": "end_datetime"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "interval": [
                                         {
                                             "op": "-",
                                             "args": [
@@ -496,6 +519,8 @@
             "name": "SatelliteFilter",
             "parameters": [
                 "product_type",
+                "start_datetime",
+                "end_datetime",
                 "satellite"
             ],
             "stac": {
