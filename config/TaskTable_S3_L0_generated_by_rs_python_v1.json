@@ -414,7 +414,20 @@
                         "S3ACADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "S03ISPS": "pipeline_output",
+                        "S03HKM2L0": "pipeline_output",
+                        "S03HKML0": "pipeline_output",
+                        "S03HKMRAW": "pipeline_output",
+                        "S03NATL0": "pipeline_output",
+                        "S03OLCL0": "pipeline_output",
+                        "S03SLSL0": "pipeline_output",
+                        "S03SRAL0": "pipeline_output",
+                        "S03SRAL0C": "pipeline_output",
+                        "S03MWRL0": "pipeline_output",
+                        "S03GNSL0": "pipeline_output",
+                        "S03DORNAV": "pipeline_output",
+                        "S03DORDOP": "pipeline_output",
+                        "S03OLCCR0": "pipeline_output",
+                        "S03OLCCR1": "pipeline_output",
                         "S03CACHE": "pipeline_internal"
                     },
                     "parameters": {
