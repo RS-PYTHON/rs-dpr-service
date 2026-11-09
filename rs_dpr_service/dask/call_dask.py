@@ -18,7 +18,7 @@ Avoid import unnecessary dependencies here.
 """
 
 import base64
-import contextlib
+import hashlib
 import importlib
 import json
 import logging
@@ -30,21 +30,22 @@ import shutil
 import socket
 import subprocess
 import sys
-import tempfile
 import threading
 import time
 import traceback
+import uuid
 import zipfile
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
-from io import TextIOWrapper
+from io import BytesIO, TextIOWrapper
 from pathlib import Path
 from typing import Any
 
 import distributed
 import yaml
 from distributed.client import Client as DaskClient
+from distributed.diagnostics.plugin import WorkerPlugin
 from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
@@ -74,77 +75,137 @@ def get_ip_address() -> str:
     return socket.gethostbyname(socket.gethostname())
 
 
+# Files of this project uploaded to the dask workers, and associated name in the zip archive
+_UPLOADED_FILES = (
+    "__init__.py",
+    "safe_to_zarr.py",
+    "dask/__init__.py",
+    "dask/call_dask.py",
+    "utils/__init__.py",
+    "utils/init_opentelemetry.py",
+    "utils/logging.py",
+    "utils/settings.py",
+)
+
+# Fixed timestamp of the zip entries, so the zip content (and name) only depends on the source code
+_ZIP_DATE_TIME = (1980, 1, 1, 0, 0, 0)
+
+
+def _uploaded_module_names(package_name: str) -> list[str]:
+    """Return the names of the modules contained in the uploaded zip, parent packages first."""
+    names = []
+    for relative_path in _UPLOADED_FILES:
+        parts = relative_path.removesuffix(".py").split("/")
+        if parts[-1] == "__init__":
+            parts.pop()
+        names.append(".".join([package_name, *parts]))
+    return sorted(names)
+
+
+def build_module_zip() -> tuple[str, bytes]:
+    """
+    Build the zip of this project uploaded to the dask workers.
+
+    The zip is built in memory with fixed entry timestamps, so the same source code always gives the same
+    zip content. Its name contains a hash of this content, e.g. "rs_dpr_service-0123456789abcdef.zip".
+
+    Returns:
+        zip file name and content
+    """
+    # Root of the current project
+    root = Path(__file__).parent.parent
+    package_name = root.name  # should be "rs_dpr_service"
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipped:
+        for relative_path in _UPLOADED_FILES:
+            info = zipfile.ZipInfo(f"{package_name}/{relative_path}", date_time=_ZIP_DATE_TIME)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            zipped.writestr(info, (root / relative_path).read_bytes())
+    data = buffer.getvalue()
+    return f"{package_name}-{hashlib.sha256(data).hexdigest()[:16]}.zip", data
+
+
+def make_module_install_plugin(zip_filename: str, data: bytes, module_names: list[str]) -> WorkerPlugin:
+    """
+    Return a dask worker plugin that installs the zip of this project on each worker.
+
+    The plugin class is defined in this function so cloudpickle sends it by value: the dask workers can unpickle
+    it before this module is installed on them.
+
+    On each worker, the plugin setup:
+      - writes the zip in the worker local directory, atomically (temporary file + rename), and only if it's
+        missing, so a zip read by a running task or subprocess is never truncated nor removed;
+      - puts the zip first in sys.path;
+      - reloads the modules of the zip only if they were loaded from another file (e.g. a previous version).
+        Modules already loaded from this zip are not reloaded, so the tasks that are running are not disturbed.
+
+    Zips of previous versions are kept on the workers: tasks of a previous version may still use them.
+
+    Args:
+        zip_filename: zip file name, containing the hash of its content
+        data: zip content
+        module_names: names of the modules contained in the zip, parent packages first
+    """
+
+    class InstallModulePlugin(WorkerPlugin):
+        """Install the rs_dpr_service zip on a dask worker."""
+
+        # Registering a plugin with the name of an already registered one does nothing
+        idempotent = True
+
+        def __init__(self, zip_filename: str, data: bytes, module_names: list[str]):
+            self.zip_filename = zip_filename
+            self.data = data
+            self.module_names = module_names
+
+        def setup(self, worker):
+            """Write the zip in the worker local directory and import the modules from it."""
+            zip_path = os.path.join(worker.local_directory, self.zip_filename)
+            if not (os.path.isfile(zip_path) and os.path.getsize(zip_path) == len(self.data)):
+                tmp_path = f"{zip_path}.{uuid.uuid4().hex}.tmp"
+                with open(tmp_path, "wb") as tmp_file:
+                    tmp_file.write(self.data)
+                    tmp_file.flush()
+                    os.fsync(tmp_file.fileno())
+                os.replace(tmp_path, zip_path)
+
+            if zip_path in sys.path:
+                sys.path.remove(zip_path)
+            sys.path.insert(0, zip_path)
+            importlib.invalidate_caches()
+
+            # Reload the modules of the zip already loaded from another file, parent packages first. The modules
+            # already loaded from this zip are not reloaded: it would disturb the tasks that use them.
+            for name in self.module_names:
+                module = sys.modules.get(name)
+                if module is not None and not str(getattr(module, "__file__", "") or "").startswith(zip_path + os.sep):
+                    importlib.reload(module)
+            # Import the root package, the other modules are imported when needed
+            importlib.import_module(self.module_names[0])
+
+    return InstallModulePlugin(zip_filename, data, module_names)
+
+
 def upload_this_module(dask_client: DaskClient):
     """
-    Upload this current module from the caller environment to the dask client.
+    Upload this current module from the caller environment to the dask workers.
+
+    The zip is installed by a worker plugin named after the zip, so after a hash of its content, and registered
+    as idempotent: when several jobs run on the same cluster with the same version of this module, only the first
+    one installs it, the others don't touch the dask workers. The plugin is also run by the dask workers added
+    later to the cluster.
 
     WARNING: These modules should not import other modules that are not installed in the dask
     environment or you'll have import errors.
 
     Args:
-        clients: list of dask clients to which upload the modules.
+        dask_client: dask client to which upload the modules.
     """
-    # Root of the current project
-    root = Path(__file__).parent.parent
-
-    # Files and dirs to upload and associated name in the zip archive
-    files = {
-        root / "__init__.py": "rs_dpr_service/__init__.py",
-        root / "safe_to_zarr.py": "rs_dpr_service/safe_to_zarr.py",
-        root / "dask/__init__.py": "rs_dpr_service/dask/__init__.py",
-        root / "dask/call_dask.py": "rs_dpr_service/dask/call_dask.py",
-        root / "utils/__init__.py": "rs_dpr_service/utils/__init__.py",
-        root / "utils/init_opentelemetry.py": "rs_dpr_service/utils/init_opentelemetry.py",
-        root / "utils/logging.py": "rs_dpr_service/utils/logging.py",
-        root / "utils/settings.py": "rs_dpr_service/utils/settings.py",
-    }
-
-    # We'll create a zip with our files, and upload and install it in all dask workers.
-    package_name = root.name  # should be "rs_dpr_service"
-    zip_filename = f"{root.name}.zip"
-
-    # But first, if we run this function several times,
-    # we need to remove the previous installed zip from the dask workers.
-    def remove_previous_zip(dask_worker):
-        with contextlib.suppress(FileNotFoundError):
-            worker_zip_path = f"{dask_worker.local_directory}/{zip_filename}"
-            os.remove(worker_zip_path)
-            return f"Removed from dask worker: {worker_zip_path!r}"
-        return ""
-
-    logger.debug(json.dumps(dask_client.run(remove_previous_zip), indent=2))
-
-    # From a temp dir
-    with tempfile.TemporaryDirectory() as tmpdir:
-
-        # Create a zip with our files
-        zip_path = f"{tmpdir}/{zip_filename}"
-        with zipfile.ZipFile(zip_path, "w") as zipped:
-
-            # Zip all files
-            for key, value in files.items():
-                zipped.write(str(key), str(value))
-
-        # Upload zip file to dask clients.
-        # This also installs the zipped modules inside the dask python interpreter.
-        try:
-            dask_client.upload_file(zip_path)
-
-        # We have this error if we scale up the number of workers.
-        # But it's OK, the zip file is automatically uploaded to them anyway.
-        except KeyError as e:
-            logger.debug(f"Ignoring error {e}")
-
-    # If we run this function several times, we need to reload the uploaded modules from the dask workers
-    def reload_uploaded():
-        reloaded = []
-        for module in list(sys.modules.values()):
-            if module.__name__.startswith(f"{package_name}."):
-                reload(module)
-                reloaded.append(module.__name__)
-        return f"Reloaded: {reloaded}"
-
-    logger.debug(json.dumps(dask_client.run(reload_uploaded), indent=2))
+    zip_filename, data = build_module_zip()
+    plugin = make_module_install_plugin(zip_filename, data, _uploaded_module_names(Path(__file__).parent.parent.name))
+    logger.debug(f"Install {zip_filename!r} on the dask workers")
+    dask_client.register_plugin(plugin, name=zip_filename.removesuffix(".zip"))
 
 
 @dataclass

@@ -15,8 +15,12 @@
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
 import base64
+import importlib
+import io
 import json
 import os
+import pickle
+import re
 import sys
 import types
 import zipfile
@@ -24,6 +28,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
 
+import cloudpickle
 import pytest
 
 from rs_dpr_service.dask import call_dask
@@ -94,54 +99,86 @@ def test_processor_caller_hide_secrets_masks_sensitive_log_values(mocker):
     assert "'safe_value': 'visible'" in masked
 
 
-def test_upload_this_module_uploads_zip_and_reload_task_to_dask_workers(mocker, tmp_path):
-    """Test upload_this_module() creates the worker zip and submits cleanup/reload tasks."""
+def test_build_module_zip_is_deterministic():
+    """Test build_module_zip() names the zip after its content, which only depends on the source code."""
+    zip_filename, data = call_dask.build_module_zip()
+
+    assert re.fullmatch(r"rs_dpr_service-[0-9a-f]{16}\.zip", zip_filename)
+    assert call_dask.build_module_zip() == (zip_filename, data)
+    # The uploaded archive must contain the worker-side code used later by Dask tasks.
+    with zipfile.ZipFile(io.BytesIO(data)) as zipped:
+        assert "rs_dpr_service/dask/call_dask.py" in zipped.namelist()
+        assert "rs_dpr_service/safe_to_zarr.py" in zipped.namelist()
+        assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
+
+
+def test_upload_this_module_registers_idempotent_plugin(mocker):
+    """Test upload_this_module() registers a picklable idempotent worker plugin named after the zip."""
+    dask_client = mocker.Mock()
+
+    call_dask.upload_this_module(dask_client)
+
+    dask_client.register_plugin.assert_called_once()
+    plugin = dask_client.register_plugin.call_args.args[0]
+    zip_filename, data = call_dask.build_module_zip()
+    assert dask_client.register_plugin.call_args.kwargs == {"name": zip_filename.removesuffix(".zip")}
+    assert plugin.idempotent is True
+    assert plugin.zip_filename == zip_filename
+    assert plugin.data == data
+    assert plugin.module_names[0] == "rs_dpr_service"
+    assert "rs_dpr_service.dask.call_dask" in plugin.module_names
+    # Dask workers don't have this module before the plugin installs it: the plugin class must not be pickled by
+    # reference (standard pickle), but by value (cloudpickle, used by dask as fallback)
+    with pytest.raises((pickle.PicklingError, AttributeError)):
+        pickle.dumps(plugin)
+    assert pickle.loads(cloudpickle.dumps(plugin)).zip_filename == zip_filename
+
+
+def _fake_package_zip(version: str) -> bytes:
+    """Return the zip of a fake package used to test the worker plugin."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("fakepkg/__init__.py", "")
+        zipped.writestr("fakepkg/mod.py", f"VERSION = {version!r}\n")
+    return buffer.getvalue()
+
+
+def test_module_install_plugin_setup(monkeypatch, tmp_path):
+    """Test the worker plugin installs the zip atomically and only reloads modules loaded from another file."""
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    for name in ("fakepkg", "fakepkg.mod"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
     worker_dir = tmp_path / "worker"
     worker_dir.mkdir()
-    previous_zip = worker_dir / "rs_dpr_service.zip"
-    previous_zip.write_text("old zip", encoding="utf-8")
     worker = SimpleNamespace(local_directory=str(worker_dir))
+    module_names = ["fakepkg", "fakepkg.mod"]
 
-    # Mock client.run(): Dask would execute these closures on workers, so run them locally here.
-    def run_side_effect(worker_function):
-        """Run the submitted Dask worker function locally."""
-        if worker_function.__name__ == "remove_previous_zip":
-            return {"worker-1": worker_function(worker)}
-        return {"worker-1": worker_function()}
+    # A previous version of the package is already loaded on the worker
+    previous = tmp_path / "previous"
+    (previous / "fakepkg").mkdir(parents=True)
+    (previous / "fakepkg/__init__.py").write_text("", encoding="utf-8")
+    (previous / "fakepkg/mod.py").write_text("VERSION = 'v1'\n", encoding="utf-8")
+    sys.path.insert(0, str(previous))
+    fake_mod = importlib.import_module("fakepkg.mod")
+    assert fake_mod.VERSION == "v1"
 
-    dask_client = mocker.Mock()
-    dask_client.run.side_effect = run_side_effect
+    # Install the new version: the modules are reloaded from the zip
+    plugin = call_dask.make_module_install_plugin("fakepkg-v2.zip", _fake_package_zip("v2"), module_names)
+    plugin.setup(worker)
+    zip_path = worker_dir / "fakepkg-v2.zip"
+    assert zip_path.is_file()
+    assert not list(worker_dir.glob("*.tmp"))
+    assert sys.path[0] == str(zip_path)
+    assert sys.modules["fakepkg.mod"].VERSION == "v2"
+    assert sys.modules["fakepkg.mod"].__file__.startswith(str(zip_path))
 
-    def upload_file_side_effect(zip_path):
-        """Verify the generated zip contains the modules expected by Dask workers."""
-        assert os.path.isfile(zip_path)
-        # The uploaded archive must contain the worker-side code used later by Dask tasks.
-        with zipfile.ZipFile(zip_path) as zipped:
-            assert "rs_dpr_service/dask/call_dask.py" in zipped.namelist()
-            assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
-
-    dask_client.upload_file.side_effect = upload_file_side_effect
-    reload_mock = mocker.patch("rs_dpr_service.dask.call_dask.reload", side_effect=lambda module: module)
-
-    call_dask.upload_this_module(dask_client)
-
-    assert not previous_zip.exists()
-    dask_client.upload_file.assert_called_once()
-    assert dask_client.run.call_count == 2
-    assert reload_mock.called
-
-
-def test_upload_this_module_ignores_upload_key_error(mocker):
-    """Test upload_this_module() ignores the Dask upload KeyError seen during worker scale-up."""
-    dask_client = mocker.Mock()
-    dask_client.run.return_value = {}
-    # Dask can raise this while new workers are added; production code intentionally ignores it.
-    dask_client.upload_file.side_effect = KeyError("worker already has the zip")
-
-    call_dask.upload_this_module(dask_client)
-
-    dask_client.upload_file.assert_called_once()
-    assert dask_client.run.call_count == 2
+    # Another job installs the same version: the zip is not rewritten and the modules are not reloaded
+    sys.modules["fakepkg.mod"].MARKER = "not reloaded"
+    inode = zip_path.stat().st_ino
+    call_dask.make_module_install_plugin("fakepkg-v2.zip", _fake_package_zip("v2"), module_names).setup(worker)
+    assert zip_path.stat().st_ino == inode
+    assert sys.modules["fakepkg.mod"].MARKER == "not reloaded"
+    assert sys.path.count(str(zip_path)) == 1
 
 
 def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_path):
