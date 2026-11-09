@@ -148,6 +148,13 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         "zarr_s3_config": {"zarr": "config"},
         "zarr_format": 2,
     }
+    # The S3 bucket credentials of the service are passed to the dask worker
+    assert dask_client.submit.call_args.args[2] == {
+        "S3_ACCESSKEY": "access",
+        "S3_SECRETKEY": "secret",
+        "S3_ENDPOINT": "https://s3.test",
+        "S3_REGION": "region",
+    }
     future.result.assert_called_once_with()
     # ConversionProcessor.manage_dask_tasks() and GenericProcessor.start_processor() both close the client.
     assert dask_client.close.call_count == 2
