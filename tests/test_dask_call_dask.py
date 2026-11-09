@@ -159,7 +159,12 @@ def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_
     subprocess_run = mocker.patch("rs_dpr_service.dask.call_dask.subprocess.run", return_value=completed)
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
 
-    result = call_dask.convert_safe_to_zarr(cfg)
+    # The S3 credentials are not in the dask worker environment
+    for key in call_dask.S3_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
+    s3_env = {key: f"{key.lower()}-value" for key in call_dask.S3_ENV_VARS}
+
+    result = call_dask.convert_safe_to_zarr(cfg, s3_env)
 
     assert result == "converted"
     subprocess_run.assert_called_once()
@@ -168,6 +173,8 @@ def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_
     assert command[:3] == [call_dask.sys.executable, "-m", "rs_dpr_service.safe_to_zarr"]
     assert json.loads(command[3]) == cfg
     assert env["PYTHONPATH"].split(os.pathsep)[0] == str(zip_path)
+    # The S3 credentials of the calling service are passed to the conversion subprocess
+    assert {key: env[key] for key in call_dask.S3_ENV_VARS} == s3_env
     assert subprocess_run.call_args.kwargs["check"] is False
 
 

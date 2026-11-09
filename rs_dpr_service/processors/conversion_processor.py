@@ -24,7 +24,7 @@ from pygeoapi.process.manager.postgresql import (
 )
 from pygeoapi.util import JobStatus
 
-from rs_dpr_service.dask.call_dask import ClusterInfo, convert_safe_to_zarr
+from rs_dpr_service.dask.call_dask import S3_ENV_VARS, ClusterInfo, convert_safe_to_zarr
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.logging import Logging
 
@@ -144,7 +144,9 @@ class ConversionProcessor(GenericProcessor):
                 "zarr_s3_config": data.get("zarr_s3_config", {}),
                 "zarr_format": data.get("zarr_format", 2),
             }
-            future = dask_client.submit(convert_safe_to_zarr, cfg)
+            # The dask worker environment doesn't contain the S3 bucket credentials: pass ours
+            s3_env = {key: os.environ[key] for key in S3_ENV_VARS}
+            future = dask_client.submit(convert_safe_to_zarr, cfg, s3_env)
             self.job_logger.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
             # wait for result

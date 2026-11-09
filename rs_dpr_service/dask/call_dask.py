@@ -65,6 +65,9 @@ from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Env vars of the S3 bucket credentials, used by the SAFE to Zarr conversion
+S3_ENV_VARS = ("S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION")
+
 
 def get_ip_address() -> str:
     """Return IP address, see: https://stackoverflow.com/a/166520"""
@@ -163,11 +166,16 @@ class ClusterInfo:
     cluster_instance: str | None = ""
 
 
-def convert_safe_to_zarr(cfg):
+def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
 
     This runs the rs_dpr_service.safe_to_zarr module as a subprocess, passing config as JSON string.
+
+    Args:
+        cfg: conversion configuration
+        s3_env: S3 bucket credentials env vars (see S3_ENV_VARS) from the calling service, passed to the
+            subprocess because they are not set in the dask worker environment.
     """
 
     # Serialize the config
@@ -181,6 +189,7 @@ def convert_safe_to_zarr(cfg):
 
     # Prepare an env that lets Python import from inside the ZIP
     env = os.environ.copy()
+    env.update(s3_env or {})
     # prepend the zip onto PYTHONPATH (so zipimport will kick in)
     env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
 
