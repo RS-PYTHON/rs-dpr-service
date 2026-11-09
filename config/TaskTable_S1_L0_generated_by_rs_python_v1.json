@@ -14,7 +14,7 @@
     ],
     "external_modules": [
         {
-            "name": "l0.cadu_processing.cadu_store",
+            "name": "l0.cadu_processing.cadu_reader",
             "star_import": true
         }
     ],
@@ -64,28 +64,112 @@
             ],
             "output_products": [
                 {
-                    "name": "S01SARRAW",
+                    "name": "S01SARISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^datatakeid_.*"
+                    "regex": "^S01SARISP($|_.*)"
                 },
                 {
-                    "name": "S01GPSRAW",
+                    "name": "S01HKMISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^gps$"
+                    "regex": "^S01HKMISP($|_.*)"
                 },
                 {
-                    "name": "S01HKMRAW",
+                    "name": "S01AISISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^hktm$"
+                    "regex": "^S01AISISP($|_.*)"
                 },
                 {
-                    "name": "S01AISRAW",
+                    "name": "S01GPSISP",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^ais_.*"
+                    "regex": "^S01GPSISP($|_.*)"
+                },
+                {
+                    "name": "S01SSRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS[1-6]RAW($|_.*)"
+                },
+                {
+                    "name": "S01SSANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SS[1-6]ANC($|_.*)"
+                },
+                {
+                    "name": "S01SIWRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SIWRAW($|_.*)"
+                },
+                {
+                    "name": "S01SIWANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SIWANC($|_.*)"
+                },
+                {
+                    "name": "S01SEWRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SEWRAW($|_.*)"
+                },
+                {
+                    "name": "S01SEWANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SEWANC($|_.*)"
+                },
+                {
+                    "name": "S01SWVRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SWVRAW($|_.*)"
+                },
+                {
+                    "name": "S01SWVANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SWVANC($|_.*)"
+                },
+                {
+                    "name": "S01SRFRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SRFRAW($|_.*)"
+                },
+                {
+                    "name": "S01SRFANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SRFANC($|_.*)"
+                },
+                {
+                    "name": "S01SENRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SENRAW($|_.*)"
+                },
+                {
+                    "name": "S01SENANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SENANC($|_.*)"
+                },
+                {
+                    "name": "S01SNRAW",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN[1-6]RAW($|_.*)"
+                },
+                {
+                    "name": "S01SNANC",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S01SN[1-6]ANC($|_.*)"
                 }
             ]
         }
@@ -174,10 +258,14 @@
                         "order": 1,
                         "timeout_seconds": 0,
                         "query": {
-                            "name": "SatelliteFilter",
+                            "name": "LatestValCover",
                             "parameters": {
                                 "product_type": "ADF_CALIB",
-                                "satellite": "{external_variable.satellite}"
+                                "start_datetime": "{external_variable.start_datetime}",
+                                "end_datetime": "{external_variable.end_datetime}",
+                                "satellite": "{external_variable.satellite}",
+                                "dTa": 345600,
+                                "dTb": 0
                             }
                         }
                     }
@@ -186,24 +274,148 @@
         ],
         "output": [
             {
-                "name": "S01SARRAW",
+                "name": "S01SARISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01GPSRAW",
+                "name": "S01HKMISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01HKMRAW",
+                "name": "S01AISISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             },
             {
-                "name": "S01AISRAW",
+                "name": "S01GPSISP",
                 "type": "folder",
-                "engine": "cpm_zarr"
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SSRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SSANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SIWRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SIWANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SEWRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SEWANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SWVRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SWVANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SRFRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SRFANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SENRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SENANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SNRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S01SNANC",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             }
         ]
     },
@@ -255,6 +467,27 @@
                                 },
                                 {
                                     "interval": [
+                                        "{start_datetime}",
+                                        "{end_datetime}"
+                                    ]
+                                }
+                            ]
+                        },
+                        {
+                            "op": "t_contains",
+                            "args": [
+                                {
+                                    "interval": [
+                                        {
+                                            "property": "start_datetime"
+                                        },
+                                        {
+                                            "property": "end_datetime"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "interval": [
                                         {
                                             "op": "-",
                                             "args": [
@@ -288,6 +521,8 @@
             "name": "SatelliteFilter",
             "parameters": [
                 "product_type",
+                "start_datetime",
+                "end_datetime",
                 "satellite"
             ],
             "stac": {
@@ -329,10 +564,57 @@
                         "S1CADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "S01SARRAW": "pipeline_output",
-                        "S01GPSRAW": "pipeline_output",
-                        "S01HKMRAW": "pipeline_output",
-                        "S01AISRAW": "pipeline_output"
+                        "S01SARISP": "pipeline_output",
+                        "S01HKMISP": "pipeline_output",
+                        "S01AISISP": "pipeline_output",
+                        "S01GPSISP": "pipeline_output",
+                        "S01SSRAW": "pipeline_output",
+                        "S01SSANC": "pipeline_output",
+                        "S01SIWRAW": "pipeline_output",
+                        "S01SIWANC": "pipeline_output",
+                        "S01SEWRAW": "pipeline_output",
+                        "S01SEWANC": "pipeline_output",
+                        "S01SWVRAW": "pipeline_output",
+                        "S01SWVANC": "pipeline_output",
+                        "S01SRFRAW": "pipeline_output",
+                        "S01SRFANC": "pipeline_output",
+                        "S01SENRAW": "pipeline_output",
+                        "S01SENANC": "pipeline_output",
+                        "S01SNRAW": "pipeline_output",
+                        "S01SNANC": "pipeline_output"
+                    },
+                    "parameters": {
+                        "acquisition_report_output_path": "./acquisition_report_output_path",
+                        "cadu_chunk_size": {
+                            "sar": 10000,
+                            "hktm": 10000,
+                            "ais": 10000,
+                            "gps": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "sar": 30000,
+                            "iw": 30000,
+                            "ew": 30000,
+                            "sm": 30000,
+                            "rf": 30000,
+                            "wv": 30000,
+                            "s1": 30000,
+                            "s2": 30000,
+                            "s3": 30000,
+                            "s4": 30000,
+                            "s5": 30000,
+                            "s6": 30000,
+                            "n1": 30000,
+                            "n2": 30000,
+                            "n3": 30000,
+                            "n4": 30000,
+                            "n5": 30000,
+                            "n6": 30000,
+                            "ais": 30000,
+                            "gps": 30000,
+                            "hktm_tf": 30000
+                        }
                     }
                 }
             ]
