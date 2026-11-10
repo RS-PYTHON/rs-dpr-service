@@ -136,13 +136,6 @@
                     "mode": "always",
                     "mandatory": false,
                     "regex": "^S03OLCCR1($|_.*)"
-                },
-                {
-                    "name": "S03CACHE",
-                    "mode": "always",
-                    "final_product": false,
-                    "mandatory": true,
-                    "regex": "^cache_S03.*"
                 }
             ]
         }
@@ -313,14 +306,6 @@
                 "writer_params": {
                     "mode": "w"
                 }
-            },
-            {
-                "name": "S03CACHE",
-                "type": "folder",
-                "engine": "cpm_zarr",
-                "writer_params": {
-                    "mode": "w"
-                }
             }
         ]
     },
@@ -427,8 +412,7 @@
                         "S03DORNAV": "pipeline_output",
                         "S03DORDOP": "pipeline_output",
                         "S03OLCCR0": "pipeline_output",
-                        "S03OLCCR1": "pipeline_output",
-                        "S03CACHE": "pipeline_internal"
+                        "S03OLCCR1": "pipeline_output"
                     },
                     "parameters": {
                         "acquisition_report_output_path": "./acquisition_report_output_path",
