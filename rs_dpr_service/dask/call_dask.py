@@ -81,6 +81,12 @@ LOG_BATCH_INTERVAL_SECONDS = 1
 # Number of last subprocess output lines repeated in the error message when the subprocess fails
 LOG_TAIL_SIZE = 20
 
+# Default number of threads of the dask scheduler used by EOPF in the SAFE to Zarr conversion subprocess
+# (DASK_NUM_WORKERS env var, kept if already set in the dask worker environment). EOPF reads each measurement
+# TIFF of a SAFE product in a single chunk, e.g. ~3.7 GiB in memory for the biggest S1 IW SLC products: with
+# one thread per CPU, several TIFFs are loaded at the same time and can exceed the memory of the worker pod.
+CONVERSION_DASK_NUM_WORKERS = "1"
+
 # cgroup files with the memory limit of the container (cgroup v2, then v1)
 CGROUP_MEMORY_LIMIT_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
 
@@ -531,6 +537,8 @@ def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None, job_id
     # prepend the zip onto PYTHONPATH (so zipimport will kick in)
     env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
     ignore_eopf_warnings(env)
+    # Load a single chunk at a time in the subprocess dask threaded scheduler, to bound its memory
+    env.setdefault("DASK_NUM_WORKERS", CONVERSION_DASK_NUM_WORKERS)
 
     # The SAFE is staged in the temporary directory
     log_worker_resources(job_id, tempfile.gettempdir())
