@@ -14,12 +14,13 @@
 
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
+import asyncio
 import base64
 import importlib
 import io
 import json
 import os
-import pickle
+import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
 import re
 import sys
 import types
@@ -27,9 +28,13 @@ import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
 import cloudpickle
 import pytest
+from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
+from distributed.scheduler import Scheduler
+from distributed.worker import Worker
 
 from rs_dpr_service.dask import call_dask
 
@@ -112,26 +117,70 @@ def test_build_module_zip_is_deterministic():
         assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
 
 
-def test_upload_this_module_registers_idempotent_plugin(mocker):
-    """Test upload_this_module() registers a picklable idempotent worker plugin named after the zip."""
+def test_upload_this_module_registers_idempotent_plugins(mocker):
+    """Test upload_this_module() registers picklable idempotent scheduler and worker plugins named after the zip."""
     dask_client = mocker.Mock()
+    dask_client.run_on_scheduler.return_value = ([], [])
 
     call_dask.upload_this_module(dask_client)
 
-    dask_client.register_plugin.assert_called_once()
-    plugin = dask_client.register_plugin.call_args.args[0]
     zip_filename, data = call_dask.build_module_zip()
-    assert dask_client.register_plugin.call_args.kwargs == {"name": zip_filename.removesuffix(".zip")}
-    assert plugin.idempotent is True
-    assert plugin.zip_filename == zip_filename
-    assert plugin.data == data
-    assert plugin.module_names[0] == "rs_dpr_service"
-    assert "rs_dpr_service.dask.call_dask" in plugin.module_names
-    # Dask workers don't have this module before the plugin installs it: the plugin class must not be pickled by
-    # reference (standard pickle), but by value (cloudpickle, used by dask as fallback)
+    plugin_name = zip_filename.removesuffix(".zip")
+    assert [c.kwargs for c in dask_client.register_plugin.call_args_list] == [{"name": plugin_name}] * 2
+    scheduler_plugin, worker_plugin = (c.args[0] for c in dask_client.register_plugin.call_args_list)
+    # The scheduler plugin is registered first: the scheduler unpickles the task graphs
+    assert isinstance(scheduler_plugin, SchedulerPlugin)
+    assert isinstance(worker_plugin, WorkerPlugin)
+    plugins: list[Any] = [scheduler_plugin, worker_plugin]  # attributes of the plugin classes defined in call_dask
+    for plugin in plugins:
+        assert plugin.idempotent is True
+        assert plugin.zip_filename == zip_filename
+        assert plugin.data == data
+        assert plugin.module_names[0] == "rs_dpr_service"
+        assert "rs_dpr_service.dask.call_dask" in plugin.module_names
+        # The dask scheduler and workers don't have this module before the plugin installs it: the plugin class
+        # must not be pickled by reference (standard pickle), but by value (cloudpickle, used by dask as fallback)
+        with pytest.raises((pickle.PicklingError, AttributeError)):
+            pickle.dumps(plugin)
+        assert pickle.loads(cloudpickle.dumps(plugin)).zip_filename == zip_filename  # nosec B301
+
+
+def test_upload_this_module_unregisters_stale_plugins(mocker):
+    """Test upload_this_module() unregisters the plugins of the other versions of this module, only."""
+    zip_filename, _ = call_dask.build_module_zip()
+    plugin_name = zip_filename.removesuffix(".zip")
+    legacy = "/scratch/tmpqe6tlbfv/rs_dpr_service.zip92b8a41d-f7c3-4bcd-ab93-d3a08daf7590"
+    already_removed = "/scratch/tmpine3w56_/rs_dpr_service.zip74c4c37e-53d1-456c-b353-be83b9d1be19"
+    previous = "rs_dpr_service-0123456789abcdef"
+    others = ["shuffle", "forward-logging-<root>", "other_package-0123456789abcdef", plugin_name]
+    dask_client = mocker.Mock()
+    dask_client.run_on_scheduler.return_value = (
+        ["stealing", legacy, previous, plugin_name],
+        [*others, legacy, already_removed, previous],
+    )
+
+    def unregister(name):
+        if name == already_removed:
+            raise ValueError(f"The worker plugin {name} does not exist")
+
+    dask_client.unregister_worker_plugin.side_effect = unregister
+
+    call_dask.upload_this_module(dask_client)
+
+    dask_client.run_on_scheduler.assert_called_once()
+    plugin_names = dask_client.run_on_scheduler.call_args.args[0]
+    dask_scheduler = mocker.Mock(plugins={"a": 1}, worker_plugins={"b": 2, "c": 3})
+    assert plugin_names(dask_scheduler) == (["a"], ["b", "c"])
+    # The scheduler may not have this module yet: the function must be pickled by value
     with pytest.raises((pickle.PicklingError, AttributeError)):
-        pickle.dumps(plugin)
-    assert pickle.loads(cloudpickle.dumps(plugin)).zip_filename == zip_filename
+        pickle.dumps(plugin_names)
+    assert [c.args[0] for c in dask_client.unregister_scheduler_plugin.call_args_list] == [legacy, previous]
+    assert [c.args[0] for c in dask_client.unregister_worker_plugin.call_args_list] == [
+        legacy,
+        already_removed,
+        previous,
+    ]
+    assert dask_client.register_plugin.call_count == 2
 
 
 def _fake_package_zip(version: str) -> bytes:
@@ -143,15 +192,27 @@ def _fake_package_zip(version: str) -> bytes:
     return buffer.getvalue()
 
 
-def test_module_install_plugin_setup(monkeypatch, tmp_path):
-    """Test the worker plugin installs the zip atomically and only reloads modules loaded from another file."""
+@pytest.mark.parametrize("plugin_kind", ["scheduler", "worker"])
+def test_module_install_plugins(monkeypatch, tmp_path, plugin_kind):
+    """Test the plugins install the zip atomically and only reload the modules loaded from another file."""
     monkeypatch.setattr(sys, "path", list(sys.path))
     for name in ("fakepkg", "fakepkg.mod"):
         monkeypatch.delitem(sys.modules, name, raising=False)
     worker_dir = tmp_path / "worker"
     worker_dir.mkdir()
-    worker = SimpleNamespace(local_directory=str(worker_dir))
+    node = SimpleNamespace(local_directory=str(worker_dir))
     module_names = ["fakepkg", "fakepkg.mod"]
+
+    def install(version: str):
+        scheduler_plugin, worker_plugin = call_dask.make_module_install_plugins(
+            f"fakepkg-{version}.zip",
+            _fake_package_zip(version),
+            module_names,
+        )
+        if plugin_kind == "scheduler":
+            asyncio.run(scheduler_plugin.start(cast(Scheduler, node)))
+        else:
+            worker_plugin.setup(cast(Worker, node))
 
     # A previous version of the package is already loaded on the worker
     previous = tmp_path / "previous"
@@ -163,21 +224,20 @@ def test_module_install_plugin_setup(monkeypatch, tmp_path):
     assert fake_mod.VERSION == "v1"
 
     # Install the new version: the modules are reloaded from the zip
-    plugin = call_dask.make_module_install_plugin("fakepkg-v2.zip", _fake_package_zip("v2"), module_names)
-    plugin.setup(worker)
+    install("v2")
     zip_path = worker_dir / "fakepkg-v2.zip"
     assert zip_path.is_file()
     assert not list(worker_dir.glob("*.tmp"))
     assert sys.path[0] == str(zip_path)
     assert sys.modules["fakepkg.mod"].VERSION == "v2"
-    assert sys.modules["fakepkg.mod"].__file__.startswith(str(zip_path))
+    assert str(sys.modules["fakepkg.mod"].__file__).startswith(str(zip_path))
 
     # Another job installs the same version: the zip is not rewritten and the modules are not reloaded
-    sys.modules["fakepkg.mod"].MARKER = "not reloaded"
+    vars(sys.modules["fakepkg.mod"])["MARKER"] = "not reloaded"
     inode = zip_path.stat().st_ino
-    call_dask.make_module_install_plugin("fakepkg-v2.zip", _fake_package_zip("v2"), module_names).setup(worker)
+    install("v2")
     assert zip_path.stat().st_ino == inode
-    assert sys.modules["fakepkg.mod"].MARKER == "not reloaded"
+    assert vars(sys.modules["fakepkg.mod"])["MARKER"] == "not reloaded"
     assert sys.path.count(str(zip_path)) == 1
 
 

@@ -45,7 +45,7 @@ from typing import Any
 import distributed
 import yaml
 from distributed.client import Client as DaskClient
-from distributed.diagnostics.plugin import WorkerPlugin
+from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
 from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
@@ -126,29 +126,78 @@ def build_module_zip() -> tuple[str, bytes]:
     return f"{package_name}-{hashlib.sha256(data).hexdigest()[:16]}.zip", data
 
 
-def make_module_install_plugin(zip_filename: str, data: bytes, module_names: list[str]) -> WorkerPlugin:
+def make_module_install_plugins(
+    zip_filename: str,
+    data: bytes,
+    module_names: list[str],
+) -> tuple[SchedulerPlugin, WorkerPlugin]:
     """
-    Return a dask worker plugin that installs the zip of this project on each worker.
+    Return the dask scheduler and worker plugins that install the zip of this project on the scheduler and workers.
 
-    The plugin class is defined in this function so cloudpickle sends it by value: the dask workers can unpickle
-    it before this module is installed on them.
+    The scheduler needs this project too: it unpickles the task graphs, which reference its functions.
 
-    On each worker, the plugin setup:
-      - writes the zip in the worker local directory, atomically (temporary file + rename), and only if it's
-        missing, so a zip read by a running task or subprocess is never truncated nor removed;
+    The plugin classes are defined in this function so cloudpickle sends them by value: the dask scheduler and
+    workers can unpickle them before this module is installed on them.
+
+    On the scheduler and on each worker, the plugin:
+      - writes the zip in the local directory, atomically (temporary file + rename), and only if it's missing,
+        so a zip read by a running task or subprocess is never truncated nor removed;
       - puts the zip first in sys.path;
       - reloads the modules of the zip only if they were loaded from another file (e.g. a previous version).
         Modules already loaded from this zip are not reloaded, so the tasks that are running are not disturbed.
 
-    Zips of previous versions are kept on the workers: tasks of a previous version may still use them.
+    Zips of previous versions are kept: tasks of a previous version may still use them.
 
     Args:
         zip_filename: zip file name, containing the hash of its content
         data: zip content
         module_names: names of the modules contained in the zip, parent packages first
+
+    Returns:
+        scheduler plugin, worker plugin
     """
 
-    class InstallModulePlugin(WorkerPlugin):
+    def install(local_directory: str, zip_filename: str, data: bytes, module_names: list[str]):
+        """Write the zip in the local directory and import the modules from it."""
+        zip_path = os.path.join(local_directory, zip_filename)
+        if not (os.path.isfile(zip_path) and os.path.getsize(zip_path) == len(data)):
+            tmp_path = f"{zip_path}.{uuid.uuid4().hex}.tmp"
+            with open(tmp_path, "wb") as tmp_file:
+                tmp_file.write(data)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+            os.replace(tmp_path, zip_path)
+
+        if zip_path in sys.path:
+            sys.path.remove(zip_path)
+        sys.path.insert(0, zip_path)
+        importlib.invalidate_caches()
+
+        # Reload the modules of the zip already loaded from another file, parent packages first. The modules
+        # already loaded from this zip are not reloaded: it would disturb the tasks that use them.
+        for name in module_names:
+            module = sys.modules.get(name)
+            if module is not None and not str(getattr(module, "__file__", "") or "").startswith(zip_path + os.sep):
+                importlib.reload(module)
+        # Import the root package, the other modules are imported when needed
+        importlib.import_module(module_names[0])
+
+    class InstallModuleSchedulerPlugin(SchedulerPlugin):
+        """Install the rs_dpr_service zip on the dask scheduler."""
+
+        # Registering a plugin with the name of an already registered one does nothing
+        idempotent = True
+
+        def __init__(self, zip_filename: str, data: bytes, module_names: list[str]):
+            self.zip_filename = zip_filename
+            self.data = data
+            self.module_names = module_names
+
+        async def start(self, scheduler):
+            """Install the zip on the scheduler."""
+            install(scheduler.local_directory, self.zip_filename, self.data, self.module_names)
+
+    class InstallModuleWorkerPlugin(WorkerPlugin):
         """Install the rs_dpr_service zip on a dask worker."""
 
         # Registering a plugin with the name of an already registered one does nothing
@@ -160,41 +209,24 @@ def make_module_install_plugin(zip_filename: str, data: bytes, module_names: lis
             self.module_names = module_names
 
         def setup(self, worker):
-            """Write the zip in the worker local directory and import the modules from it."""
-            zip_path = os.path.join(worker.local_directory, self.zip_filename)
-            if not (os.path.isfile(zip_path) and os.path.getsize(zip_path) == len(self.data)):
-                tmp_path = f"{zip_path}.{uuid.uuid4().hex}.tmp"
-                with open(tmp_path, "wb") as tmp_file:
-                    tmp_file.write(self.data)
-                    tmp_file.flush()
-                    os.fsync(tmp_file.fileno())
-                os.replace(tmp_path, zip_path)
+            """Install the zip on the worker."""
+            install(worker.local_directory, self.zip_filename, self.data, self.module_names)
 
-            if zip_path in sys.path:
-                sys.path.remove(zip_path)
-            sys.path.insert(0, zip_path)
-            importlib.invalidate_caches()
-
-            # Reload the modules of the zip already loaded from another file, parent packages first. The modules
-            # already loaded from this zip are not reloaded: it would disturb the tasks that use them.
-            for name in self.module_names:
-                module = sys.modules.get(name)
-                if module is not None and not str(getattr(module, "__file__", "") or "").startswith(zip_path + os.sep):
-                    importlib.reload(module)
-            # Import the root package, the other modules are imported when needed
-            importlib.import_module(self.module_names[0])
-
-    return InstallModulePlugin(zip_filename, data, module_names)
+    return (
+        InstallModuleSchedulerPlugin(zip_filename, data, module_names),
+        InstallModuleWorkerPlugin(zip_filename, data, module_names),
+    )
 
 
 def upload_this_module(dask_client: DaskClient):
     """
-    Upload this current module from the caller environment to the dask workers.
+    Upload this current module from the caller environment to the dask scheduler and workers.
 
-    The zip is installed by a worker plugin named after the zip, so after a hash of its content, and registered
-    as idempotent: when several jobs run on the same cluster with the same version of this module, only the first
-    one installs it, the others don't touch the dask workers. The plugin is also run by the dask workers added
-    later to the cluster.
+    The zip is installed by a scheduler plugin and a worker plugin named after the zip, so after a hash of its
+    content, and registered as idempotent: when several jobs run on the same cluster with the same version of this
+    module, only the first one installs it, the others don't touch the dask cluster. The worker plugin is also run
+    by the dask workers added later to the cluster. The plugins of the other versions of this module are
+    unregistered first.
 
     WARNING: These modules should not import other modules that are not installed in the dask
     environment or you'll have import errors.
@@ -203,9 +235,66 @@ def upload_this_module(dask_client: DaskClient):
         dask_client: dask client to which upload the modules.
     """
     zip_filename, data = build_module_zip()
-    plugin = make_module_install_plugin(zip_filename, data, _uploaded_module_names(Path(__file__).parent.parent.name))
-    logger.debug(f"Install {zip_filename!r} on the dask workers")
-    dask_client.register_plugin(plugin, name=zip_filename.removesuffix(".zip"))
+    plugin_name = zip_filename.removesuffix(".zip")
+    _unregister_stale_plugins(dask_client, plugin_name)
+    scheduler_plugin, worker_plugin = make_module_install_plugins(
+        zip_filename,
+        data,
+        _uploaded_module_names(Path(__file__).parent.parent.name),
+    )
+    logger.debug(f"Install {zip_filename!r} on the dask scheduler and workers")
+    # Install on the scheduler first: it must be able to unpickle the task graphs sent to the workers
+    dask_client.register_plugin(scheduler_plugin, name=plugin_name)
+    dask_client.register_plugin(worker_plugin, name=plugin_name)
+
+
+def _unregister_stale_plugins(dask_client: DaskClient, plugin_name: str):
+    """
+    Unregister the plugins that installed other versions of this module on the dask scheduler and workers.
+
+    The scheduler replays all its worker plugins on each new or restarted worker. Without this cleanup, a long
+    running cluster would keep:
+      - the UploadFile plugins registered by client.upload_file() (one per job, named
+        "<tmpdir>/rs_dpr_service.zip<uuid>") by the previous versions: replayed concurrently, they all write the
+        same rs_dpr_service.zip on the new worker and fail with "EOFError: EOF read where not expected";
+      - the plugins of the previous versions of this module, each one writing a zip on each new worker.
+
+    client.upload_file() also registered a scheduler plugin with the same name, unregistered too.
+
+    Unregistering a plugin doesn't touch the zips already written, so the running tasks of a previous version are
+    not disturbed.
+
+    Args:
+        dask_client: dask client connected to the cluster
+        plugin_name: name of the plugins of the current version, kept
+    """
+    package_name = plugin_name.rsplit("-", maxsplit=1)[0]  # "rs_dpr_service"
+    legacy_name = re.compile(rf"(.*/)?{re.escape(package_name)}\.zip[0-9a-f-]{{36}}")
+    previous_name = re.compile(rf"{re.escape(package_name)}-[0-9a-f]{{16}}")
+
+    def is_stale(name: str) -> bool:
+        return name != plugin_name and bool(legacy_name.fullmatch(name) or previous_name.fullmatch(name))
+
+    def plugin_names(dask_scheduler) -> tuple[list[str], list[str]]:
+        """
+        Return the names of the scheduler and worker plugins (run on the scheduler).
+
+        Local function, so cloudpickle sends it by value: the scheduler may not have this module yet.
+        """
+        return list(dask_scheduler.plugins), list(dask_scheduler.worker_plugins)
+
+    scheduler_names, worker_names = dask_client.run_on_scheduler(plugin_names)
+    for kind, names, unregister in (
+        ("scheduler", scheduler_names, dask_client.unregister_scheduler_plugin),
+        ("worker", worker_names, dask_client.unregister_worker_plugin),
+    ):
+        for name in filter(is_stale, names):
+            logger.debug(f"Unregister the stale {kind} plugin {name!r}")
+            try:
+                unregister(name)
+            except ValueError:
+                # Already unregistered by another job connected to the same cluster
+                pass
 
 
 @dataclass
