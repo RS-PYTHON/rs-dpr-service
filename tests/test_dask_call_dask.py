@@ -393,6 +393,25 @@ def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, conv
     logger_info.assert_any_call("[JOB:job-1] eopf log line", extra={call_dask.EOPF_OUTPUT_LOG_ATTR: True})
 
 
+@pytest.mark.parametrize(
+    "worker_value, expected",
+    [(None, call_dask.CONVERSION_DASK_NUM_WORKERS), ("4", "4")],
+    ids=["default", "set-in-the-worker-env"],
+)
+@pytest.mark.usefixtures("conversion_zip")
+def test_convert_safe_to_zarr_limits_the_subprocess_dask_threads(mocker, monkeypatch, worker_value, expected):
+    """Test convert_safe_to_zarr() runs the dask scheduler of EOPF with a single thread, unless the worker sets it."""
+    popen = _mock_conversion_subprocess(mocker, [], result='{"message": "Conversion finished"}\n')
+    if worker_value is None:
+        monkeypatch.delenv("DASK_NUM_WORKERS", raising=False)
+    else:
+        monkeypatch.setenv("DASK_NUM_WORKERS", worker_value)
+
+    call_dask.convert_safe_to_zarr({"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"})
+
+    assert popen.call_args.kwargs["env"]["DASK_NUM_WORKERS"] == expected
+
+
 def test_convert_safe_to_zarr_raises_when_uploaded_zip_is_missing(monkeypatch, tmp_path):
     """Test convert_safe_to_zarr() fails clearly when the worker zip cannot be found."""
     zip_path = tmp_path / "missing_rs_dpr_service.zip"
