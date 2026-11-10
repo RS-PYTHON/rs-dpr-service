@@ -134,7 +134,8 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         execute_coro.send(None)
     result = exc.value.value
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     s3_fs.ls.assert_called_once_with("/")
     s3_fs.exists.assert_any_call("safe-bucket/product.SAFE")
     s3_fs.exists.assert_any_call("zarr-bucket")

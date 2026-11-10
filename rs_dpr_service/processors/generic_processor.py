@@ -68,7 +68,7 @@ class GenericProcessor(BaseProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable for a given module and class names"""
-        dask_client = self.cluster_handler.setup_dask_connection()
+        dask_client = self.cluster_handler.setup_dask_connection(self.job_logger.job_id)
 
         try:
             # Extract span infos to send to Dask
@@ -169,7 +169,10 @@ class GenericProcessor(BaseProcessor):
             # This call is blocking (connection to the dask gateway, cluster scaling, ...) so run it
             # in a thread, else the event loop is frozen (e.g. the SSE log streams and health checks).
             else:
-                dask_client = await asyncio.to_thread(self.cluster_handler.setup_dask_connection)
+                dask_client = await asyncio.to_thread(
+                    self.cluster_handler.setup_dask_connection,
+                    self.job_logger.job_id,
+                )
         except KeyError as ke:
             return self.job_logger.log_job_execution(
                 JobStatus.failed,
