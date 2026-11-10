@@ -18,9 +18,11 @@ import asyncio  # for handling asynchronous tasks
 import copy
 import os
 import traceback
+from time import sleep
 
 from dask.distributed import (  # LocalCluster,
     Client,
+    secede,
 )
 from opentelemetry import trace
 from opentelemetry.trace.span import Span
@@ -84,6 +86,10 @@ class GenericProcessor(BaseProcessor):
                 data={},  # not used for the tasktables
             )
 
+            logger.info("===== PAUSING THE PROCESS FOR ONE MINUTE, FOR TEMPORARY TEST PURPOSES =====")
+            sleep(60)
+            logger.info("===== RESUMING THE PROCESS AFTER THE PAUSE =====")
+
             # Run processor in the dask client
             task_table_task = dask_client.submit(
                 dpr_processor.get_tasktable,
@@ -91,6 +97,7 @@ class GenericProcessor(BaseProcessor):
                 class_name=self.tasktable_class,
                 pure=False,  # disable cache
             )
+            # secede()
             res = task_table_task.result()
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -237,12 +244,17 @@ class GenericProcessor(BaseProcessor):
                     data=data,
                 )
 
+                logger.info("===== PAUSING THE PROCESS FOR ONE MINUTE, FOR TEMPORARY TEST PURPOSES =====")
+                sleep(60)
+                logger.info("===== RESUMING THE PROCESS AFTER THE PAUSE =====")
+
                 # Nominal usecase: run processor in the dask client
                 if dask_client:
                     dpr_task = dask_client.submit(
                         dpr_processor.run_processor,
                         pure=False,  # disable cache
                     )
+                    # secede()
 
                 # Specific case for local debugging
                 else:
