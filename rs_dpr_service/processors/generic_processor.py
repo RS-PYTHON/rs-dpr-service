@@ -86,10 +86,6 @@ class GenericProcessor(BaseProcessor):
                 data={},  # not used for the tasktables
             )
 
-            logger.info("===== PAUSING THE PROCESS FOR ONE MINUTE, FOR TEMPORARY TEST PURPOSES =====")
-            sleep(60)
-            logger.info("===== RESUMING THE PROCESS AFTER THE PAUSE =====")
-
             # Run processor in the dask client
             task_table_task = dask_client.submit(
                 dpr_processor.get_tasktable,
@@ -243,10 +239,6 @@ class GenericProcessor(BaseProcessor):
                     job_id=self.job_logger.job_id,
                     data=data,
                 )
-
-                logger.info("===== PAUSING THE PROCESS FOR ONE MINUTE, FOR TEMPORARY TEST PURPOSES =====")
-                sleep(60)
-                logger.info("===== RESUMING THE PROCESS AFTER THE PAUSE =====")
 
                 # Nominal usecase: run processor in the dask client
                 if dask_client:
