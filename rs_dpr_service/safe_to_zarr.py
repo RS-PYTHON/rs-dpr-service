@@ -24,15 +24,23 @@ Will run inside EOPF Dask cluster worker
 import json
 import os
 import sys
+import traceback
 
 import eopf  # type: ignore
 from eopf.store.convert import convert  # type: ignore
 
 
 def main():
-    """Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess."""
+    """
+    Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
+
+    Usage: python -m rs_dpr_service.safe_to_zarr '<json_string>' [<result_fd>]
+
+    The conversion result is printed, and also written into the inherited file descriptor <result_fd>
+    (the write end of a pipe) if given, so the caller can read it without parsing the logs.
+    """
     if len(sys.argv) < 2:
-        print("Usage: python safe_to_zarr.py '<json_string>'", file=sys.stderr)
+        print("Usage: python safe_to_zarr.py '<json_string>' [<result_fd>]", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -66,17 +74,20 @@ def main():
             stage_target=True,
         )
 
-        print(
-            json.dumps(
-                {
-                    "message": "Conversion finished",
-                    "eopf_version": eopf.__version__,
-                    "safe_uri": safe_uri,
-                    "zarr_uri": zarr_uri,
-                },
-            ),
+        result = json.dumps(
+            {
+                "message": "Conversion finished",
+                "eopf_version": eopf.__version__,
+                "safe_uri": safe_uri,
+                "zarr_uri": zarr_uri,
+            },
         )
+        print(result)
+        if len(sys.argv) > 2:
+            with os.fdopen(int(sys.argv[2]), "w", encoding="utf-8") as result_file:
+                result_file.write(result)
     except Exception as e:  # pylint: disable=broad-exception-caught
+        traceback.print_exc()
         print(f"Conversion failed safe_to_zarr: {e}", file=sys.stderr)
         sys.exit(1)
 

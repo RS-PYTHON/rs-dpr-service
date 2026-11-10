@@ -25,6 +25,7 @@ from pygeoapi.process.manager.postgresql import (
 from pygeoapi.util import JobStatus
 
 from rs_dpr_service.dask.call_dask import S3_ENV_VARS, ClusterInfo, convert_safe_to_zarr
+from rs_dpr_service.dask.worker_diagnostics import explain_task_failure
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 from rs_dpr_service.utils.logging import Logging
 
@@ -146,14 +147,18 @@ class ConversionProcessor(GenericProcessor):
             }
             # The dask worker environment doesn't contain the S3 bucket credentials: pass ours
             s3_env = {key: os.environ[key] for key in S3_ENV_VARS}
-            future = dask_client.submit(convert_safe_to_zarr, cfg, s3_env)
+            future = dask_client.submit(convert_safe_to_zarr, cfg, s3_env, self.job_logger.job_id)
             self.job_logger.log_job_execution(JobStatus.running, 50, "Conversion job submitted to cluster")
 
             # wait for result
             res = future.result()
             self.job_logger.log_job_execution(JobStatus.successful, 100, res)
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.error(f"Conversion failed: {e}")
-            self.job_logger.log_job_execution(JobStatus.failed, None, f"Conversion failed: {e}")
+            # The conversion subprocess error already starts with "Conversion failed:"
+            msg = str(e) if str(e).startswith("Conversion failed") else f"Conversion failed: {e}"
+            if diagnostic := explain_task_failure(dask_client, e):
+                msg += f"\n{diagnostic}"
+            logger.error(msg)
+            self.job_logger.log_job_execution(JobStatus.failed, None, msg)
         finally:
             dask_client.close()
