@@ -54,17 +54,95 @@
             ],
             "output_products": [
                 {
-                    "name": "S03ISPS",
+                    "name": "S03HKML0",
                     "mode": "always",
                     "mandatory": true,
-                    "regex": "^(?!cache).*"
+                    "regex": "^S03HKML0_.*"
+                },
+                {
+                    "name": "S03HKM2L0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03HKM2L0($|_.*)"
+                },
+                {
+                    "name": "S03HKMRAW",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03HKMRAW($|_.*)"
+                },
+                {
+                    "name": "S03NATL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03NATL0_.*"
+                },
+                {
+                    "name": "S03OLCL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03OLCL0_.*"
+                },
+                {
+                    "name": "S03SLSL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03SLSL0_.*"
+                },
+                {
+                    "name": "S03SRAL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03SRAL0_.*"
+                },
+                {
+                    "name": "S03SRAL0C",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "S03SRAL0C($|_.*)"
+                },
+                {
+                    "name": "S03MWRL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03MWRL0_.*"
+                },
+                {
+                    "name": "S03GNSL0",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03GNSL0_.*"
+                },
+                {
+                    "name": "S03DORNAV",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03DORNAV($|_.*)"
+                },
+                {
+                    "name": "S03DORDOP",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": "^S03DORDOP($|_.*)"
+                },
+                {
+                    "name": "S03OLCCR0",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S03OLCCR0($|_.*)"
+                },
+                {
+                    "name": "S03OLCCR1",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^S03OLCCR1($|_.*)"
                 },
                 {
                     "name": "S03CACHE",
                     "mode": "always",
                     "final_product": false,
                     "mandatory": true,
-                    "regex": "cache.*"
+                    "regex": "^cache_S03.*"
                 }
             ]
         }
@@ -125,7 +203,111 @@
         ],
         "output": [
             {
-                "name": "S03ISPS",
+                "name": "S03HKM2L0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03HKML0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03HKMRAW",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03NATL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03OLCL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03SLSL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03SRAL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03SRAL0C",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03MWRL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03GNSL0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03DORNAV",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03DORDOP",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03OLCCR0",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
+            },
+            {
+                "name": "S03OLCCR1",
                 "type": "folder",
                 "engine": "cpm_zarr",
                 "writer_params": {
@@ -232,7 +414,20 @@
                         "S3ACADUS": "pipeline_input"
                     },
                     "output_products": {
-                        "S03ISPS": "pipeline_output",
+                        "S03HKM2L0": "pipeline_output",
+                        "S03HKML0": "pipeline_output",
+                        "S03HKMRAW": "pipeline_output",
+                        "S03NATL0": "pipeline_output",
+                        "S03OLCL0": "pipeline_output",
+                        "S03SLSL0": "pipeline_output",
+                        "S03SRAL0": "pipeline_output",
+                        "S03SRAL0C": "pipeline_output",
+                        "S03MWRL0": "pipeline_output",
+                        "S03GNSL0": "pipeline_output",
+                        "S03DORNAV": "pipeline_output",
+                        "S03DORDOP": "pipeline_output",
+                        "S03OLCCR0": "pipeline_output",
+                        "S03OLCCR1": "pipeline_output",
                         "S03CACHE": "pipeline_internal"
                     },
                     "parameters": {
