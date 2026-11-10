@@ -14,6 +14,7 @@
 
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
+import ast
 import asyncio
 import base64
 import importlib
@@ -22,6 +23,7 @@ import json
 import os
 import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
 import re
+import subprocess  # nosec B404 # only used to run this python interpreter in isolated mode
 import sys
 import types
 import zipfile
@@ -115,6 +117,98 @@ def test_build_module_zip_is_deterministic():
         assert "rs_dpr_service/dask/call_dask.py" in zipped.namelist()
         assert "rs_dpr_service/safe_to_zarr.py" in zipped.namelist()
         assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
+
+
+def _imported_project_modules(source: str, package_name: str, root: Path) -> set[str]:
+    """
+    Return the project modules imported by a source file, including the imports inside functions.
+
+    For 'from package.module import name', name is included when it is a submodule.
+    """
+    modules: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names = [node.module]
+            names += [
+                f"{node.module}.{alias.name}"
+                for alias in node.names
+                if (root.parent / f"{node.module}.{alias.name}".replace(".", "/")).with_suffix(".py").is_file()
+                or (root.parent / f"{node.module}.{alias.name}".replace(".", "/") / "__init__.py").is_file()
+            ]
+        else:
+            continue
+        modules.update(name for name in names if name == package_name or name.startswith(f"{package_name}."))
+    return modules
+
+
+def test_module_zip_contains_all_the_imported_project_modules():
+    """
+    Test the modules uploaded to the dask cluster only import project modules that are uploaded too.
+
+    The dask scheduler and workers don't have rs_dpr_service installed: they only have the modules of the
+    uploaded zip. Importing another project module (e.g. a module used only on the rs-dpr-service side) from the
+    uploaded code would fail there with "No module named ...". Add it to _UPLOADED_FILES if it is really needed.
+    """
+    root = Path(call_dask.__file__).parent.parent
+    package_name = root.name
+    uploaded = set(call_dask._uploaded_module_names(package_name))  # pylint: disable=protected-access
+
+    for relative_path in call_dask._UPLOADED_FILES:  # pylint: disable=protected-access
+        imported = _imported_project_modules((root / relative_path).read_text(encoding="utf-8"), package_name, root)
+        # The parent packages are imported too
+        imported |= {".".join(name.split(".")[:i]) for name in imported for i in range(1, name.count(".") + 1)}
+        missing = imported - uploaded
+        assert not missing, f"{relative_path} imports modules missing from the zip uploaded to dask: {missing}"
+
+
+def test_module_zip_is_importable_alone(tmp_path):
+    """
+    Test all the uploaded modules can be imported from the uploaded zip alone, as on the dask cluster.
+
+    Run in an isolated interpreter (-I) where the project sources are removed from sys.path, even if the
+    project is installed in editable mode. Only the worker-only dependencies (eopf) are faked.
+    """
+    zip_filename, data = call_dask.build_module_zip()
+    zip_path = tmp_path / zip_filename
+    zip_path.write_bytes(data)
+    root = Path(call_dask.__file__).parent.parent
+    modules = call_dask._uploaded_module_names(root.name)  # pylint: disable=protected-access
+
+    code = f"""
+import importlib, os, sys, types
+project_dir = {str(root.parent.resolve())!r}
+sys.path = [{str(zip_path)!r}] + [p for p in sys.path if os.path.realpath(p or ".") != project_dir]
+
+# Worker-only dependencies, not installed in the rs-dpr-service environment
+eopf = types.ModuleType("eopf")
+eopf.__version__ = "0"
+sys.modules.update(
+    {{
+        "eopf": eopf,
+        "eopf.store": types.ModuleType("eopf.store"),
+        "eopf.store.convert": types.SimpleNamespace(convert=None),
+    }},
+)
+
+for name in {modules!r}:
+    importlib.import_module(name)
+outside = sorted(
+    name
+    for name, module in sys.modules.items()
+    if name.split(".")[0] == {root.name!r} and {str(zip_path)!r} not in (getattr(module, "__file__", "") or "")
+)
+assert not outside, f"modules not imported from the zip: {{outside}}"
+"""
+    result = subprocess.run(  # nosec B603 # runs this python interpreter on code written by this test
+        [sys.executable, "-I", "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_upload_this_module_registers_idempotent_plugins(mocker):
