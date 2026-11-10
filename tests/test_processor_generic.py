@@ -20,6 +20,7 @@ import types
 from contextlib import contextmanager
 
 import pytest
+from distributed import KilledWorker
 from pygeoapi.util import JobStatus
 
 from rs_dpr_service.processors.generic_processor import GenericProcessor
@@ -461,6 +462,44 @@ def test_manage_dask_tasks_marks_job_failed_when_dask_task_result_raises(mocker)
     assert "Processing task failed:" in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
 
 
+def test_manage_dask_tasks_explains_the_dead_dask_workers(mocker):
+    """Test manage_dask_tasks() appends the diagnostic of the dead dask workers to the job error message."""
+    fake_s3fs = types.ModuleType("s3fs")
+    setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
+    mocker.patch.dict(sys.modules, {"s3fs": fake_s3fs})
+
+    @contextmanager
+    def fake_span():
+        span = mocker.Mock()
+        span.get_span_context.return_value = mocker.Mock()
+        yield span
+
+    db_process_manager = mocker.Mock()
+    processor = GenericProcessor(db_process_manager=db_process_manager, cluster_info=get_cluster_info())
+
+    error = KilledWorker(task="run_processor-123", last_worker=mocker.Mock(), allowed_failures=3)
+    dask_client = mocker.Mock()
+    dask_client.submit.return_value.result.side_effect = error
+    explain = mocker.patch(
+        "rs_dpr_service.processors.generic_processor.explain_task_failure",
+        return_value="Diagnostic of the dask workers...",
+    )
+    mocker.patch("rs_dpr_service.processors.generic_processor.record_error")
+    mocker.patch(
+        "rs_dpr_service.processors.generic_processor.start_span",
+        side_effect=lambda *args, **kwargs: fake_span(),
+    )
+    mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
+
+    processor.manage_dask_tasks(dask_client, {"input": "value"})
+
+    explain.assert_called_once_with(dask_client, error)
+    message = db_process_manager.update_job.call_args_list[-1].args[1]["message"]
+    assert message.startswith("Processing task failed:")
+    assert "KilledWorker" in message
+    assert message.endswith("\nDiagnostic of the dask workers...")
+
+
 def test_manage_dask_tasks_reraises_when_local_run_processor_raises_without_dask_client(mocker):
     """Test manage_dask_tasks() when local execution raises without a Dask client."""
     fake_s3fs = types.ModuleType("s3fs")
@@ -607,10 +646,18 @@ def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
         return_value=dask_client,
     )
 
+    explain = mocker.patch(
+        "rs_dpr_service.processors.generic_processor.explain_task_failure",
+        return_value="Diagnostic of the dask workers...",
+    )
+
     with pytest.raises(RuntimeError, match="tasktable boom"):
         asyncio.run(processor.get_tasktable())
 
     setup_dask_connection.assert_called_once_with()
     dask_client.submit.assert_called_once()
     logger_exception.assert_called_once()
+    # The diagnostic of the dead dask workers, if any, is logged with the error
+    explain.assert_called_once_with(dask_client, future.result.side_effect)
+    assert logger_exception.call_args.args[0].endswith("\nDiagnostic of the dask workers...")
     dask_client.close.assert_called_once_with()

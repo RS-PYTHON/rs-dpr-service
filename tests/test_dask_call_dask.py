@@ -241,19 +241,38 @@ def test_module_install_plugins(monkeypatch, tmp_path, plugin_kind):
     assert sys.path.count(str(zip_path)) == 1
 
 
-def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_path):
-    """Test convert_safe_to_zarr() calls the safe_to_zarr module from the uploaded worker zip."""
+@pytest.fixture(name="conversion_zip")
+def fixture_conversion_zip(monkeypatch, tmp_path):
+    """Fake the uploaded worker zip that convert_safe_to_zarr() derives from call_dask.__file__."""
     zip_path = tmp_path / "rs_dpr_service.zip"
     zip_path.write_text("fake zip content", encoding="utf-8")
-    # convert_safe_to_zarr() derives the uploaded zip path from call_dask.__file__ inside the worker.
     monkeypatch.setattr(
         call_dask,
         "__file__",
         str(zip_path / "rs_dpr_service" / "dask" / "call_dask.py"),
     )
+    return zip_path
 
-    completed = SimpleNamespace(returncode=0, stdout="converted\n", stderr="")
-    subprocess_run = mocker.patch("rs_dpr_service.dask.call_dask.subprocess.run", return_value=completed)
+
+def _mock_conversion_subprocess(mocker, lines: list[str], returncode: int = 0, result: str | None = None):
+    """Mock the conversion subprocess: it outputs the given lines, writes the result pipe, exits with returncode."""
+    fake_proc = _fake_subprocess(mocker, lines, returncode)
+
+    def popen(cmd, **kwargs):
+        # The result is written into the inherited write end of the result pipe
+        assert kwargs["pass_fds"] == (int(cmd[4]),)
+        if result is not None:
+            os.write(int(cmd[4]), result.encode())
+        return fake_proc
+
+    mocker.patch("rs_dpr_service.dask.call_dask.log_worker_resources")
+    return mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", side_effect=popen)
+
+
+def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, conversion_zip):
+    """Test convert_safe_to_zarr() calls the safe_to_zarr module from the uploaded worker zip."""
+    popen = _mock_conversion_subprocess(mocker, ["eopf log line\n"], result='{"message": "Conversion finished"}\n')
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
 
     # The S3 credentials are not in the dask worker environment
@@ -261,18 +280,21 @@ def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_
         monkeypatch.delenv(key, raising=False)
     s3_env = {key: f"{key.lower()}-value" for key in call_dask.S3_ENV_VARS}
 
-    result = call_dask.convert_safe_to_zarr(cfg, s3_env)
+    result = call_dask.convert_safe_to_zarr(cfg, s3_env, "job-1")
 
-    assert result == "converted"
-    subprocess_run.assert_called_once()
-    command = subprocess_run.call_args.args[0]
-    env = subprocess_run.call_args.kwargs["env"]
+    # The result is read from the result pipe, not from the subprocess output
+    assert result == '{"message": "Conversion finished"}'
+    popen.assert_called_once()
+    command = popen.call_args.args[0]
+    env = popen.call_args.kwargs["env"]
     assert command[:3] == [call_dask.sys.executable, "-m", "rs_dpr_service.safe_to_zarr"]
     assert json.loads(command[3]) == cfg
-    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(zip_path)
+    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(conversion_zip)
     # The S3 credentials of the calling service are passed to the conversion subprocess
     assert {key: env[key] for key in call_dask.S3_ENV_VARS} == s3_env
-    assert subprocess_run.call_args.kwargs["check"] is False
+    # The output (stdout and stderr) is forwarded live to the job log stream
+    assert popen.call_args.kwargs["stderr"] == call_dask.subprocess.STDOUT
+    logger_info.assert_any_call("[JOB:job-1] eopf log line", extra={call_dask.EOPF_OUTPUT_LOG_ATTR: True})
 
 
 def test_convert_safe_to_zarr_raises_when_uploaded_zip_is_missing(monkeypatch, tmp_path):
@@ -289,22 +311,39 @@ def test_convert_safe_to_zarr_raises_when_uploaded_zip_is_missing(monkeypatch, t
         call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
 
 
-def test_convert_safe_to_zarr_raises_when_subprocess_fails(mocker, monkeypatch, tmp_path):
-    """Test convert_safe_to_zarr() raises the subprocess stderr on conversion failure."""
-    zip_path = tmp_path / "rs_dpr_service.zip"
-    zip_path.write_text("fake zip content", encoding="utf-8")
-    # Keep the zip discovery branch successful, then force the conversion subprocess to fail.
-    monkeypatch.setattr(
-        call_dask,
-        "__file__",
-        str(zip_path / "rs_dpr_service" / "dask" / "call_dask.py"),
+@pytest.mark.parametrize(
+    "returncode, expected",
+    [
+        (1, "Conversion failed: exit code 1. Last 2 output lines:\nTraceback...\nConversion failed safe_to_zarr: boom"),
+        (
+            -9,
+            "Conversion failed: killed by SIGKILL (exit code -9): probably out of memory",
+        ),
+    ],
+)
+def test_convert_safe_to_zarr_raises_when_subprocess_fails(mocker, conversion_zip, returncode, expected):
+    """Test convert_safe_to_zarr() explains the exit code and repeats the last output lines on failure."""
+    assert conversion_zip.is_file()
+    _mock_conversion_subprocess(
+        mocker,
+        ["Traceback...\n", "Conversion failed safe_to_zarr: boom\n"],
+        returncode=returncode,
     )
-    mocker.patch(
-        "rs_dpr_service.dask.call_dask.subprocess.run",
-        return_value=SimpleNamespace(returncode=1, stdout="", stderr="conversion failed"),
-    )
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
 
-    with pytest.raises(RuntimeError, match="Conversion failed: conversion failed"):
+    with pytest.raises(RuntimeError) as error:
+        call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
+    assert str(error.value).startswith(expected)
+    assert str(error.value).endswith("Conversion failed safe_to_zarr: boom")
+
+
+def test_convert_safe_to_zarr_raises_when_no_result_is_written(mocker, conversion_zip):
+    """Test convert_safe_to_zarr() fails when the subprocess succeeds without writing its result."""
+    assert conversion_zip.is_file()
+    _mock_conversion_subprocess(mocker, [], returncode=0, result=None)
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    with pytest.raises(RuntimeError, match="Conversion failed: no result written. No output."):
         call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
 
 
@@ -772,7 +811,7 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
     launch_subprocess.assert_not_called()
 
 
-# ---- _launch_eopf_subprocess / _flush_log_batch ----
+# ---- _launch_eopf_subprocess / forward_subprocess_output / _flush_log_batch ----
 
 
 def _fake_subprocess(mocker, lines: list[str], returncode: int = 0):
@@ -807,7 +846,7 @@ def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainde
     caller = _make_processor_caller(mocker)
     caller.log_path = str(tmp_path / "eopf.log")
     caller.working_dir = str(tmp_path)
-    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+    batch_size = call_dask.LOG_BATCH_SIZE
 
     # One full batch, plus a partial remainder, plus a blank line that must be skipped entirely.
     body_lines = [f"line {i}\n" for i in range(batch_size)] + ["last line\n", "\n"]
@@ -896,38 +935,34 @@ def test_launch_eopf_subprocess_flushes_a_partial_batch_after_an_idle_period(moc
 
 def test_should_flush_log_batch_returns_false_for_an_empty_batch(mocker):
     """Test _should_flush_log_batch() never flushes an empty batch, even long after the interval."""
-    caller = _make_processor_caller(mocker)
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=1000.0)
 
-    assert not caller._should_flush_log_batch([], last_flush=0.0)  # pylint: disable=protected-access
+    assert not call_dask._should_flush_log_batch([], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_true_when_the_batch_is_full(mocker):
     """Test _should_flush_log_batch() flushes as soon as the batch reaches its size limit."""
-    caller = _make_processor_caller(mocker)
-    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+    batch_size = call_dask.LOG_BATCH_SIZE
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=0.0)
     full_batch = ["line"] * batch_size
 
-    assert caller._should_flush_log_batch(full_batch, last_flush=0.0)  # pylint: disable=protected-access
+    assert call_dask._should_flush_log_batch(full_batch, last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_false_before_the_interval_elapses(mocker):
     """Test _should_flush_log_batch() waits for the interval before flushing a partial batch."""
-    caller = _make_processor_caller(mocker)
-    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    interval = call_dask.LOG_BATCH_INTERVAL_SECONDS
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval - 0.1)
 
-    assert not caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+    assert not call_dask._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_true_after_the_interval_elapses(mocker):
     """Test _should_flush_log_batch() flushes a partial batch once it has been idle long enough."""
-    caller = _make_processor_caller(mocker)
-    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    interval = call_dask.LOG_BATCH_INTERVAL_SECONDS
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval)
 
-    assert caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+    assert call_dask._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_launch_eopf_subprocess_raises_and_skips_final_message_on_nonzero_status(mocker, monkeypatch, tmp_path):
@@ -942,17 +977,139 @@ def test_launch_eopf_subprocess_raises_and_skips_final_message_on_nonzero_status
     monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
     span = mocker.Mock()
 
-    with pytest.raises(RuntimeError, match="EOPF error, status code 1"):
+    # The error message repeats the last output lines, so the job status alone tells what went wrong
+    with pytest.raises(RuntimeError, match="EOPF error, exit code 1, please see the log. Last 1 output lines:\nboom"):
         caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+
+
+@pytest.mark.parametrize(
+    "cancelled, expected",
+    [
+        (False, "EOPF error, killed by SIGKILL (exit code -9): probably out of memory"),
+        (True, "EOPF error, cancelled by the user, please see the log."),
+    ],
+)
+def test_launch_eopf_subprocess_explains_a_killed_subprocess(mocker, monkeypatch, tmp_path, cancelled, expected):
+    """Test _launch_eopf_subprocess explains a subprocess killed by a signal, except on a job cancellation."""
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+    caller.cancelled = cancelled
+    fake_proc = _fake_subprocess(mocker, ["processing...\n"], returncode=-9)
+
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+
+    span = mocker.Mock()
+
+    with pytest.raises(RuntimeError) as error:
+        caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+    assert str(error.value).startswith(expected)
+    assert str(error.value).endswith("Last 1 output lines:\nprocessing...")
+
+
+def test_forward_subprocess_output_returns_the_last_lines(mocker):
+    """Test forward_subprocess_output() returns only the LOG_TAIL_SIZE last non-empty lines."""
+    lines = [f"line {i}\n" for i in range(call_dask.LOG_TAIL_SIZE + 5)] + ["\n"]
+    fake_proc = _fake_subprocess(mocker, lines)
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    tail = call_dask.forward_subprocess_output(fake_proc, "job-1")
+
+    assert list(tail) == [f"line {i}" for i in range(5, call_dask.LOG_TAIL_SIZE + 5)]
+
+
+@pytest.mark.parametrize(
+    "returncode, expected",
+    [
+        (1, "exit code 1"),
+        (-9, "killed by SIGKILL (exit code -9): probably out of memory"),
+        (137, "killed by SIGKILL (exit code 137): probably out of memory"),
+        (-15, "killed by SIGTERM (exit code -15): terminated from outside"),
+        (-11, "killed by SIGSEGV (exit code -11): segmentation fault"),
+        (-2, "killed by SIGINT (exit code -2)"),
+        (-100, "killed by signal 100 (exit code -100)"),
+    ],
+)
+def test_describe_exit_code(returncode, expected):
+    """Test describe_exit_code() explains the subprocess deaths by signal."""
+    assert call_dask.describe_exit_code(returncode).startswith(expected)
+
+
+def test_format_output_tail():
+    """Test format_output_tail() formats the last output lines appended to the error messages."""
+    assert call_dask.format_output_tail([]) == " No output."
+    assert call_dask.format_output_tail(["a", "b"]) == " Last 2 output lines:\na\nb"
+
+
+@pytest.mark.parametrize(
+    "files, expected",
+    [
+        ({"memory.max": "8589934592\n"}, 8589934592),
+        ({"memory.max": "max\n"}, None),
+        ({"memory.limit_in_bytes": "4294967296\n"}, 4294967296),
+        ({"memory.limit_in_bytes": "9223372036854771712\n"}, None),  # cgroup v1 "no limit"
+        ({"memory.max": "invalid\n"}, None),
+        ({}, None),
+    ],
+)
+def test_get_memory_limit_reads_the_cgroup_files(monkeypatch, tmp_path, files, expected):
+    """Test get_memory_limit() reads the cgroup v2, then v1, memory limit."""
+    for name, value in files.items():
+        (tmp_path / name).write_text(value, encoding="utf-8")
+    monkeypatch.setattr(
+        call_dask,
+        "CGROUP_MEMORY_LIMIT_FILES",
+        (str(tmp_path / "memory.max"), str(tmp_path / "memory.limit_in_bytes")),
+    )
+
+    assert call_dask.get_memory_limit() == expected
+
+
+def test_log_worker_resources_logs_memory_and_disk(mocker, tmp_path):
+    """Test log_worker_resources() logs the worker memory limit and free disk space."""
+    mocker.patch("rs_dpr_service.dask.call_dask.get_memory_limit", return_value=8 * 1024**3)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="10.0.0.1")
+    mocker.patch(
+        "rs_dpr_service.dask.call_dask.shutil.disk_usage",
+        return_value=SimpleNamespace(free=20 * 1024**3, total=100 * 1024**3),
+    )
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    call_dask.log_worker_resources("job-1", str(tmp_path))
+
+    logger_info.assert_called_once_with(
+        f"[JOB:job-1] Dask worker '10.0.0.1' resources: container memory limit: 8.0 GiB, "
+        f"free disk space in {str(tmp_path)!r}: 20.0 GiB / 100.0 GiB",
+    )
+
+
+def test_log_worker_resources_never_fails(mocker, tmp_path):
+    """Test log_worker_resources() only logs a debug message when the resources cannot be read."""
+    mocker.patch("rs_dpr_service.dask.call_dask.get_memory_limit", return_value=None)
+    mocker.patch("rs_dpr_service.dask.call_dask.shutil.disk_usage", side_effect=OSError("no disk"))
+    logger_debug = mocker.patch("rs_dpr_service.dask.call_dask.logger.debug")
+
+    call_dask.log_worker_resources("job-1", str(tmp_path))
+
+    logger_debug.assert_called_once_with("[JOB:job-1] Cannot read the dask worker resources: no disk")
+
+
+def test_format_bytes():
+    """Test format_bytes() returns human readable sizes."""
+    assert call_dask.format_bytes(512) == "512.0 B"
+    assert call_dask.format_bytes(1536) == "1.5 KiB"
+    assert call_dask.format_bytes(9160613174) == "8.5 GiB"
+    assert call_dask.format_bytes(3 * 1024**4) == "3.0 TiB"
 
 
 def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
     """Test _flush_log_batch() emits one logger call for the whole batch, then empties it."""
-    caller = _make_processor_caller(mocker)
     logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
     batch = ["first line", "second line"]
 
-    caller._flush_log_batch(batch)  # pylint: disable=protected-access
+    call_dask._flush_log_batch("job-1", batch)  # pylint: disable=protected-access
 
     logger_info.assert_called_once_with(
         "[JOB:job-1] first line\nsecond line",
@@ -963,10 +1120,9 @@ def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
 
 def test_flush_log_batch_does_nothing_for_an_empty_batch(mocker):
     """Test _flush_log_batch() is a no-op when there is nothing buffered."""
-    caller = _make_processor_caller(mocker)
     logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
 
-    caller._flush_log_batch([])  # pylint: disable=protected-access
+    call_dask._flush_log_batch("job-1", [])  # pylint: disable=protected-access
 
     logger_info.assert_not_called()
 

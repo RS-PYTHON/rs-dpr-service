@@ -27,14 +27,18 @@ import os.path as osp
 import re
 import select
 import shutil
+import signal
 import socket
 import subprocess
 import sys
+import tempfile
 import threading
 import time
 import traceback
 import uuid
 import zipfile
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
@@ -68,6 +72,176 @@ logger.setLevel(logging.DEBUG)
 
 # Env vars of the S3 bucket credentials, used by the SAFE to Zarr conversion
 S3_ENV_VARS = ("S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION")
+
+# Number of subprocess output lines merged into a single forwarded log record, and the
+# max time a buffered line waits before being flushed anyway.
+LOG_BATCH_SIZE = 50
+LOG_BATCH_INTERVAL_SECONDS = 1
+
+# Number of last subprocess output lines repeated in the error message when the subprocess fails
+LOG_TAIL_SIZE = 20
+
+# cgroup files with the memory limit of the container (cgroup v2, then v1)
+CGROUP_MEMORY_LIMIT_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+
+# Above this value, a cgroup v1 memory limit means "no limit"
+_CGROUP_V1_NO_LIMIT = 2**60
+
+
+def format_bytes(size: float) -> str:
+    """Return a human readable size, e.g. '8.0 GiB'"""
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TiB"
+
+
+def describe_exit_code(returncode: int) -> str:
+    """
+    Describe a subprocess exit code, with the probable cause when the subprocess was killed by a signal.
+
+    Args:
+        returncode: subprocess return code. Negative when killed by a signal (subprocess convention),
+            or 128 + the signal number when killed under a shell.
+    """
+    if returncode < 0:
+        signum = -returncode
+    elif 128 < returncode < 128 + signal.NSIG:
+        signum = returncode - 128
+    else:
+        return f"exit code {returncode}"
+
+    try:
+        name = signal.Signals(signum).name
+    except ValueError:
+        name = f"signal {signum}"
+    description = f"killed by {name} (exit code {returncode})"
+    if signum == signal.SIGKILL:
+        description += (
+            ": probably out of memory (killed by the Linux OOM killer when the dask worker pod exceeds its memory "
+            "limit), or forced termination"
+        )
+    elif signum == signal.SIGTERM:
+        description += ": terminated from outside, e.g. the dask worker pod was evicted or deleted"
+    elif signum == signal.SIGSEGV:
+        description += ": segmentation fault, crash in native code"
+    return description
+
+
+def get_memory_limit() -> int | None:
+    """Return the memory limit in bytes of the container from its cgroup, or None if no limit or unknown."""
+    for path in CGROUP_MEMORY_LIMIT_FILES:
+        try:
+            value = Path(path).read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if value == "max":
+            return None
+        try:
+            limit = int(value)
+        except ValueError:
+            continue
+        return limit if limit < _CGROUP_V1_NO_LIMIT else None
+    return None
+
+
+def log_worker_resources(job_id: str, directory: str):
+    """
+    Log the memory limit and free disk space of the dask worker, to help diagnose the worker deaths.
+
+    Args:
+        job_id: job id
+        directory: working directory, on the disk where the processing writes its local files
+    """
+    try:
+        memory_limit = get_memory_limit()
+        memory = format_bytes(memory_limit) if memory_limit else "no limit"
+        disk = shutil.disk_usage(directory)
+        logger.info(
+            f"[JOB:{job_id}] Dask worker {get_ip_address()!r} resources: container memory limit: {memory}, "
+            f"free disk space in {directory!r}: {format_bytes(disk.free)} / {format_bytes(disk.total)}",
+        )
+    except Exception as exception:  # pylint: disable=broad-exception-caught
+        logger.debug(f"[JOB:{job_id}] Cannot read the dask worker resources: {exception}")
+
+
+def _should_flush_log_batch(batch: list[str], last_flush: float) -> bool:
+    """Return True if the buffered batch is full, or non-empty and waiting long enough."""
+    if not batch:
+        return False
+    if len(batch) >= LOG_BATCH_SIZE:
+        return True
+    return (time.monotonic() - last_flush) >= LOG_BATCH_INTERVAL_SECONDS
+
+
+def _flush_log_batch(job_id: str, batch: list[str]) -> None:
+    """Log buffered subprocess output lines as a single record, then clear the buffer."""
+    if batch:
+        joined = "\n".join(batch)
+        # The EOPF lines already have their own "date - logger - LEVEL - " prefix: flag the record
+        # so the rs-dpr-service log stream sends them as they are.
+        logger.info(f"[JOB:{job_id}] {joined}", extra={EOPF_OUTPUT_LOG_ATTR: True})
+        batch.clear()
+
+
+def forward_subprocess_output(
+    proc: subprocess.Popen,
+    job_id: str,
+    on_line: Callable[[str], str] | None = None,
+) -> deque[str]:
+    """
+    Forward the subprocess output (proc.stdout, in text mode) to the job log stream, live.
+
+    The lines are forwarded by batches: one dask log record per line floods the rs-dpr-service caller
+    (Client.forward_logging() re-processes every record live). The lines forwarded before a dask worker
+    death are already on the caller side, so they are not lost.
+
+    Args:
+        proc: running subprocess
+        job_id: job id
+        on_line: called for each raw output line (with its line ending), returns the line to forward
+
+    Returns:
+        The last LOG_TAIL_SIZE non-empty forwarded lines.
+    """
+    tail: deque[str] = deque(maxlen=LOG_TAIL_SIZE)
+
+    # Use select() so we can periodically check whether the buffered batch is due for a time-based flush,
+    # even while no new line has arrived yet (readline() alone would block for as long as the processor
+    # stays quiet, which could delay a partial batch by a very long time).
+    batch: list[str] = []
+    last_flush = time.monotonic()
+    while proc.stdout:
+        ready, _, _ = select.select([proc.stdout], [], [], LOG_BATCH_INTERVAL_SECONDS)
+        if ready:
+            line = proc.stdout.readline()
+            if line == "":
+                break
+            if on_line:
+                line = on_line(line)
+
+            # Buffer non-empty lines
+            line = line.rstrip()
+            if line:
+                batch.append(line)
+                tail.append(line)
+
+        # Flush once the batch is full, or once it's been waiting long enough
+        if _should_flush_log_batch(batch, last_flush):
+            _flush_log_batch(job_id, batch)
+            last_flush = time.monotonic()
+
+    # Flush the remaining buffered lines, if any
+    _flush_log_batch(job_id, batch)
+    return tail
+
+
+def format_output_tail(tail: deque[str] | list[str]) -> str:
+    """Return the last subprocess output lines to append to an error message."""
+    if not tail:
+        return " No output."
+    return f" Last {len(tail)} output lines:\n" + "\n".join(tail)
 
 
 def get_ip_address() -> str:
@@ -316,16 +490,18 @@ class ClusterInfo:
     cluster_instance: str | None = ""
 
 
-def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None):
+def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None, job_id: str = ""):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
 
     This runs the rs_dpr_service.safe_to_zarr module as a subprocess, passing config as JSON string.
+    Its output is forwarded live to the job log stream.
 
     Args:
         cfg: conversion configuration
         s3_env: S3 bucket credentials env vars (see S3_ENV_VARS) from the calling service, passed to the
             subprocess because they are not set in the dask worker environment.
+        job_id: job id, to forward the subprocess output to the job log stream
     """
 
     # Serialize the config
@@ -343,19 +519,40 @@ def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None):
     # prepend the zip onto PYTHONPATH (so zipimport will kick in)
     env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
 
-    # Run the converter as a module
-    cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str]
-    result = subprocess.run(
-        cmd,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # The SAFE is staged in the temporary directory
+    log_worker_resources(job_id, tempfile.gettempdir())
 
-    if result.returncode != 0:
-        raise RuntimeError(f"Conversion failed: {result.stderr.strip()}")
-    return result.stdout.strip()
+    # The subprocess writes its result into this pipe, its output contains the logs.
+    # NOTE: the result is read once the subprocess has finished: it must be smaller than the pipe buffer (64 KiB).
+    result_read, result_write = os.pipe()
+    with os.fdopen(result_read, encoding="utf-8") as result_file:
+        try:
+            # Run the converter as a module
+            cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str, str(result_write)]
+            logger.info(f"[JOB:{job_id}] Start the SAFE to Zarr conversion of {cfg.get('safe_uri')!r}")
+            with subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                pass_fds=(result_write,),
+            ) as proc:
+                # Close our copy of the write end, so the read returns at the subprocess exit
+                os.close(result_write)
+                result_write = -1
+                tail = forward_subprocess_output(proc, job_id)
+                returncode = proc.wait()
+        finally:
+            if result_write >= 0:
+                os.close(result_write)
+
+        if returncode != 0:
+            raise RuntimeError(f"Conversion failed: {describe_exit_code(returncode)}.{format_output_tail(tail)}")
+        result = result_file.read().strip()
+    if not result:
+        raise RuntimeError(f"Conversion failed: no result written.{format_output_tail(tail)}")
+    return result
 
 
 class ProcessorCaller:
@@ -364,11 +561,6 @@ class ProcessorCaller:
 
     NOTE: All methods except __init__ are run from the dask pod.
     """
-
-    # Number of subprocess output lines merged into a single forwarded log record, and the
-    # max time a buffered line waits before being flushed anyway.
-    _LOG_BATCH_SIZE = 50
-    _LOG_BATCH_INTERVAL_SECONDS = 1
 
     def __init__(
         self,
@@ -401,6 +593,7 @@ class ProcessorCaller:
             working_dir: Working directory on local disk
             to_be_uploaded: Output products to be uploaded to the s3 bucket at the end of the processor
             exec_times: Execution times with their description
+            cancelled: True when the EOPF subprocess is terminated by a job cancellation
         """
         # NOTE: some imports exists in the dask worker environment, not in the rs-dpr-service env,
         # so we cannot import them from the top of this module.
@@ -426,6 +619,7 @@ class ProcessorCaller:
         self.working_dir: str = ""
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
+        self.cancelled: bool = False  # True when the EOPF subprocess is terminated by a job cancellation
 
     def copy_caller_env(self):
         """
@@ -550,6 +744,7 @@ class ProcessorCaller:
                     f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
                 )
                 self.init()
+                log_worker_resources(self.job_id, self.working_dir)
 
                 start_time = time.time()
                 self.trigger()
@@ -966,6 +1161,7 @@ class ProcessorCaller:
             if proc.returncode is not None:
                 return
 
+            self.cancelled = True
             msg = f"\nForce termination of EOPF job: {self.job_id!r}\n"
             log_file.write(msg)
             logger.warning(f"[JOB:{self.job_id}] {msg}")
@@ -1034,38 +1230,13 @@ class ProcessorCaller:
                 # Handle cancellation of eopf processing
                 cancel_event = self.handle_cancellation(proc, log_file)
 
-                # Read eopf stdout. Use select() so we can periodically check whether the
-                # buffered batch is due for a time-based flush, even while no new line has
-                # arrived yet (readline() alone would block for as long as the processor stays
-                # quiet, which could delay a partial batch by a very long time).
-                batch: list[str] = []
-                last_flush = time.monotonic()
-                while proc.stdout:
-                    interval = self._LOG_BATCH_INTERVAL_SECONDS
-                    ready, _, _ = select.select([proc.stdout], [], [], interval)
-                    if ready:
-                        line = proc.stdout.readline()
-                        if line == "":
-                            break
+                def on_line(line: str) -> str:
+                    # Hide secrets from logs, write them to the log file
+                    line = self.hide_secrets(line)
+                    log_file.write(line)
+                    return line
 
-                        # Hide secrets from logs
-                        line = self.hide_secrets(line)
-
-                        # Write to log file and string
-                        log_file.write(line)
-
-                        # Buffer non-empty lines
-                        line = line.rstrip()
-                        if line:
-                            batch.append(line)
-
-                    # Flush once the batch is full, or once it's been waiting long enough
-                    if self._should_flush_log_batch(batch, last_flush):
-                        self._flush_log_batch(batch)
-                        last_flush = time.monotonic()
-
-                # Flush the remaining buffered lines, if any
-                self._flush_log_batch(batch)
+                tail = forward_subprocess_output(proc, self.job_id, on_line)
 
             # Wait for the execution to finish
             status_code = proc.wait()
@@ -1079,29 +1250,13 @@ class ProcessorCaller:
 
             # Raise exception if the eopf status code is != 0
             if status_code:
-                err_msg = f"EOPF error, status code {status_code!r}, please see the log."
+                cause = "cancelled by the user" if self.cancelled else describe_exit_code(status_code)
+                err_msg = f"EOPF error, {cause}, please see the log.{format_output_tail(tail)}"
                 span.set_status(Status(StatusCode.ERROR, err_msg))
                 raise RuntimeError(err_msg)
 
             span.set_status(Status(StatusCode.OK))
             logger.info(f"[JOB:{self.job_id}] EOPF finished successfully with status code {status_code!r}")
-
-    def _should_flush_log_batch(self, batch: list[str], last_flush: float) -> bool:
-        """Return True if the buffered batch is full, or non-empty and waiting long enough."""
-        if not batch:
-            return False
-        if len(batch) >= self._LOG_BATCH_SIZE:
-            return True
-        return (time.monotonic() - last_flush) >= self._LOG_BATCH_INTERVAL_SECONDS
-
-    def _flush_log_batch(self, batch: list[str]) -> None:
-        """Log buffered subprocess output lines as a single record, then clear the buffer."""
-        if batch:
-            joined = "\n".join(batch)
-            # The EOPF lines already have their own "date - logger - LEVEL - " prefix: flag the record
-            # so the rs-dpr-service log stream sends them as they are.
-            logger.info(f"[JOB:{self.job_id}] {joined}", extra={EOPF_OUTPUT_LOG_ATTR: True})
-            batch.clear()
 
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
         # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes
