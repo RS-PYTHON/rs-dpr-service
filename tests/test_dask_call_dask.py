@@ -23,7 +23,7 @@ import json
 import os
 import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
 import re
-import subprocess  # nosec B404 # only used to run this python interpreter in isolated mode
+import subprocess  # nosec B404 # only used to run this python interpreter on code written by the tests
 import sys
 import types
 import zipfile
@@ -386,6 +386,8 @@ def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, conv
     assert env["PYTHONPATH"].split(os.pathsep)[0] == str(conversion_zip)
     # The S3 credentials of the calling service are passed to the conversion subprocess
     assert {key: env[key] for key in call_dask.S3_ENV_VARS} == s3_env
+    # The EOPF SyntaxWarning spam is hidden
+    assert call_dask.EOPF_IGNORED_WARNINGS in env["PYTHONWARNINGS"].split(",")
     # The output (stdout and stderr) is forwarded live to the job log stream
     assert popen.call_args.kwargs["stderr"] == call_dask.subprocess.STDOUT
     logger_info.assert_any_call("[JOB:job-1] eopf log line", extra={call_dask.EOPF_OUTPUT_LOG_ATTR: True})
@@ -1188,6 +1190,51 @@ def test_log_worker_resources_never_fails(mocker, tmp_path):
     call_dask.log_worker_resources("job-1", str(tmp_path))
 
     logger_debug.assert_called_once_with("[JOB:job-1] Cannot read the dask worker resources: no disk")
+
+
+@pytest.mark.parametrize(
+    "initial, expected",
+    [
+        (None, call_dask.EOPF_IGNORED_WARNINGS),
+        ("", call_dask.EOPF_IGNORED_WARNINGS),
+        ("default", f"default,{call_dask.EOPF_IGNORED_WARNINGS}"),
+    ],
+)
+def test_ignore_eopf_warnings_keeps_the_existing_warning_filters(initial, expected):
+    """Test ignore_eopf_warnings() adds its filter after the existing PYTHONWARNINGS ones."""
+    env = {} if initial is None else {"PYTHONWARNINGS": initial}
+
+    assert call_dask.ignore_eopf_warnings(env) is env
+    assert env["PYTHONWARNINGS"] == expected
+
+
+def test_ignore_eopf_warnings_hides_only_the_escape_sequence_warnings(tmp_path):
+    """
+    Test the EOPF_IGNORED_WARNINGS hide the warnings of ast.literal_eval() on regexes in a real subprocess.
+
+    EOPF evaluates the regexes of its mapping files with ast.literal_eval(): without the filter, each evaluation
+    prints "<unknown>:1: SyntaxWarning: invalid escape sequence '\\.'". The other warnings are still printed.
+    """
+    script = tmp_path / "eopf_like.py"
+    script.write_text(
+        "import ast, warnings\n"
+        "for _ in range(3):\n"
+        "    ast.literal_eval(r\"{'pattern': 's1.*\\.tiff'}\")\n"
+        "warnings.warn('other warning', UserWarning)\n",
+        encoding="utf-8",
+    )
+    env = call_dask.ignore_eopf_warnings({"PYTHONWARNINGS": "default"})
+
+    result = subprocess.run(  # nosec B603 # runs this python interpreter on a script written by this test
+        [sys.executable, str(script)],  # not -I: it would ignore PYTHONWARNINGS
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "SyntaxWarning" not in result.stderr
+    assert "UserWarning: other warning" in result.stderr
 
 
 def test_format_bytes():

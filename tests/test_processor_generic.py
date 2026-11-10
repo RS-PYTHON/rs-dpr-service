@@ -90,7 +90,8 @@ def test_execute_runs_internal_orchestration_with_dask_future(mocker):
     result = exc.value.value
 
     # The normal flow should go through Dask submission, complete the future, and mark the job successful.
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     dask_client.submit.assert_called_once()
     dask_client.close.assert_called_once_with()
     assert result == ("application/json", {"successful": processor.job_logger.job_id})
@@ -370,7 +371,8 @@ def test_execute_marks_job_failed_when_tasks_monitoring_thread_raises(mocker):
         execute_coroutine.send(None)  # pylint: disable=no-member
     result = exc.value.value
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     dask_client.close.assert_called_once_with()
     assert result == ("application/json", {"failed": processor.job_logger.job_id})
     assert db_process_manager.update_job.call_args_list[-1].args[1]["status"] == JobStatus.failed.value
@@ -571,7 +573,8 @@ def test_get_tasktable_returns_dask_result_and_closes_client(mocker):
 
     result = asyncio.run(processor.get_tasktable())
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     dask_client.submit.assert_called_once()
     dask_client.close.assert_called_once_with()
     assert result == {"tasktable": "value"}
@@ -609,7 +612,8 @@ def test_get_tasktable_returns_empty_dask_result(mocker):
 
     result = asyncio.run(processor.get_tasktable())
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     dask_client.submit.assert_called_once()
     dask_client.close.assert_called_once_with()
     assert result == {}
@@ -654,7 +658,8 @@ def test_get_tasktable_reraises_when_dask_tasktable_retrieval_fails(mocker):
     with pytest.raises(RuntimeError, match="tasktable boom"):
         asyncio.run(processor.get_tasktable())
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     dask_client.submit.assert_called_once()
     logger_exception.assert_called_once()
     # The diagnostic of the dead dask workers, if any, is logged with the error

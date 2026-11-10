@@ -14,13 +14,21 @@
 
 """Tests for rs_dpr_service.dask.dask_cluster_handler."""
 
+import logging
+import time
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 import pytest
+from distributed import Client, LocalCluster
 from opentelemetry.trace import StatusCode
 
-from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
+from rs_dpr_service.dask.dask_cluster_handler import (
+    FORWARDED_LOGS_TOPIC,
+    DaskClusterHandler,
+    make_forwarded_log_handler,
+)
+from rs_dpr_service.utils.logging import JobLogHandler
 from rs_dpr_service.utils.settings import set_dask_env
 
 from .conftest import get_cluster_info
@@ -107,6 +115,8 @@ def test_setup_dask_connection_connects_to_matching_gateway_cluster(mocker, monk
     # Client setup: wrap the connected GatewayCluster and forward worker logs to the service.
     client_cls.assert_called_once_with(gateway_cluster)
     dask_client.forward_logging.assert_called_once_with()
+    # Without job id, all the forwarded log records are handled (Client.forward_logging() default handler)
+    dask_client.subscribe_topic.assert_not_called()
 
     # Worker preparation: upload this service code and propagate required environment values.
     context["upload_this_module"].assert_called_once_with(dask_client)
@@ -245,3 +255,75 @@ def test_setup_dask_connection_raises_when_gateway_auth_env_is_missing(mocker, m
     gateway_cls.assert_not_called()
     client_cls.assert_not_called()
     record_error.assert_called_once_with(span, mocker.ANY)
+
+
+def test_setup_dask_connection_only_handles_the_forwarded_logs_of_its_job(mocker, monkeypatch):
+    """Test setup_dask_connection() replaces the handler of the forwarded worker logs by one filtering its job."""
+    context = _mock_nominal_gateway_connection(mocker, monkeypatch, scheduler_info={"workers": {"worker-1": {}}})
+    dask_client = context["dask_client"]
+
+    context["handler"].setup_dask_connection("job-1")
+
+    dask_client.forward_logging.assert_called_once_with()
+    dask_client.subscribe_topic.assert_called_once()
+    assert dask_client.subscribe_topic.call_args.args[0] == FORWARDED_LOGS_TOPIC
+
+
+def _forwarded_record(msg: str) -> tuple[float, dict]:
+    """Build a forwarded log record event, as sent by the dask workers."""
+    record = logging.LogRecord("rs_dpr_service.dask.call_dask", logging.INFO, "call_dask.py", 1, msg, None, None)
+    return (0.0, dict(record.__dict__))
+
+
+def test_forwarded_log_handler_filters_the_records_of_the_other_jobs(mocker):
+    """Test each job client only handles the forwarded log records of its job, and the records of no job."""
+    handle = mocker.patch("logging.Logger.handle")
+    handler = make_forwarded_log_handler("job-1")
+
+    handler(_forwarded_record("[JOB:job-1] mine"))
+    handler(_forwarded_record("[JOB:job-2] other job"))
+    handler(_forwarded_record("worker log of no job"))
+
+    assert [call.args[0].getMessage() for call in handle.call_args_list] == ["[JOB:job-1] mine", "worker log of no job"]
+
+
+def test_forwarded_logs_are_not_duplicated_with_concurrent_jobs():
+    """
+    Test the job logs are received once when several job clients are connected to the same dask cluster.
+
+    All the clients subscribed to the forwarded logs receive the records of all the jobs: with the default handler,
+    a record would be added N times to the job log stream of this rs-dpr-service instance.
+    """
+    job_log_handler = JobLogHandler()
+    call_dask_logger = logging.getLogger("rs_dpr_service.dask.call_dask")
+    call_dask_logger.addHandler(job_log_handler)
+
+    try:
+        # Worker processes, as in a real cluster: the records only come back by the forwarding
+        with LocalCluster(n_workers=1, threads_per_worker=1, dashboard_address=None) as cluster:
+            clients = [Client(cluster) for _ in range(3)]
+            try:
+                for index, client in enumerate(clients):
+                    client.forward_logging()
+                    client.subscribe_topic(FORWARDED_LOGS_TOPIC, make_forwarded_log_handler(f"job-{index}"))
+
+                def log_job_line(job_id: str):
+                    """Dask task logging a line of a job, as the rs-dpr-service worker code does (sent by value)."""
+                    worker_logger = logging.getLogger("rs_dpr_service.dask.call_dask")
+                    worker_logger.setLevel(logging.INFO)
+                    worker_logger.info(f"[JOB:{job_id}] hello")
+
+                clients[0].submit(log_job_line, "job-0", pure=False).result()
+
+                # Wait for the forwarded records
+                deadline = time.monotonic() + 10
+                while not job_log_handler.get_logs("job-0") and time.monotonic() < deadline:
+                    time.sleep(0.1)
+                time.sleep(0.5)
+            finally:
+                for client in clients:
+                    client.close()
+    finally:
+        call_dask_logger.removeHandler(job_log_handler)
+
+    assert [msg.rsplit(" - ", 1)[-1] for _, msg in job_log_handler.get_logs("job-0")] == ["hello"]

@@ -87,6 +87,18 @@ CGROUP_MEMORY_LIMIT_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory
 # Above this value, a cgroup v1 memory limit means "no limit"
 _CGROUP_V1_NO_LIMIT = 2**60
 
+# Warnings hidden in the EOPF subprocesses (PYTHONWARNINGS syntax).
+# EOPF evaluates the formatter parameters of its mapping files, that contain regexes, with ast.literal_eval():
+# Python warns about their escape sequences (e.g. '\.') at each evaluation, thousands of times per product,
+# which floods the job logs.
+EOPF_IGNORED_WARNINGS = "ignore:invalid escape sequence:SyntaxWarning"
+
+
+def ignore_eopf_warnings(env: dict[str, str]) -> dict[str, str]:
+    """Add the EOPF_IGNORED_WARNINGS to the PYTHONWARNINGS of a subprocess environment, return the environment."""
+    env["PYTHONWARNINGS"] = ",".join(filter(None, (env.get("PYTHONWARNINGS"), EOPF_IGNORED_WARNINGS)))
+    return env
+
 
 def format_bytes(size: float) -> str:
     """Return a human readable size, e.g. '8.0 GiB'"""
@@ -518,6 +530,7 @@ def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None, job_id
     env.update(s3_env or {})
     # prepend the zip onto PYTHONPATH (so zipimport will kick in)
     env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
+    ignore_eopf_warnings(env)
 
     # The SAFE is staged in the temporary directory
     log_worker_resources(job_id, tempfile.gettempdir())
@@ -1261,7 +1274,7 @@ class ProcessorCaller:
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
         # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes
         # https://opentelemetry.io/docs/languages/python/propagation/#manual-context-propagation
-        env = os.environ.copy()
+        env = ignore_eopf_warnings(os.environ.copy())
 
         # Inject trace context into environment variables
         carrier: dict[str, str] = {}
