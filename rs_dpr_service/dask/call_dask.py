@@ -392,6 +392,12 @@ class ProcessorCaller:
                 )
                 self.init()
 
+                if self.processor_name == "mockup":
+                    # TODO: test this on the deployed cluster
+                    logger.debug(f"[JOB:{self.job_id}] DPR Mockup processor debug message")
+                    logger.info(f"[JOB:{self.job_id}] DPR Mockup processor info message")
+                    logger.warning(f"[JOB:{self.job_id}] DPR Mockup processor warning message")
+
                 start_time = time.time()
                 self.trigger()
                 self.exec_times.append(("Run processor", time.time() - start_time))

@@ -27,6 +27,7 @@ from types import SimpleNamespace
 import pytest
 
 from rs_dpr_service.dask import call_dask
+from rs_dpr_service.utils.logging import JobLogHandler
 
 from .conftest import get_cluster_info
 
@@ -465,7 +466,8 @@ def test_processor_caller_init_propagates_customization_error(init_context):
     assert ctx.caller.command == []
 
 
-def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch):
+@pytest.mark.parametrize("use_mockup", [False, True], ids=["standard-processor", "mockup"])
+def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch, use_mockup):
     """Test ProcessorCaller.run_processor() copies env, runs init/trigger/finalize, and returns the result."""
     # Track env restoration even though copy_caller_env() writes directly into os.environ.
     for key in (
@@ -483,7 +485,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     ):
         monkeypatch.setenv(key, "")
 
-    caller = _make_processor_caller(mocker)
+    caller = _make_processor_caller(mocker, use_mockup=use_mockup)
     expected_result = {"result": "ok"}
     # Keep run_processor() real, but stop before real EOPF init/subprocess/final upload.
     caller.init = mocker.Mock()
@@ -502,8 +504,13 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     mocker.patch("rs_dpr_service.dask.call_dask.start_span", side_effect=fake_start_span)
     mocker.patch("rs_dpr_service.dask.call_dask.reload", side_effect=lambda module: module)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
+    job_log_handler = JobLogHandler()
+    call_dask.logger.addHandler(job_log_handler)
 
-    result = caller.run_processor()
+    try:
+        result = caller.run_processor()
+    finally:
+        call_dask.logger.removeHandler(job_log_handler)
 
     init_traces.assert_called_once_with()
     caller.init.assert_called_once_with()
@@ -518,6 +525,15 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert os.environ["S3_SECRETS_JSON_BASE64"] == ""
     assert os.environ["OTEL_RESOURCE_ATTRIBUTES"] == "service.name=test"
     assert caller.exec_times[0][0] == "Run processor"
+    test_logs = [message for _, message in job_log_handler.get_logs("job-1") if "DPR Mockup processor" in message]
+    if use_mockup:
+        assert len(test_logs) == 3
+        assert any(" - DEBUG - DPR Mockup processor debug message" in message for message in test_logs)
+        assert any(" - INFO - DPR Mockup processor info message" in message for message in test_logs)
+        assert any(" - WARNING - DPR Mockup processor warning message" in message for message in test_logs)
+        assert job_log_handler.get_logs("another-job") == []
+    else:
+        assert test_logs == []
 
 
 @pytest.mark.parametrize(
