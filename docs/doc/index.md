@@ -81,6 +81,11 @@ In a typical Dask architecture, the main code that submits the tasks runs on the
 rs-dpr-service pod. Here it runs on a worker of the Dask cluster, because the EOPF main code needs too many resources
 (memory, processor dependencies) to run in the web service.
 
+The task that runs the EOPF main code only waits for its sub-process, so it calls the Dask
+[`secede()`](https://distributed.dask.org/en/stable/task-launch.html) function at its start: it leaves the thread pool
+of the worker, and all the threads of the worker stay available for the processing tasks. Otherwise, as many
+concurrent jobs as threads in the cluster would hold all the threads, and wait forever for their processing tasks.
+
 The cancellation of a job sets a Dask event that makes the worker kill the EOPF sub-process.
 
 ### Payload file
