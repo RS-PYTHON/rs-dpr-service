@@ -15,6 +15,8 @@
 default_language_version:
     python: python3
 default_stages: [pre-commit]
+# Third party test data (a Sentinel-1 SAFE product) must be kept as it is
+exclude: ^tests/resources/s1_slc/.*\.SAFE/
 repos:
 
 # Basic verifications
