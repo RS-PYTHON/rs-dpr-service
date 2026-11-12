@@ -22,7 +22,6 @@ from time import sleep
 
 from dask.distributed import (  # LocalCluster,
     Client,
-    secede,
 )
 from opentelemetry import trace
 from opentelemetry.trace.span import Span
@@ -93,7 +92,6 @@ class GenericProcessor(BaseProcessor):
                 class_name=self.tasktable_class,
                 pure=False,  # disable cache
             )
-            # secede()
             res = task_table_task.result()
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
@@ -246,7 +244,6 @@ class GenericProcessor(BaseProcessor):
                         dpr_processor.run_processor,
                         pure=False,  # disable cache
                     )
-                    # secede()
 
                 # Specific case for local debugging
                 else:
