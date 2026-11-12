@@ -749,6 +749,14 @@ class ProcessorCaller:
         """
         Run processor from the dask pod.
         """
+        # Release the worker thread: this task only waits for the EOPF subprocess,
+        # and its thread is needed by the tasks that EOPF submits to the same cluster.
+        try:
+            distributed.secede()
+        except ValueError:
+            # Not in a Dask worker (local debug mode, run_processor called directly)
+            pass
+
         # Copy env vars from the caller
         self.copy_caller_env()
 
