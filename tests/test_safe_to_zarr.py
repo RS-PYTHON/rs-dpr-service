@@ -16,6 +16,7 @@
 
 import importlib
 import json
+import os
 import runpy
 import sys
 import types
@@ -146,6 +147,27 @@ def test_main_success(monkeypatch, mocker):
     }
 
 
+def test_main_writes_the_result_pipe(monkeypatch, mocker):
+    """Write the success payload into the inherited file descriptor given as second argument."""
+    install_fake_eopf_dependencies(monkeypatch, mocker)
+    cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
+    for key, value in {
+        "S3_ACCESSKEY": "access",
+        "S3_SECRETKEY": "secret",
+        "S3_ENDPOINT": "https://example.com",
+        "S3_REGION": "eu-west-1",
+    }.items():
+        monkeypatch.setenv(key, value)
+    result_read, result_write = os.pipe()
+
+    with redirect_stdout(StringIO()):
+        run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg), str(result_write)])
+
+    # main() closed the write end, so the read returns at the end of the result
+    with os.fdopen(result_read, encoding="utf-8") as result_file:
+        assert json.loads(result_file.read())["message"] == "Conversion finished"
+
+
 def test_main_conversion_failure_exits(monkeypatch, mocker):
     """Exit with an error when the conversion raises an exception."""
     # Force only the conversion step to fail; argument parsing and path setup stay real.
@@ -166,3 +188,5 @@ def test_main_conversion_failure_exits(monkeypatch, mocker):
     assert exc.value.code == 1
     assert stdout.getvalue() == ""
     assert "Conversion failed safe_to_zarr: boom" in stderr.getvalue()
+    # The traceback is printed too, to find the root cause
+    assert "Traceback (most recent call last)" in stderr.getvalue()

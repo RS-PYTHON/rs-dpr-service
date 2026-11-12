@@ -14,17 +14,29 @@
 
 """Tests for rs_dpr_service.dask.call_dask helpers."""
 
+import ast
+import asyncio
 import base64
+import importlib
+import io
 import json
 import os
+import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
+import re
+import subprocess  # nosec B404 # only used to run this python interpreter on code written by the tests
 import sys
 import types
 import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from types import SimpleNamespace
+from typing import Any, cast
 
+import cloudpickle
 import pytest
+from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
+from distributed.scheduler import Scheduler
+from distributed.worker import Worker
 
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.utils.logging import JobLogHandler
@@ -95,81 +107,310 @@ def test_processor_caller_hide_secrets_masks_sensitive_log_values(mocker):
     assert "'safe_value': 'visible'" in masked
 
 
-def test_upload_this_module_uploads_zip_and_reload_task_to_dask_workers(mocker, tmp_path):
-    """Test upload_this_module() creates the worker zip and submits cleanup/reload tasks."""
+def test_build_module_zip_is_deterministic():
+    """Test build_module_zip() names the zip after its content, which only depends on the source code."""
+    zip_filename, data = call_dask.build_module_zip()
+
+    assert re.fullmatch(r"rs_dpr_service-[0-9a-f]{16}\.zip", zip_filename)
+    assert call_dask.build_module_zip() == (zip_filename, data)
+    # The uploaded archive must contain the worker-side code used later by Dask tasks.
+    with zipfile.ZipFile(io.BytesIO(data)) as zipped:
+        assert "rs_dpr_service/dask/call_dask.py" in zipped.namelist()
+        assert "rs_dpr_service/safe_to_zarr.py" in zipped.namelist()
+        assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
+
+
+def _imported_project_modules(source: str, package_name: str, root: Path) -> set[str]:
+    """
+    Return the project modules imported by a source file, including the imports inside functions.
+
+    For 'from package.module import name', name is included when it is a submodule.
+    """
+    modules: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            names = [node.module]
+            names += [
+                f"{node.module}.{alias.name}"
+                for alias in node.names
+                if (root.parent / f"{node.module}.{alias.name}".replace(".", "/")).with_suffix(".py").is_file()
+                or (root.parent / f"{node.module}.{alias.name}".replace(".", "/") / "__init__.py").is_file()
+            ]
+        else:
+            continue
+        modules.update(name for name in names if name == package_name or name.startswith(f"{package_name}."))
+    return modules
+
+
+def test_module_zip_contains_all_the_imported_project_modules():
+    """
+    Test the modules uploaded to the dask cluster only import project modules that are uploaded too.
+
+    The dask scheduler and workers don't have rs_dpr_service installed: they only have the modules of the
+    uploaded zip. Importing another project module (e.g. a module used only on the rs-dpr-service side) from the
+    uploaded code would fail there with "No module named ...". Add it to _UPLOADED_FILES if it is really needed.
+    """
+    root = Path(call_dask.__file__).parent.parent
+    package_name = root.name
+    uploaded = set(call_dask._uploaded_module_names(package_name))  # pylint: disable=protected-access
+
+    for relative_path in call_dask._UPLOADED_FILES:  # pylint: disable=protected-access
+        imported = _imported_project_modules((root / relative_path).read_text(encoding="utf-8"), package_name, root)
+        # The parent packages are imported too
+        imported |= {".".join(name.split(".")[:i]) for name in imported for i in range(1, name.count(".") + 1)}
+        missing = imported - uploaded
+        assert not missing, f"{relative_path} imports modules missing from the zip uploaded to dask: {missing}"
+
+
+def test_module_zip_is_importable_alone(tmp_path):
+    """
+    Test all the uploaded modules can be imported from the uploaded zip alone, as on the dask cluster.
+
+    Run in an isolated interpreter (-I) where the project sources are removed from sys.path, even if the
+    project is installed in editable mode. Only the worker-only dependencies (eopf) are faked.
+    """
+    zip_filename, data = call_dask.build_module_zip()
+    zip_path = tmp_path / zip_filename
+    zip_path.write_bytes(data)
+    root = Path(call_dask.__file__).parent.parent
+    modules = call_dask._uploaded_module_names(root.name)  # pylint: disable=protected-access
+
+    code = f"""
+import importlib, os, sys, types
+project_dir = {str(root.parent.resolve())!r}
+sys.path = [{str(zip_path)!r}] + [p for p in sys.path if os.path.realpath(p or ".") != project_dir]
+
+# Worker-only dependencies, not installed in the rs-dpr-service environment
+eopf = types.ModuleType("eopf")
+eopf.__version__ = "0"
+sys.modules.update(
+    {{
+        "eopf": eopf,
+        "eopf.store": types.ModuleType("eopf.store"),
+        "eopf.store.convert": types.SimpleNamespace(convert=None),
+    }},
+)
+
+for name in {modules!r}:
+    importlib.import_module(name)
+outside = sorted(
+    name
+    for name, module in sys.modules.items()
+    if name.split(".")[0] == {root.name!r} and {str(zip_path)!r} not in (getattr(module, "__file__", "") or "")
+)
+assert not outside, f"modules not imported from the zip: {{outside}}"
+"""
+    result = subprocess.run(  # nosec B603 # runs this python interpreter on code written by this test
+        [sys.executable, "-I", "-c", code],
+        capture_output=True,
+        text=True,
+        check=False,
+        cwd=tmp_path,
+    )
+    assert result.returncode == 0, result.stderr
+
+
+def test_upload_this_module_registers_idempotent_plugins(mocker):
+    """Test upload_this_module() registers picklable idempotent scheduler and worker plugins named after the zip."""
+    dask_client = mocker.Mock()
+    dask_client.run_on_scheduler.return_value = ([], [])
+
+    call_dask.upload_this_module(dask_client)
+
+    zip_filename, data = call_dask.build_module_zip()
+    plugin_name = zip_filename.removesuffix(".zip")
+    assert [c.kwargs for c in dask_client.register_plugin.call_args_list] == [{"name": plugin_name}] * 2
+    scheduler_plugin, worker_plugin = (c.args[0] for c in dask_client.register_plugin.call_args_list)
+    # The scheduler plugin is registered first: the scheduler unpickles the task graphs
+    assert isinstance(scheduler_plugin, SchedulerPlugin)
+    assert isinstance(worker_plugin, WorkerPlugin)
+    plugins: list[Any] = [scheduler_plugin, worker_plugin]  # attributes of the plugin classes defined in call_dask
+    for plugin in plugins:
+        assert plugin.idempotent is True
+        assert plugin.zip_filename == zip_filename
+        assert plugin.data == data
+        assert plugin.module_names[0] == "rs_dpr_service"
+        assert "rs_dpr_service.dask.call_dask" in plugin.module_names
+        # The dask scheduler and workers don't have this module before the plugin installs it: the plugin class
+        # must not be pickled by reference (standard pickle), but by value (cloudpickle, used by dask as fallback)
+        with pytest.raises((pickle.PicklingError, AttributeError)):
+            pickle.dumps(plugin)
+        assert pickle.loads(cloudpickle.dumps(plugin)).zip_filename == zip_filename  # nosec B301
+
+
+def test_upload_this_module_unregisters_stale_plugins(mocker):
+    """Test upload_this_module() unregisters the plugins of the other versions of this module, only."""
+    zip_filename, _ = call_dask.build_module_zip()
+    plugin_name = zip_filename.removesuffix(".zip")
+    legacy = "/scratch/tmpqe6tlbfv/rs_dpr_service.zip92b8a41d-f7c3-4bcd-ab93-d3a08daf7590"
+    already_removed = "/scratch/tmpine3w56_/rs_dpr_service.zip74c4c37e-53d1-456c-b353-be83b9d1be19"
+    previous = "rs_dpr_service-0123456789abcdef"
+    others = ["shuffle", "forward-logging-<root>", "other_package-0123456789abcdef", plugin_name]
+    dask_client = mocker.Mock()
+    dask_client.run_on_scheduler.return_value = (
+        ["stealing", legacy, previous, plugin_name],
+        [*others, legacy, already_removed, previous],
+    )
+
+    def unregister(name):
+        if name == already_removed:
+            raise ValueError(f"The worker plugin {name} does not exist")
+
+    dask_client.unregister_worker_plugin.side_effect = unregister
+
+    call_dask.upload_this_module(dask_client)
+
+    dask_client.run_on_scheduler.assert_called_once()
+    plugin_names = dask_client.run_on_scheduler.call_args.args[0]
+    dask_scheduler = mocker.Mock(plugins={"a": 1}, worker_plugins={"b": 2, "c": 3})
+    assert plugin_names(dask_scheduler) == (["a"], ["b", "c"])
+    # The scheduler may not have this module yet: the function must be pickled by value
+    with pytest.raises((pickle.PicklingError, AttributeError)):
+        pickle.dumps(plugin_names)
+    assert [c.args[0] for c in dask_client.unregister_scheduler_plugin.call_args_list] == [legacy, previous]
+    assert [c.args[0] for c in dask_client.unregister_worker_plugin.call_args_list] == [
+        legacy,
+        already_removed,
+        previous,
+    ]
+    assert dask_client.register_plugin.call_count == 2
+
+
+def _fake_package_zip(version: str) -> bytes:
+    """Return the zip of a fake package used to test the worker plugin."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as zipped:
+        zipped.writestr("fakepkg/__init__.py", "")
+        zipped.writestr("fakepkg/mod.py", f"VERSION = {version!r}\n")
+    return buffer.getvalue()
+
+
+@pytest.mark.parametrize("plugin_kind", ["scheduler", "worker"])
+def test_module_install_plugins(monkeypatch, tmp_path, plugin_kind):
+    """Test the plugins install the zip atomically and only reload the modules loaded from another file."""
+    monkeypatch.setattr(sys, "path", list(sys.path))
+    for name in ("fakepkg", "fakepkg.mod"):
+        monkeypatch.delitem(sys.modules, name, raising=False)
     worker_dir = tmp_path / "worker"
     worker_dir.mkdir()
-    previous_zip = worker_dir / "rs_dpr_service.zip"
-    previous_zip.write_text("old zip", encoding="utf-8")
-    worker = SimpleNamespace(local_directory=str(worker_dir))
+    node = SimpleNamespace(local_directory=str(worker_dir))
+    module_names = ["fakepkg", "fakepkg.mod"]
 
-    # Mock client.run(): Dask would execute these closures on workers, so run them locally here.
-    def run_side_effect(worker_function):
-        """Run the submitted Dask worker function locally."""
-        if worker_function.__name__ == "remove_previous_zip":
-            return {"worker-1": worker_function(worker)}
-        return {"worker-1": worker_function()}
+    def install(version: str):
+        scheduler_plugin, worker_plugin = call_dask.make_module_install_plugins(
+            f"fakepkg-{version}.zip",
+            _fake_package_zip(version),
+            module_names,
+        )
+        if plugin_kind == "scheduler":
+            asyncio.run(scheduler_plugin.start(cast(Scheduler, node)))
+        else:
+            worker_plugin.setup(cast(Worker, node))
 
-    dask_client = mocker.Mock()
-    dask_client.run.side_effect = run_side_effect
+    # A previous version of the package is already loaded on the worker
+    previous = tmp_path / "previous"
+    (previous / "fakepkg").mkdir(parents=True)
+    (previous / "fakepkg/__init__.py").write_text("", encoding="utf-8")
+    (previous / "fakepkg/mod.py").write_text("VERSION = 'v1'\n", encoding="utf-8")
+    sys.path.insert(0, str(previous))
+    fake_mod = importlib.import_module("fakepkg.mod")
+    assert fake_mod.VERSION == "v1"
 
-    def upload_file_side_effect(zip_path):
-        """Verify the generated zip contains the modules expected by Dask workers."""
-        assert os.path.isfile(zip_path)
-        # The uploaded archive must contain the worker-side code used later by Dask tasks.
-        with zipfile.ZipFile(zip_path) as zipped:
-            assert "rs_dpr_service/dask/call_dask.py" in zipped.namelist()
-            assert "rs_dpr_service/utils/settings.py" in zipped.namelist()
+    # Install the new version: the modules are reloaded from the zip
+    install("v2")
+    zip_path = worker_dir / "fakepkg-v2.zip"
+    assert zip_path.is_file()
+    assert not list(worker_dir.glob("*.tmp"))
+    assert sys.path[0] == str(zip_path)
+    assert sys.modules["fakepkg.mod"].VERSION == "v2"
+    assert str(sys.modules["fakepkg.mod"].__file__).startswith(str(zip_path))
 
-    dask_client.upload_file.side_effect = upload_file_side_effect
-    reload_mock = mocker.patch("rs_dpr_service.dask.call_dask.reload", side_effect=lambda module: module)
-
-    call_dask.upload_this_module(dask_client)
-
-    assert not previous_zip.exists()
-    dask_client.upload_file.assert_called_once()
-    assert dask_client.run.call_count == 2
-    assert reload_mock.called
-
-
-def test_upload_this_module_ignores_upload_key_error(mocker):
-    """Test upload_this_module() ignores the Dask upload KeyError seen during worker scale-up."""
-    dask_client = mocker.Mock()
-    dask_client.run.return_value = {}
-    # Dask can raise this while new workers are added; production code intentionally ignores it.
-    dask_client.upload_file.side_effect = KeyError("worker already has the zip")
-
-    call_dask.upload_this_module(dask_client)
-
-    dask_client.upload_file.assert_called_once()
-    assert dask_client.run.call_count == 2
+    # Another job installs the same version: the zip is not rewritten and the modules are not reloaded
+    vars(sys.modules["fakepkg.mod"])["MARKER"] = "not reloaded"
+    inode = zip_path.stat().st_ino
+    install("v2")
+    assert zip_path.stat().st_ino == inode
+    assert vars(sys.modules["fakepkg.mod"])["MARKER"] == "not reloaded"
+    assert sys.path.count(str(zip_path)) == 1
 
 
-def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, tmp_path):
-    """Test convert_safe_to_zarr() calls the safe_to_zarr module from the uploaded worker zip."""
+@pytest.fixture(name="conversion_zip")
+def fixture_conversion_zip(monkeypatch, tmp_path):
+    """Fake the uploaded worker zip that convert_safe_to_zarr() derives from call_dask.__file__."""
     zip_path = tmp_path / "rs_dpr_service.zip"
     zip_path.write_text("fake zip content", encoding="utf-8")
-    # convert_safe_to_zarr() derives the uploaded zip path from call_dask.__file__ inside the worker.
     monkeypatch.setattr(
         call_dask,
         "__file__",
         str(zip_path / "rs_dpr_service" / "dask" / "call_dask.py"),
     )
+    return zip_path
 
-    completed = SimpleNamespace(returncode=0, stdout="converted\n", stderr="")
-    subprocess_run = mocker.patch("rs_dpr_service.dask.call_dask.subprocess.run", return_value=completed)
+
+def _mock_conversion_subprocess(mocker, lines: list[str], returncode: int = 0, result: str | None = None):
+    """Mock the conversion subprocess: it outputs the given lines, writes the result pipe, exits with returncode."""
+    fake_proc = _fake_subprocess(mocker, lines, returncode)
+
+    def popen(cmd, **kwargs):
+        # The result is written into the inherited write end of the result pipe
+        assert kwargs["pass_fds"] == (int(cmd[4]),)
+        if result is not None:
+            os.write(int(cmd[4]), result.encode())
+        return fake_proc
+
+    mocker.patch("rs_dpr_service.dask.call_dask.log_worker_resources")
+    return mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", side_effect=popen)
+
+
+def test_convert_safe_to_zarr_runs_safe_to_zarr_module(mocker, monkeypatch, conversion_zip):
+    """Test convert_safe_to_zarr() calls the safe_to_zarr module from the uploaded worker zip."""
+    popen = _mock_conversion_subprocess(mocker, ["eopf log line\n"], result='{"message": "Conversion finished"}\n')
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
     cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"}
 
-    result = call_dask.convert_safe_to_zarr(cfg)
+    # The S3 credentials are not in the dask worker environment
+    for key in call_dask.S3_ENV_VARS:
+        monkeypatch.delenv(key, raising=False)
+    s3_env = {key: f"{key.lower()}-value" for key in call_dask.S3_ENV_VARS}
 
-    assert result == "converted"
-    subprocess_run.assert_called_once()
-    command = subprocess_run.call_args.args[0]
-    env = subprocess_run.call_args.kwargs["env"]
+    result = call_dask.convert_safe_to_zarr(cfg, s3_env, "job-1")
+
+    # The result is read from the result pipe, not from the subprocess output
+    assert result == '{"message": "Conversion finished"}'
+    popen.assert_called_once()
+    command = popen.call_args.args[0]
+    env = popen.call_args.kwargs["env"]
     assert command[:3] == [call_dask.sys.executable, "-m", "rs_dpr_service.safe_to_zarr"]
     assert json.loads(command[3]) == cfg
-    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(zip_path)
-    assert subprocess_run.call_args.kwargs["check"] is False
+    assert env["PYTHONPATH"].split(os.pathsep)[0] == str(conversion_zip)
+    # The S3 credentials of the calling service are passed to the conversion subprocess
+    assert {key: env[key] for key in call_dask.S3_ENV_VARS} == s3_env
+    # The EOPF SyntaxWarning spam is hidden
+    assert call_dask.EOPF_IGNORED_WARNINGS in env["PYTHONWARNINGS"].split(",")
+    # The output (stdout and stderr) is forwarded live to the job log stream
+    assert popen.call_args.kwargs["stderr"] == call_dask.subprocess.STDOUT
+    logger_info.assert_any_call("[JOB:job-1] eopf log line", extra={call_dask.EOPF_OUTPUT_LOG_ATTR: True})
+
+
+@pytest.mark.parametrize(
+    "worker_value, expected",
+    [(None, call_dask.CONVERSION_DASK_NUM_WORKERS), ("4", "4")],
+    ids=["default", "set-in-the-worker-env"],
+)
+@pytest.mark.usefixtures("conversion_zip")
+def test_convert_safe_to_zarr_limits_the_subprocess_dask_threads(mocker, monkeypatch, worker_value, expected):
+    """Test convert_safe_to_zarr() runs the dask scheduler of EOPF with a single thread, unless the worker sets it."""
+    popen = _mock_conversion_subprocess(mocker, [], result='{"message": "Conversion finished"}\n')
+    if worker_value is None:
+        monkeypatch.delenv("DASK_NUM_WORKERS", raising=False)
+    else:
+        monkeypatch.setenv("DASK_NUM_WORKERS", worker_value)
+
+    call_dask.convert_safe_to_zarr({"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/output.zarr"})
+
+    assert popen.call_args.kwargs["env"]["DASK_NUM_WORKERS"] == expected
 
 
 def test_convert_safe_to_zarr_raises_when_uploaded_zip_is_missing(monkeypatch, tmp_path):
@@ -186,22 +427,39 @@ def test_convert_safe_to_zarr_raises_when_uploaded_zip_is_missing(monkeypatch, t
         call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
 
 
-def test_convert_safe_to_zarr_raises_when_subprocess_fails(mocker, monkeypatch, tmp_path):
-    """Test convert_safe_to_zarr() raises the subprocess stderr on conversion failure."""
-    zip_path = tmp_path / "rs_dpr_service.zip"
-    zip_path.write_text("fake zip content", encoding="utf-8")
-    # Keep the zip discovery branch successful, then force the conversion subprocess to fail.
-    monkeypatch.setattr(
-        call_dask,
-        "__file__",
-        str(zip_path / "rs_dpr_service" / "dask" / "call_dask.py"),
+@pytest.mark.parametrize(
+    "returncode, expected",
+    [
+        (1, "Conversion failed: exit code 1. Last 2 output lines:\nTraceback...\nConversion failed safe_to_zarr: boom"),
+        (
+            -9,
+            "Conversion failed: killed by SIGKILL (exit code -9): probably out of memory",
+        ),
+    ],
+)
+def test_convert_safe_to_zarr_raises_when_subprocess_fails(mocker, conversion_zip, returncode, expected):
+    """Test convert_safe_to_zarr() explains the exit code and repeats the last output lines on failure."""
+    assert conversion_zip.is_file()
+    _mock_conversion_subprocess(
+        mocker,
+        ["Traceback...\n", "Conversion failed safe_to_zarr: boom\n"],
+        returncode=returncode,
     )
-    mocker.patch(
-        "rs_dpr_service.dask.call_dask.subprocess.run",
-        return_value=SimpleNamespace(returncode=1, stdout="", stderr="conversion failed"),
-    )
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
 
-    with pytest.raises(RuntimeError, match="Conversion failed: conversion failed"):
+    with pytest.raises(RuntimeError) as error:
+        call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
+    assert str(error.value).startswith(expected)
+    assert str(error.value).endswith("Conversion failed safe_to_zarr: boom")
+
+
+def test_convert_safe_to_zarr_raises_when_no_result_is_written(mocker, conversion_zip):
+    """Test convert_safe_to_zarr() fails when the subprocess succeeds without writing its result."""
+    assert conversion_zip.is_file()
+    _mock_conversion_subprocess(mocker, [], returncode=0, result=None)
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    with pytest.raises(RuntimeError, match="Conversion failed: no result written. No output."):
         call_dask.convert_safe_to_zarr({"safe_uri": "input.SAFE"})
 
 
@@ -684,7 +942,7 @@ def test_processor_caller_trigger_uses_eorunner_when_local_cluster_is_enabled(mo
     launch_subprocess.assert_not_called()
 
 
-# ---- _launch_eopf_subprocess / _flush_log_batch ----
+# ---- _launch_eopf_subprocess / forward_subprocess_output / _flush_log_batch ----
 
 
 def _fake_subprocess(mocker, lines: list[str], returncode: int = 0):
@@ -719,7 +977,7 @@ def test_launch_eopf_subprocess_batches_forwarded_log_lines_and_flushes_remainde
     caller = _make_processor_caller(mocker)
     caller.log_path = str(tmp_path / "eopf.log")
     caller.working_dir = str(tmp_path)
-    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+    batch_size = call_dask.LOG_BATCH_SIZE
 
     # One full batch, plus a partial remainder, plus a blank line that must be skipped entirely.
     body_lines = [f"line {i}\n" for i in range(batch_size)] + ["last line\n", "\n"]
@@ -808,38 +1066,34 @@ def test_launch_eopf_subprocess_flushes_a_partial_batch_after_an_idle_period(moc
 
 def test_should_flush_log_batch_returns_false_for_an_empty_batch(mocker):
     """Test _should_flush_log_batch() never flushes an empty batch, even long after the interval."""
-    caller = _make_processor_caller(mocker)
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=1000.0)
 
-    assert not caller._should_flush_log_batch([], last_flush=0.0)  # pylint: disable=protected-access
+    assert not call_dask._should_flush_log_batch([], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_true_when_the_batch_is_full(mocker):
     """Test _should_flush_log_batch() flushes as soon as the batch reaches its size limit."""
-    caller = _make_processor_caller(mocker)
-    batch_size = call_dask.ProcessorCaller._LOG_BATCH_SIZE  # pylint: disable=protected-access
+    batch_size = call_dask.LOG_BATCH_SIZE
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=0.0)
     full_batch = ["line"] * batch_size
 
-    assert caller._should_flush_log_batch(full_batch, last_flush=0.0)  # pylint: disable=protected-access
+    assert call_dask._should_flush_log_batch(full_batch, last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_false_before_the_interval_elapses(mocker):
     """Test _should_flush_log_batch() waits for the interval before flushing a partial batch."""
-    caller = _make_processor_caller(mocker)
-    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    interval = call_dask.LOG_BATCH_INTERVAL_SECONDS
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval - 0.1)
 
-    assert not caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+    assert not call_dask._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_should_flush_log_batch_returns_true_after_the_interval_elapses(mocker):
     """Test _should_flush_log_batch() flushes a partial batch once it has been idle long enough."""
-    caller = _make_processor_caller(mocker)
-    interval = call_dask.ProcessorCaller._LOG_BATCH_INTERVAL_SECONDS  # pylint: disable=protected-access
+    interval = call_dask.LOG_BATCH_INTERVAL_SECONDS
     mocker.patch("rs_dpr_service.dask.call_dask.time.monotonic", return_value=interval)
 
-    assert caller._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
+    assert call_dask._should_flush_log_batch(["line"], last_flush=0.0)  # pylint: disable=protected-access
 
 
 def test_launch_eopf_subprocess_raises_and_skips_final_message_on_nonzero_status(mocker, monkeypatch, tmp_path):
@@ -854,17 +1108,184 @@ def test_launch_eopf_subprocess_raises_and_skips_final_message_on_nonzero_status
     monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
     span = mocker.Mock()
 
-    with pytest.raises(RuntimeError, match="EOPF error, status code 1"):
+    # The error message repeats the last output lines, so the job status alone tells what went wrong
+    with pytest.raises(RuntimeError, match="EOPF error, exit code 1, please see the log. Last 1 output lines:\nboom"):
         caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+
+
+@pytest.mark.parametrize(
+    "cancelled, expected",
+    [
+        (False, "EOPF error, killed by SIGKILL (exit code -9): probably out of memory"),
+        (True, "EOPF error, cancelled by the user, please see the log."),
+    ],
+)
+def test_launch_eopf_subprocess_explains_a_killed_subprocess(mocker, monkeypatch, tmp_path, cancelled, expected):
+    """Test _launch_eopf_subprocess explains a subprocess killed by a signal, except on a job cancellation."""
+    caller = _make_processor_caller(mocker)
+    caller.log_path = str(tmp_path / "eopf.log")
+    caller.working_dir = str(tmp_path)
+    caller.cancelled = cancelled
+    fake_proc = _fake_subprocess(mocker, ["processing...\n"], returncode=-9)
+
+    mocker.patch("rs_dpr_service.dask.call_dask.subprocess.Popen", return_value=fake_proc)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_client", side_effect=ValueError)
+    monkeypatch.setattr(call_dask.settings, "CLUSTER_MODE", False)
+
+    span = mocker.Mock()
+
+    with pytest.raises(RuntimeError) as error:
+        caller._launch_eopf_subprocess(span, {})  # pylint: disable=protected-access
+    assert str(error.value).startswith(expected)
+    assert str(error.value).endswith("Last 1 output lines:\nprocessing...")
+
+
+def test_forward_subprocess_output_returns_the_last_lines(mocker):
+    """Test forward_subprocess_output() returns only the LOG_TAIL_SIZE last non-empty lines."""
+    lines = [f"line {i}\n" for i in range(call_dask.LOG_TAIL_SIZE + 5)] + ["\n"]
+    fake_proc = _fake_subprocess(mocker, lines)
+    mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    tail = call_dask.forward_subprocess_output(fake_proc, "job-1")
+
+    assert list(tail) == [f"line {i}" for i in range(5, call_dask.LOG_TAIL_SIZE + 5)]
+
+
+@pytest.mark.parametrize(
+    "returncode, expected",
+    [
+        (1, "exit code 1"),
+        (-9, "killed by SIGKILL (exit code -9): probably out of memory"),
+        (137, "killed by SIGKILL (exit code 137): probably out of memory"),
+        (-15, "killed by SIGTERM (exit code -15): terminated from outside"),
+        (-11, "killed by SIGSEGV (exit code -11): segmentation fault"),
+        (-2, "killed by SIGINT (exit code -2)"),
+        (-100, "killed by signal 100 (exit code -100)"),
+    ],
+)
+def test_describe_exit_code(returncode, expected):
+    """Test describe_exit_code() explains the subprocess deaths by signal."""
+    assert call_dask.describe_exit_code(returncode).startswith(expected)
+
+
+def test_format_output_tail():
+    """Test format_output_tail() formats the last output lines appended to the error messages."""
+    assert call_dask.format_output_tail([]) == " No output."
+    assert call_dask.format_output_tail(["a", "b"]) == " Last 2 output lines:\na\nb"
+
+
+@pytest.mark.parametrize(
+    "files, expected",
+    [
+        ({"memory.max": "8589934592\n"}, 8589934592),
+        ({"memory.max": "max\n"}, None),
+        ({"memory.limit_in_bytes": "4294967296\n"}, 4294967296),
+        ({"memory.limit_in_bytes": "9223372036854771712\n"}, None),  # cgroup v1 "no limit"
+        ({"memory.max": "invalid\n"}, None),
+        ({}, None),
+    ],
+)
+def test_get_memory_limit_reads_the_cgroup_files(monkeypatch, tmp_path, files, expected):
+    """Test get_memory_limit() reads the cgroup v2, then v1, memory limit."""
+    for name, value in files.items():
+        (tmp_path / name).write_text(value, encoding="utf-8")
+    monkeypatch.setattr(
+        call_dask,
+        "CGROUP_MEMORY_LIMIT_FILES",
+        (str(tmp_path / "memory.max"), str(tmp_path / "memory.limit_in_bytes")),
+    )
+
+    assert call_dask.get_memory_limit() == expected
+
+
+def test_log_worker_resources_logs_memory_and_disk(mocker, tmp_path):
+    """Test log_worker_resources() logs the worker memory limit and free disk space."""
+    mocker.patch("rs_dpr_service.dask.call_dask.get_memory_limit", return_value=8 * 1024**3)
+    mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="10.0.0.1")
+    mocker.patch(
+        "rs_dpr_service.dask.call_dask.shutil.disk_usage",
+        return_value=SimpleNamespace(free=20 * 1024**3, total=100 * 1024**3),
+    )
+    logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
+
+    call_dask.log_worker_resources("job-1", str(tmp_path))
+
+    logger_info.assert_called_once_with(
+        f"[JOB:job-1] Dask worker '10.0.0.1' resources: container memory limit: 8.0 GiB, "
+        f"free disk space in {str(tmp_path)!r}: 20.0 GiB / 100.0 GiB",
+    )
+
+
+def test_log_worker_resources_never_fails(mocker, tmp_path):
+    """Test log_worker_resources() only logs a debug message when the resources cannot be read."""
+    mocker.patch("rs_dpr_service.dask.call_dask.get_memory_limit", return_value=None)
+    mocker.patch("rs_dpr_service.dask.call_dask.shutil.disk_usage", side_effect=OSError("no disk"))
+    logger_debug = mocker.patch("rs_dpr_service.dask.call_dask.logger.debug")
+
+    call_dask.log_worker_resources("job-1", str(tmp_path))
+
+    logger_debug.assert_called_once_with("[JOB:job-1] Cannot read the dask worker resources: no disk")
+
+
+@pytest.mark.parametrize(
+    "initial, expected",
+    [
+        (None, call_dask.EOPF_IGNORED_WARNINGS),
+        ("", call_dask.EOPF_IGNORED_WARNINGS),
+        ("default", f"default,{call_dask.EOPF_IGNORED_WARNINGS}"),
+    ],
+)
+def test_ignore_eopf_warnings_keeps_the_existing_warning_filters(initial, expected):
+    """Test ignore_eopf_warnings() adds its filter after the existing PYTHONWARNINGS ones."""
+    env = {} if initial is None else {"PYTHONWARNINGS": initial}
+
+    assert call_dask.ignore_eopf_warnings(env) is env
+    assert env["PYTHONWARNINGS"] == expected
+
+
+def test_ignore_eopf_warnings_hides_only_the_escape_sequence_warnings(tmp_path):
+    """
+    Test the EOPF_IGNORED_WARNINGS hide the warnings of ast.literal_eval() on regexes in a real subprocess.
+
+    EOPF evaluates the regexes of its mapping files with ast.literal_eval(): without the filter, each evaluation
+    prints "<unknown>:1: SyntaxWarning: invalid escape sequence '\\.'". The other warnings are still printed.
+    """
+    script = tmp_path / "eopf_like.py"
+    script.write_text(
+        "import ast, warnings\n"
+        "for _ in range(3):\n"
+        "    ast.literal_eval(r\"{'pattern': 's1.*\\.tiff'}\")\n"
+        "warnings.warn('other warning', UserWarning)\n",
+        encoding="utf-8",
+    )
+    env = call_dask.ignore_eopf_warnings({"PYTHONWARNINGS": "default"})
+
+    result = subprocess.run(  # nosec B603 # runs this python interpreter on a script written by this test
+        [sys.executable, str(script)],  # not -I: it would ignore PYTHONWARNINGS
+        env=env,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    assert "SyntaxWarning" not in result.stderr
+    assert "UserWarning: other warning" in result.stderr
+
+
+def test_format_bytes():
+    """Test format_bytes() returns human readable sizes."""
+    assert call_dask.format_bytes(512) == "512.0 B"
+    assert call_dask.format_bytes(1536) == "1.5 KiB"
+    assert call_dask.format_bytes(9160613174) == "8.5 GiB"
+    assert call_dask.format_bytes(3 * 1024**4) == "3.0 TiB"
 
 
 def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
     """Test _flush_log_batch() emits one logger call for the whole batch, then empties it."""
-    caller = _make_processor_caller(mocker)
     logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
     batch = ["first line", "second line"]
 
-    caller._flush_log_batch(batch)  # pylint: disable=protected-access
+    call_dask._flush_log_batch("job-1", batch)  # pylint: disable=protected-access
 
     logger_info.assert_called_once_with(
         "[JOB:job-1] first line\nsecond line",
@@ -875,10 +1296,9 @@ def test_flush_log_batch_logs_joined_lines_and_clears_the_buffer(mocker):
 
 def test_flush_log_batch_does_nothing_for_an_empty_batch(mocker):
     """Test _flush_log_batch() is a no-op when there is nothing buffered."""
-    caller = _make_processor_caller(mocker)
     logger_info = mocker.patch("rs_dpr_service.dask.call_dask.logger.info")
 
-    caller._flush_log_batch([])  # pylint: disable=protected-access
+    call_dask._flush_log_batch("job-1", [])  # pylint: disable=protected-access
 
     logger_info.assert_not_called()
 

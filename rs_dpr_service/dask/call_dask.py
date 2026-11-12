@@ -18,7 +18,7 @@ Avoid import unnecessary dependencies here.
 """
 
 import base64
-import contextlib
+import hashlib
 import importlib
 import json
 import logging
@@ -27,6 +27,7 @@ import os.path as osp
 import re
 import select
 import shutil
+import signal
 import socket
 import subprocess
 import sys
@@ -34,17 +35,21 @@ import tempfile
 import threading
 import time
 import traceback
+import uuid
 import zipfile
+from collections import deque
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import timedelta
 from importlib import reload
-from io import TextIOWrapper
+from io import BytesIO, TextIOWrapper
 from pathlib import Path
 from typing import Any
 
 import distributed
 import yaml
 from distributed.client import Client as DaskClient
+from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
 from distributed.worker import get_client
 from opentelemetry.propagate import inject
 from opentelemetry.trace import Status, StatusCode
@@ -65,83 +70,423 @@ from rs_dpr_service.utils.settings import CANCEL_JOB, ExperimentalConfig
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
+# Env vars of the S3 bucket credentials, used by the SAFE to Zarr conversion
+S3_ENV_VARS = ("S3_ACCESSKEY", "S3_SECRETKEY", "S3_ENDPOINT", "S3_REGION")
+
+# Number of subprocess output lines merged into a single forwarded log record, and the
+# max time a buffered line waits before being flushed anyway.
+LOG_BATCH_SIZE = 50
+LOG_BATCH_INTERVAL_SECONDS = 1
+
+# Number of last subprocess output lines repeated in the error message when the subprocess fails
+LOG_TAIL_SIZE = 20
+
+# Default number of threads of the dask scheduler used by EOPF in the SAFE to Zarr conversion subprocess
+# (DASK_NUM_WORKERS env var, kept if already set in the dask worker environment). EOPF reads each measurement
+# TIFF of a SAFE product in a single chunk, e.g. ~3.7 GiB in memory for the biggest S1 IW SLC products: with
+# one thread per CPU, several TIFFs are loaded at the same time and can exceed the memory of the worker pod.
+CONVERSION_DASK_NUM_WORKERS = "1"
+
+# cgroup files with the memory limit of the container (cgroup v2, then v1)
+CGROUP_MEMORY_LIMIT_FILES = ("/sys/fs/cgroup/memory.max", "/sys/fs/cgroup/memory/memory.limit_in_bytes")
+
+# Above this value, a cgroup v1 memory limit means "no limit"
+_CGROUP_V1_NO_LIMIT = 2**60
+
+# Warnings hidden in the EOPF subprocesses (PYTHONWARNINGS syntax).
+# EOPF evaluates the formatter parameters of its mapping files, that contain regexes, with ast.literal_eval():
+# Python warns about their escape sequences (e.g. '\.') at each evaluation, thousands of times per product,
+# which floods the job logs.
+EOPF_IGNORED_WARNINGS = "ignore:invalid escape sequence:SyntaxWarning"
+
+
+def ignore_eopf_warnings(env: dict[str, str]) -> dict[str, str]:
+    """Add the EOPF_IGNORED_WARNINGS to the PYTHONWARNINGS of a subprocess environment, return the environment."""
+    env["PYTHONWARNINGS"] = ",".join(filter(None, (env.get("PYTHONWARNINGS"), EOPF_IGNORED_WARNINGS)))
+    return env
+
+
+def format_bytes(size: float) -> str:
+    """Return a human readable size, e.g. '8.0 GiB'"""
+    for unit in ("B", "KiB", "MiB", "GiB"):
+        if abs(size) < 1024:
+            return f"{size:.1f} {unit}"
+        size /= 1024
+    return f"{size:.1f} TiB"
+
+
+def describe_exit_code(returncode: int) -> str:
+    """
+    Describe a subprocess exit code, with the probable cause when the subprocess was killed by a signal.
+
+    Args:
+        returncode: subprocess return code. Negative when killed by a signal (subprocess convention),
+            or 128 + the signal number when killed under a shell.
+    """
+    if returncode < 0:
+        signum = -returncode
+    elif 128 < returncode < 128 + signal.NSIG:
+        signum = returncode - 128
+    else:
+        return f"exit code {returncode}"
+
+    try:
+        name = signal.Signals(signum).name
+    except ValueError:
+        name = f"signal {signum}"
+    description = f"killed by {name} (exit code {returncode})"
+    if signum == signal.SIGKILL:
+        description += (
+            ": probably out of memory (killed by the Linux OOM killer when the dask worker pod exceeds its memory "
+            "limit), or forced termination"
+        )
+    elif signum == signal.SIGTERM:
+        description += ": terminated from outside, e.g. the dask worker pod was evicted or deleted"
+    elif signum == signal.SIGSEGV:
+        description += ": segmentation fault, crash in native code"
+    return description
+
+
+def get_memory_limit() -> int | None:
+    """Return the memory limit in bytes of the container from its cgroup, or None if no limit or unknown."""
+    for path in CGROUP_MEMORY_LIMIT_FILES:
+        try:
+            value = Path(path).read_text(encoding="utf-8").strip()
+        except OSError:
+            continue
+        if value == "max":
+            return None
+        try:
+            limit = int(value)
+        except ValueError:
+            continue
+        return limit if limit < _CGROUP_V1_NO_LIMIT else None
+    return None
+
+
+def log_worker_resources(job_id: str, directory: str):
+    """
+    Log the memory limit and free disk space of the dask worker, to help diagnose the worker deaths.
+
+    Args:
+        job_id: job id
+        directory: working directory, on the disk where the processing writes its local files
+    """
+    try:
+        memory_limit = get_memory_limit()
+        memory = format_bytes(memory_limit) if memory_limit else "no limit"
+        disk = shutil.disk_usage(directory)
+        logger.info(
+            f"[JOB:{job_id}] Dask worker {get_ip_address()!r} resources: container memory limit: {memory}, "
+            f"free disk space in {directory!r}: {format_bytes(disk.free)} / {format_bytes(disk.total)}",
+        )
+    except Exception as exception:  # pylint: disable=broad-exception-caught
+        logger.debug(f"[JOB:{job_id}] Cannot read the dask worker resources: {exception}")
+
+
+def _should_flush_log_batch(batch: list[str], last_flush: float) -> bool:
+    """Return True if the buffered batch is full, or non-empty and waiting long enough."""
+    if not batch:
+        return False
+    if len(batch) >= LOG_BATCH_SIZE:
+        return True
+    return (time.monotonic() - last_flush) >= LOG_BATCH_INTERVAL_SECONDS
+
+
+def _flush_log_batch(job_id: str, batch: list[str]) -> None:
+    """Log buffered subprocess output lines as a single record, then clear the buffer."""
+    if batch:
+        joined = "\n".join(batch)
+        # The EOPF lines already have their own "date - logger - LEVEL - " prefix: flag the record
+        # so the rs-dpr-service log stream sends them as they are.
+        logger.info(f"[JOB:{job_id}] {joined}", extra={EOPF_OUTPUT_LOG_ATTR: True})
+        batch.clear()
+
+
+def forward_subprocess_output(
+    proc: subprocess.Popen,
+    job_id: str,
+    on_line: Callable[[str], str] | None = None,
+) -> deque[str]:
+    """
+    Forward the subprocess output (proc.stdout, in text mode) to the job log stream, live.
+
+    The lines are forwarded by batches: one dask log record per line floods the rs-dpr-service caller
+    (Client.forward_logging() re-processes every record live). The lines forwarded before a dask worker
+    death are already on the caller side, so they are not lost.
+
+    Args:
+        proc: running subprocess
+        job_id: job id
+        on_line: called for each raw output line (with its line ending), returns the line to forward
+
+    Returns:
+        The last LOG_TAIL_SIZE non-empty forwarded lines.
+    """
+    tail: deque[str] = deque(maxlen=LOG_TAIL_SIZE)
+
+    # Use select() so we can periodically check whether the buffered batch is due for a time-based flush,
+    # even while no new line has arrived yet (readline() alone would block for as long as the processor
+    # stays quiet, which could delay a partial batch by a very long time).
+    batch: list[str] = []
+    last_flush = time.monotonic()
+    while proc.stdout:
+        ready, _, _ = select.select([proc.stdout], [], [], LOG_BATCH_INTERVAL_SECONDS)
+        if ready:
+            line = proc.stdout.readline()
+            if line == "":
+                break
+            if on_line:
+                line = on_line(line)
+
+            # Buffer non-empty lines
+            line = line.rstrip()
+            if line:
+                batch.append(line)
+                tail.append(line)
+
+        # Flush once the batch is full, or once it's been waiting long enough
+        if _should_flush_log_batch(batch, last_flush):
+            _flush_log_batch(job_id, batch)
+            last_flush = time.monotonic()
+
+    # Flush the remaining buffered lines, if any
+    _flush_log_batch(job_id, batch)
+    return tail
+
+
+def format_output_tail(tail: deque[str] | list[str]) -> str:
+    """Return the last subprocess output lines to append to an error message."""
+    if not tail:
+        return " No output."
+    return f" Last {len(tail)} output lines:\n" + "\n".join(tail)
+
 
 def get_ip_address() -> str:
     """Return IP address, see: https://stackoverflow.com/a/166520"""
     return socket.gethostbyname(socket.gethostname())
 
 
+# Files of this project uploaded to the dask workers, and associated name in the zip archive
+_UPLOADED_FILES = (
+    "__init__.py",
+    "safe_to_zarr.py",
+    "dask/__init__.py",
+    "dask/call_dask.py",
+    "utils/__init__.py",
+    "utils/init_opentelemetry.py",
+    "utils/logging.py",
+    "utils/settings.py",
+)
+
+# Fixed timestamp of the zip entries, so the zip content (and name) only depends on the source code
+_ZIP_DATE_TIME = (1980, 1, 1, 0, 0, 0)
+
+
+def _uploaded_module_names(package_name: str) -> list[str]:
+    """Return the names of the modules contained in the uploaded zip, parent packages first."""
+    names = []
+    for relative_path in _UPLOADED_FILES:
+        parts = relative_path.removesuffix(".py").split("/")
+        if parts[-1] == "__init__":
+            parts.pop()
+        names.append(".".join([package_name, *parts]))
+    return sorted(names)
+
+
+def build_module_zip() -> tuple[str, bytes]:
+    """
+    Build the zip of this project uploaded to the dask workers.
+
+    The zip is built in memory with fixed entry timestamps, so the same source code always gives the same
+    zip content. Its name contains a hash of this content, e.g. "rs_dpr_service-0123456789abcdef.zip".
+
+    Returns:
+        zip file name and content
+    """
+    # Root of the current project
+    root = Path(__file__).parent.parent
+    package_name = root.name  # should be "rs_dpr_service"
+
+    buffer = BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zipped:
+        for relative_path in _UPLOADED_FILES:
+            info = zipfile.ZipInfo(f"{package_name}/{relative_path}", date_time=_ZIP_DATE_TIME)
+            info.compress_type = zipfile.ZIP_DEFLATED
+            zipped.writestr(info, (root / relative_path).read_bytes())
+    data = buffer.getvalue()
+    return f"{package_name}-{hashlib.sha256(data).hexdigest()[:16]}.zip", data
+
+
+def make_module_install_plugins(
+    zip_filename: str,
+    data: bytes,
+    module_names: list[str],
+) -> tuple[SchedulerPlugin, WorkerPlugin]:
+    """
+    Return the dask scheduler and worker plugins that install the zip of this project on the scheduler and workers.
+
+    The scheduler needs this project too: it unpickles the task graphs, which reference its functions.
+
+    The plugin classes are defined in this function so cloudpickle sends them by value: the dask scheduler and
+    workers can unpickle them before this module is installed on them.
+
+    On the scheduler and on each worker, the plugin:
+      - writes the zip in the local directory, atomically (temporary file + rename), and only if it's missing,
+        so a zip read by a running task or subprocess is never truncated nor removed;
+      - puts the zip first in sys.path;
+      - reloads the modules of the zip only if they were loaded from another file (e.g. a previous version).
+        Modules already loaded from this zip are not reloaded, so the tasks that are running are not disturbed.
+
+    Zips of previous versions are kept: tasks of a previous version may still use them.
+
+    Args:
+        zip_filename: zip file name, containing the hash of its content
+        data: zip content
+        module_names: names of the modules contained in the zip, parent packages first
+
+    Returns:
+        scheduler plugin, worker plugin
+    """
+
+    def install(local_directory: str, zip_filename: str, data: bytes, module_names: list[str]):
+        """Write the zip in the local directory and import the modules from it."""
+        zip_path = os.path.join(local_directory, zip_filename)
+        if not (os.path.isfile(zip_path) and os.path.getsize(zip_path) == len(data)):
+            tmp_path = f"{zip_path}.{uuid.uuid4().hex}.tmp"
+            with open(tmp_path, "wb") as tmp_file:
+                tmp_file.write(data)
+                tmp_file.flush()
+                os.fsync(tmp_file.fileno())
+            os.replace(tmp_path, zip_path)
+
+        if zip_path in sys.path:
+            sys.path.remove(zip_path)
+        sys.path.insert(0, zip_path)
+        importlib.invalidate_caches()
+
+        # Reload the modules of the zip already loaded from another file, parent packages first. The modules
+        # already loaded from this zip are not reloaded: it would disturb the tasks that use them.
+        for name in module_names:
+            module = sys.modules.get(name)
+            if module is not None and not str(getattr(module, "__file__", "") or "").startswith(zip_path + os.sep):
+                importlib.reload(module)
+        # Import the root package, the other modules are imported when needed
+        importlib.import_module(module_names[0])
+
+    class InstallModuleSchedulerPlugin(SchedulerPlugin):
+        """Install the rs_dpr_service zip on the dask scheduler."""
+
+        # Registering a plugin with the name of an already registered one does nothing
+        idempotent = True
+
+        def __init__(self, zip_filename: str, data: bytes, module_names: list[str]):
+            self.zip_filename = zip_filename
+            self.data = data
+            self.module_names = module_names
+
+        async def start(self, scheduler):
+            """Install the zip on the scheduler."""
+            install(scheduler.local_directory, self.zip_filename, self.data, self.module_names)
+
+    class InstallModuleWorkerPlugin(WorkerPlugin):
+        """Install the rs_dpr_service zip on a dask worker."""
+
+        # Registering a plugin with the name of an already registered one does nothing
+        idempotent = True
+
+        def __init__(self, zip_filename: str, data: bytes, module_names: list[str]):
+            self.zip_filename = zip_filename
+            self.data = data
+            self.module_names = module_names
+
+        def setup(self, worker):
+            """Install the zip on the worker."""
+            install(worker.local_directory, self.zip_filename, self.data, self.module_names)
+
+    return (
+        InstallModuleSchedulerPlugin(zip_filename, data, module_names),
+        InstallModuleWorkerPlugin(zip_filename, data, module_names),
+    )
+
+
 def upload_this_module(dask_client: DaskClient):
     """
-    Upload this current module from the caller environment to the dask client.
+    Upload this current module from the caller environment to the dask scheduler and workers.
+
+    The zip is installed by a scheduler plugin and a worker plugin named after the zip, so after a hash of its
+    content, and registered as idempotent: when several jobs run on the same cluster with the same version of this
+    module, only the first one installs it, the others don't touch the dask cluster. The worker plugin is also run
+    by the dask workers added later to the cluster. The plugins of the other versions of this module are
+    unregistered first.
 
     WARNING: These modules should not import other modules that are not installed in the dask
     environment or you'll have import errors.
 
     Args:
-        clients: list of dask clients to which upload the modules.
+        dask_client: dask client to which upload the modules.
     """
-    # Root of the current project
-    root = Path(__file__).parent.parent
+    zip_filename, data = build_module_zip()
+    plugin_name = zip_filename.removesuffix(".zip")
+    _unregister_stale_plugins(dask_client, plugin_name)
+    scheduler_plugin, worker_plugin = make_module_install_plugins(
+        zip_filename,
+        data,
+        _uploaded_module_names(Path(__file__).parent.parent.name),
+    )
+    logger.debug(f"Install {zip_filename!r} on the dask scheduler and workers")
+    # Install on the scheduler first: it must be able to unpickle the task graphs sent to the workers
+    dask_client.register_plugin(scheduler_plugin, name=plugin_name)
+    dask_client.register_plugin(worker_plugin, name=plugin_name)
 
-    # Files and dirs to upload and associated name in the zip archive
-    files = {
-        root / "__init__.py": "rs_dpr_service/__init__.py",
-        root / "safe_to_zarr.py": "rs_dpr_service/safe_to_zarr.py",
-        root / "dask/__init__.py": "rs_dpr_service/dask/__init__.py",
-        root / "dask/call_dask.py": "rs_dpr_service/dask/call_dask.py",
-        root / "utils/__init__.py": "rs_dpr_service/utils/__init__.py",
-        root / "utils/init_opentelemetry.py": "rs_dpr_service/utils/init_opentelemetry.py",
-        root / "utils/logging.py": "rs_dpr_service/utils/logging.py",
-        root / "utils/settings.py": "rs_dpr_service/utils/settings.py",
-    }
 
-    # We'll create a zip with our files, and upload and install it in all dask workers.
-    package_name = root.name  # should be "rs_dpr_service"
-    zip_filename = f"{root.name}.zip"
+def _unregister_stale_plugins(dask_client: DaskClient, plugin_name: str):
+    """
+    Unregister the plugins that installed other versions of this module on the dask scheduler and workers.
 
-    # But first, if we run this function several times,
-    # we need to remove the previous installed zip from the dask workers.
-    def remove_previous_zip(dask_worker):
-        with contextlib.suppress(FileNotFoundError):
-            worker_zip_path = f"{dask_worker.local_directory}/{zip_filename}"
-            os.remove(worker_zip_path)
-            return f"Removed from dask worker: {worker_zip_path!r}"
-        return ""
+    The scheduler replays all its worker plugins on each new or restarted worker. Without this cleanup, a long
+    running cluster would keep:
+      - the UploadFile plugins registered by client.upload_file() (one per job, named
+        "<tmpdir>/rs_dpr_service.zip<uuid>") by the previous versions: replayed concurrently, they all write the
+        same rs_dpr_service.zip on the new worker and fail with "EOFError: EOF read where not expected";
+      - the plugins of the previous versions of this module, each one writing a zip on each new worker.
 
-    logger.debug(json.dumps(dask_client.run(remove_previous_zip), indent=2))
+    client.upload_file() also registered a scheduler plugin with the same name, unregistered too.
 
-    # From a temp dir
-    with tempfile.TemporaryDirectory() as tmpdir:
+    Unregistering a plugin doesn't touch the zips already written, so the running tasks of a previous version are
+    not disturbed.
 
-        # Create a zip with our files
-        zip_path = f"{tmpdir}/{zip_filename}"
-        with zipfile.ZipFile(zip_path, "w") as zipped:
+    Args:
+        dask_client: dask client connected to the cluster
+        plugin_name: name of the plugins of the current version, kept
+    """
+    package_name = plugin_name.rsplit("-", maxsplit=1)[0]  # "rs_dpr_service"
+    legacy_name = re.compile(rf"(.*/)?{re.escape(package_name)}\.zip[0-9a-f-]{{36}}")
+    previous_name = re.compile(rf"{re.escape(package_name)}-[0-9a-f]{{16}}")
 
-            # Zip all files
-            for key, value in files.items():
-                zipped.write(str(key), str(value))
+    def is_stale(name: str) -> bool:
+        return name != plugin_name and bool(legacy_name.fullmatch(name) or previous_name.fullmatch(name))
 
-        # Upload zip file to dask clients.
-        # This also installs the zipped modules inside the dask python interpreter.
-        try:
-            dask_client.upload_file(zip_path)
+    def plugin_names(dask_scheduler) -> tuple[list[str], list[str]]:
+        """
+        Return the names of the scheduler and worker plugins (run on the scheduler).
 
-        # We have this error if we scale up the number of workers.
-        # But it's OK, the zip file is automatically uploaded to them anyway.
-        except KeyError as e:
-            logger.debug(f"Ignoring error {e}")
+        Local function, so cloudpickle sends it by value: the scheduler may not have this module yet.
+        """
+        return list(dask_scheduler.plugins), list(dask_scheduler.worker_plugins)
 
-    # If we run this function several times, we need to reload the uploaded modules from the dask workers
-    def reload_uploaded():
-        reloaded = []
-        for module in list(sys.modules.values()):
-            if module.__name__.startswith(f"{package_name}."):
-                reload(module)
-                reloaded.append(module.__name__)
-        return f"Reloaded: {reloaded}"
-
-    logger.debug(json.dumps(dask_client.run(reload_uploaded), indent=2))
+    scheduler_names, worker_names = dask_client.run_on_scheduler(plugin_names)
+    for kind, names, unregister in (
+        ("scheduler", scheduler_names, dask_client.unregister_scheduler_plugin),
+        ("worker", worker_names, dask_client.unregister_worker_plugin),
+    ):
+        for name in filter(is_stale, names):
+            logger.debug(f"Unregister the stale {kind} plugin {name!r}")
+            try:
+                unregister(name)
+            except ValueError:
+                # Already unregistered by another job connected to the same cluster
+                pass
 
 
 @dataclass
@@ -163,11 +508,18 @@ class ClusterInfo:
     cluster_instance: str | None = ""
 
 
-def convert_safe_to_zarr(cfg):
+def convert_safe_to_zarr(cfg: dict, s3_env: dict[str, str] | None = None, job_id: str = ""):
     """
     Convert from legacy product (safe format) into Zarr format using EOPF in a subprocess.
 
     This runs the rs_dpr_service.safe_to_zarr module as a subprocess, passing config as JSON string.
+    Its output is forwarded live to the job log stream.
+
+    Args:
+        cfg: conversion configuration
+        s3_env: S3 bucket credentials env vars (see S3_ENV_VARS) from the calling service, passed to the
+            subprocess because they are not set in the dask worker environment.
+        job_id: job id, to forward the subprocess output to the job log stream
     """
 
     # Serialize the config
@@ -181,22 +533,47 @@ def convert_safe_to_zarr(cfg):
 
     # Prepare an env that lets Python import from inside the ZIP
     env = os.environ.copy()
+    env.update(s3_env or {})
     # prepend the zip onto PYTHONPATH (so zipimport will kick in)
     env["PYTHONPATH"] = str(zip_path) + os.pathsep + env.get("PYTHONPATH", "")
+    ignore_eopf_warnings(env)
+    # Load a single chunk at a time in the subprocess dask threaded scheduler, to bound its memory
+    env.setdefault("DASK_NUM_WORKERS", CONVERSION_DASK_NUM_WORKERS)
 
-    # Run the converter as a module
-    cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str]
-    result = subprocess.run(
-        cmd,
-        env=env,
-        capture_output=True,
-        text=True,
-        check=False,
-    )
+    # The SAFE is staged in the temporary directory
+    log_worker_resources(job_id, tempfile.gettempdir())
 
-    if result.returncode != 0:
-        raise RuntimeError(f"Conversion failed: {result.stderr.strip()}")
-    return result.stdout.strip()
+    # The subprocess writes its result into this pipe, its output contains the logs.
+    # NOTE: the result is read once the subprocess has finished: it must be smaller than the pipe buffer (64 KiB).
+    result_read, result_write = os.pipe()
+    with os.fdopen(result_read, encoding="utf-8") as result_file:
+        try:
+            # Run the converter as a module
+            cmd = [sys.executable, "-m", "rs_dpr_service.safe_to_zarr", cfg_str, str(result_write)]
+            logger.info(f"[JOB:{job_id}] Start the SAFE to Zarr conversion of {cfg.get('safe_uri')!r}")
+            with subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                env=env,
+                pass_fds=(result_write,),
+            ) as proc:
+                # Close our copy of the write end, so the read returns at the subprocess exit
+                os.close(result_write)
+                result_write = -1
+                tail = forward_subprocess_output(proc, job_id)
+                returncode = proc.wait()
+        finally:
+            if result_write >= 0:
+                os.close(result_write)
+
+        if returncode != 0:
+            raise RuntimeError(f"Conversion failed: {describe_exit_code(returncode)}.{format_output_tail(tail)}")
+        result = result_file.read().strip()
+    if not result:
+        raise RuntimeError(f"Conversion failed: no result written.{format_output_tail(tail)}")
+    return result
 
 
 class ProcessorCaller:
@@ -205,11 +582,6 @@ class ProcessorCaller:
 
     NOTE: All methods except __init__ are run from the dask pod.
     """
-
-    # Number of subprocess output lines merged into a single forwarded log record, and the
-    # max time a buffered line waits before being flushed anyway.
-    _LOG_BATCH_SIZE = 50
-    _LOG_BATCH_INTERVAL_SECONDS = 1
 
     def __init__(
         self,
@@ -242,6 +614,7 @@ class ProcessorCaller:
             working_dir: Working directory on local disk
             to_be_uploaded: Output products to be uploaded to the s3 bucket at the end of the processor
             exec_times: Execution times with their description
+            cancelled: True when the EOPF subprocess is terminated by a job cancellation
         """
         # NOTE: some imports exists in the dask worker environment, not in the rs-dpr-service env,
         # so we cannot import them from the top of this module.
@@ -267,6 +640,7 @@ class ProcessorCaller:
         self.working_dir: str = ""
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
+        self.cancelled: bool = False  # True when the EOPF subprocess is terminated by a job cancellation
 
     def copy_caller_env(self):
         """
@@ -391,6 +765,7 @@ class ProcessorCaller:
                     f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
                 )
                 self.init()
+                log_worker_resources(self.job_id, self.working_dir)
 
                 if self.processor_name == "mockup":
                     # TODO: test this on the deployed cluster
@@ -813,6 +1188,7 @@ class ProcessorCaller:
             if proc.returncode is not None:
                 return
 
+            self.cancelled = True
             msg = f"\nForce termination of EOPF job: {self.job_id!r}\n"
             log_file.write(msg)
             logger.warning(f"[JOB:{self.job_id}] {msg}")
@@ -881,38 +1257,13 @@ class ProcessorCaller:
                 # Handle cancellation of eopf processing
                 cancel_event = self.handle_cancellation(proc, log_file)
 
-                # Read eopf stdout. Use select() so we can periodically check whether the
-                # buffered batch is due for a time-based flush, even while no new line has
-                # arrived yet (readline() alone would block for as long as the processor stays
-                # quiet, which could delay a partial batch by a very long time).
-                batch: list[str] = []
-                last_flush = time.monotonic()
-                while proc.stdout:
-                    interval = self._LOG_BATCH_INTERVAL_SECONDS
-                    ready, _, _ = select.select([proc.stdout], [], [], interval)
-                    if ready:
-                        line = proc.stdout.readline()
-                        if line == "":
-                            break
+                def on_line(line: str) -> str:
+                    # Hide secrets from logs, write them to the log file
+                    line = self.hide_secrets(line)
+                    log_file.write(line)
+                    return line
 
-                        # Hide secrets from logs
-                        line = self.hide_secrets(line)
-
-                        # Write to log file and string
-                        log_file.write(line)
-
-                        # Buffer non-empty lines
-                        line = line.rstrip()
-                        if line:
-                            batch.append(line)
-
-                    # Flush once the batch is full, or once it's been waiting long enough
-                    if self._should_flush_log_batch(batch, last_flush):
-                        self._flush_log_batch(batch)
-                        last_flush = time.monotonic()
-
-                # Flush the remaining buffered lines, if any
-                self._flush_log_batch(batch)
+                tail = forward_subprocess_output(proc, self.job_id, on_line)
 
             # Wait for the execution to finish
             status_code = proc.wait()
@@ -926,34 +1277,18 @@ class ProcessorCaller:
 
             # Raise exception if the eopf status code is != 0
             if status_code:
-                err_msg = f"EOPF error, status code {status_code!r}, please see the log."
+                cause = "cancelled by the user" if self.cancelled else describe_exit_code(status_code)
+                err_msg = f"EOPF error, {cause}, please see the log.{format_output_tail(tail)}"
                 span.set_status(Status(StatusCode.ERROR, err_msg))
                 raise RuntimeError(err_msg)
 
             span.set_status(Status(StatusCode.OK))
             logger.info(f"[JOB:{self.job_id}] EOPF finished successfully with status code {status_code!r}")
 
-    def _should_flush_log_batch(self, batch: list[str], last_flush: float) -> bool:
-        """Return True if the buffered batch is full, or non-empty and waiting long enough."""
-        if not batch:
-            return False
-        if len(batch) >= self._LOG_BATCH_SIZE:
-            return True
-        return (time.monotonic() - last_flush) >= self._LOG_BATCH_INTERVAL_SECONDS
-
-    def _flush_log_batch(self, batch: list[str]) -> None:
-        """Log buffered subprocess output lines as a single record, then clear the buffer."""
-        if batch:
-            joined = "\n".join(batch)
-            # The EOPF lines already have their own "date - logger - LEVEL - " prefix: flag the record
-            # so the rs-dpr-service log stream sends them as they are.
-            logger.info(f"[JOB:{self.job_id}] {joined}", extra={EOPF_OUTPUT_LOG_ATTR: True})
-            batch.clear()
-
     def _prepare_env_with_trace_context(self) -> dict[str, str]:
         # https://oneuptime.com/blog/post/2026-02-06-trace-python-subprocess-calls-opentelemetry/view#context-propagation-to-child-processes
         # https://opentelemetry.io/docs/languages/python/propagation/#manual-context-propagation
-        env = os.environ.copy()
+        env = ignore_eopf_warnings(os.environ.copy())
 
         # Inject trace context into environment variables
         carrier: dict[str, str] = {}

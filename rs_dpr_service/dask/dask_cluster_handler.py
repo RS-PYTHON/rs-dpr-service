@@ -14,13 +14,16 @@
 
 """Module to handle connection to Dask cluster."""
 
+import logging
 import os
+from collections.abc import Callable
 
 from dask.distributed import (  # LocalCluster,
     Client,
 )
 from dask_gateway import Gateway, GatewayCluster
 from dask_gateway.auth import BasicAuth, JupyterHubAuth
+from distributed.client import TOPIC_PREFIX_FORWARDED_LOG_RECORD
 from opentelemetry.trace import StatusCode
 
 from rs_dpr_service.dask import call_dask
@@ -30,6 +33,34 @@ from rs_dpr_service.utils.logging import Logging
 from rs_dpr_service.utils.settings import LOCAL_MODE, set_dask_env
 
 logger = Logging.default(__name__)
+
+# Topic of the dask worker log records forwarded by Client.forward_logging() for the root logger
+FORWARDED_LOGS_TOPIC = f"{TOPIC_PREFIX_FORWARDED_LOG_RECORD}-forward-logging-<root>"
+
+
+def make_forwarded_log_handler(job_id: str) -> Callable[[tuple[float, dict]], None]:
+    """
+    Return the handler of the dask worker log records forwarded to the dask client of a job.
+
+    All the dask clients connected to a cluster receive the log records of all the workers, so with N jobs running
+    at the same time in this rs-dpr-service instance, each "[JOB:<id>]" record would be handled N times and appear N
+    times in the job log stream. Each client only handles the records of its own job, and the records of no job.
+
+    Args:
+        job_id: job id of the dask client
+    """
+    job_tag = f"[JOB:{job_id}]"
+
+    def handle(event: tuple[float, dict]):
+        _, record_attrs = event
+        # The worker sends the formatted message in "msg"
+        message = str(record_attrs.get("msg", ""))
+        if "[JOB:" in message and job_tag not in message:
+            return
+        record = logging.makeLogRecord(record_attrs)
+        logging.getLogger(record.name).handle(record)
+
+    return handle
 
 
 class DaskClusterHandler:  # pylint: disable=too-few-public-methods
@@ -125,7 +156,7 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             logger.exception(f"Failed to find the specified dask cluster: {e}")
             raise RuntimeError(f"No dask cluster named {cluster_label!r} was found.") from e
 
-    def setup_dask_connection(self) -> Client:
+    def setup_dask_connection(self, job_id: str | None = None) -> Client:
         """Connects a dask cluster scheduler
         Establishes a connection to a Dask cluster, either in a local environment or via a Dask Gateway in
         a Kubernetes cluster. This method checks if the cluster is already created (for local mode) or connects
@@ -140,6 +171,9 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
             (using environment variables `DASK_GATEWAY_ADDRESS` and `DASK_GATEWAY__AUTH__TYPE`) to
             retrieve a list of existing clusters.
         - If no clusters are available, it attempts to create a new cluster scheduler.
+
+        Args:
+            job_id: id of the job using this client, to only handle the forwarded log records of this job
 
         Raises:
             RuntimeError: Raised if the cluster name is None, required environment variables are missing,
@@ -186,8 +220,11 @@ class DaskClusterHandler:  # pylint: disable=too-few-public-methods
                 # create the client as well
                 client = Client(self.cluster)
 
-                # Forward logging from dask workers to the caller
+                # Forward logging from dask workers to the caller.
+                # Only handle the records of this job, see make_forwarded_log_handler.
                 client.forward_logging()
+                if job_id:
+                    client.subscribe_topic(FORWARDED_LOGS_TOPIC, make_forwarded_log_handler(job_id))
 
                 # Upload local module to the dask client.
                 call_dask.upload_this_module(client)

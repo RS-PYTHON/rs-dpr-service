@@ -33,6 +33,7 @@ from pygeoapi.util import JobStatus
 from rs_dpr_service.dask import call_dask
 from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.dask.dask_cluster_handler import DaskClusterHandler
+from rs_dpr_service.dask.worker_diagnostics import explain_task_failure
 from rs_dpr_service.utils.init_opentelemetry import record_error, start_span
 from rs_dpr_service.utils.job_logger import JobLogger
 from rs_dpr_service.utils.logging import Logging
@@ -67,7 +68,7 @@ class GenericProcessor(BaseProcessor):
 
     async def get_tasktable(self):
         """Return the EOPF tasktable for a given module and class names"""
-        dask_client = self.cluster_handler.setup_dask_connection()
+        dask_client = self.cluster_handler.setup_dask_connection(self.job_logger.job_id)
 
         try:
             # Extract span infos to send to Dask
@@ -93,7 +94,10 @@ class GenericProcessor(BaseProcessor):
             res = task_table_task.result()
             return res
         except Exception as e:  # pylint: disable=broad-exception-caught
-            logger.exception(f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}")
+            error_msg = f"Submitting task to dask cluster failed. Reason: {traceback.format_exc()}"
+            if diagnostic := explain_task_failure(dask_client, e):
+                error_msg += f"\n{diagnostic}"
+            logger.exception(error_msg)
             raise e
         finally:
             # cleanup by disconnecting the dask client
@@ -165,7 +169,10 @@ class GenericProcessor(BaseProcessor):
             # This call is blocking (connection to the dask gateway, cluster scaling, ...) so run it
             # in a thread, else the event loop is frozen (e.g. the SSE log streams and health checks).
             else:
-                dask_client = await asyncio.to_thread(self.cluster_handler.setup_dask_connection)
+                dask_client = await asyncio.to_thread(
+                    self.cluster_handler.setup_dask_connection,
+                    self.job_logger.job_id,
+                )
         except KeyError as ke:
             return self.job_logger.log_job_execution(
                 JobStatus.failed,
@@ -258,7 +265,10 @@ class GenericProcessor(BaseProcessor):
                     logger.info("%s Task streaming completed", dpr_task.key)
 
             except Exception as e:  # pylint: disable=broad-exception-caught
-                self._handle_error(span, e, f"Processing task failed: {traceback.format_exc()}")
+                error_msg = f"Processing task failed: {traceback.format_exc()}"
+                if diagnostic := explain_task_failure(dask_client, e):
+                    error_msg += f"\n{diagnostic}"
+                self._handle_error(span, e, error_msg)
                 return
 
         # Update status and insert the result of the dask task in the jobs table

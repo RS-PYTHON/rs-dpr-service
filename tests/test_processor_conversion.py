@@ -17,6 +17,7 @@
 import asyncio
 
 import pytest
+from distributed import KilledWorker
 from pygeoapi.util import JobStatus
 
 from rs_dpr_service.processors.conversion_processor import ConversionProcessor
@@ -133,7 +134,8 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         execute_coro.send(None)
     result = exc.value.value
 
-    setup_dask_connection.assert_called_once_with()
+    # The client only handles the forwarded log records of its job
+    setup_dask_connection.assert_called_once_with(processor.job_logger.job_id)
     s3_fs.ls.assert_called_once_with("/")
     s3_fs.exists.assert_any_call("safe-bucket/product.SAFE")
     s3_fs.exists.assert_any_call("zarr-bucket")
@@ -147,6 +149,13 @@ def test_execute_runs_nominal_conversion_flow_with_mocked_s3_and_dask(mocker, mo
         "safe_s3_config": {"safe": "config"},
         "zarr_s3_config": {"zarr": "config"},
         "zarr_format": 2,
+    }
+    # The S3 bucket credentials of the service are passed to the dask worker
+    assert dask_client.submit.call_args.args[2] == {
+        "S3_ACCESSKEY": "access",
+        "S3_SECRETKEY": "secret",
+        "S3_ENDPOINT": "https://s3.test",
+        "S3_REGION": "region",
     }
     future.result.assert_called_once_with()
     # ConversionProcessor.manage_dask_tasks() and GenericProcessor.start_processor() both close the client.
@@ -323,3 +332,39 @@ def test_execute_marks_job_failed_when_conversion_dask_processing_fails(
     assert processor.job_logger.status == JobStatus.failed
     assert processor.job_logger.message.startswith("Conversion failed:")
     assert dask_client.close.call_count == 2
+
+
+def test_execute_explains_the_dead_dask_workers_of_the_conversion(mocker, monkeypatch):
+    """Test the conversion job error message explains why the dask workers died."""
+    _set_conversion_env(monkeypatch)
+    processor = _build_processor(mocker)
+    s3_fs = mocker.Mock()
+    s3_fs.exists.return_value = True
+    s3_fs.open = mocker.mock_open()
+    mocker.patch("rs_dpr_service.processors.conversion_processor.fsspec.filesystem", return_value=s3_fs)
+
+    error = KilledWorker(task="convert_safe_to_zarr-123", last_worker=mocker.Mock(), allowed_failures=3)
+    dask_client = mocker.Mock()
+    dask_client.submit.return_value.result.side_effect = error
+    explain = mocker.patch(
+        "rs_dpr_service.processors.conversion_processor.explain_task_failure",
+        return_value="Diagnostic of the dask workers...",
+    )
+
+    processor.manage_dask_tasks(dask_client, _valid_conversion_payload())
+
+    explain.assert_called_once_with(dask_client, error)
+    assert processor.job_logger.status == JobStatus.failed
+    assert processor.job_logger.message == f"Conversion failed: {error}\nDiagnostic of the dask workers..."
+
+
+def test_execute_does_not_repeat_the_conversion_failed_prefix(mocker, monkeypatch):
+    """Test the conversion subprocess error, that already starts with 'Conversion failed:', is kept as is."""
+    _set_conversion_env(monkeypatch)
+    processor = _build_processor(mocker)
+    dask_client = mocker.Mock()
+    dask_client.submit.return_value.result.side_effect = RuntimeError("Conversion failed: exit code 1. No output.")
+
+    processor.manage_dask_tasks(dask_client, _valid_conversion_payload())
+
+    assert processor.job_logger.message == "Conversion failed: exit code 1. No output."
