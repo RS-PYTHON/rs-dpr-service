@@ -754,10 +754,6 @@ class ProcessorCaller:
                 self.init()
                 log_worker_resources(self.job_id, self.working_dir)
 
-                logger.info("===== PAUSING THE PROCESS FOR ONE MINUTE, FOR TEMPORARY TEST PURPOSES =====")
-                time.sleep(60)
-                logger.info("===== RESUMING THE PROCESS AFTER THE PAUSE =====")
-
                 start_time = time.time()
                 self.trigger()
                 self.exec_times.append(("Run processor", time.time() - start_time))
