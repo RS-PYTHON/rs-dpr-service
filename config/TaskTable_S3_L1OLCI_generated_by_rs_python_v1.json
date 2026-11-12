@@ -340,7 +340,6 @@
                             "name": "LatestValIntersect",
                             "parameters": {
                                 "product_type": "ADF_WATER",
-                                "satellite": "{external_variable.satellite}",
                                 "start_datetime": "{external_variable.start_datetime}",
                                 "end_datetime": "{external_variable.end_datetime}",
                                 "dTa": 0,
