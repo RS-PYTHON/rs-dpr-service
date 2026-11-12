@@ -764,8 +764,11 @@ class ProcessorCaller:
                     f"[JOB:{self.job_id}] "
                     f"Python package versions (pip freeze):\n{json.dumps(list(freeze.freeze()), indent=2)}",
                 )
+                logger.info("TEST: DPR Mockup processor info message before init")
                 self.init()
+                logger.info("TEST: DPR Mockup processor info message AFTER init")
                 log_worker_resources(self.job_id, self.working_dir)
+                logger.info("TEST: DPR Mockup processor info message AFTER log_worker_resources")
 
                 if self.processor_name == "mockup":
                     # TODO: test this on the deployed cluster
