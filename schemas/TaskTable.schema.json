@@ -390,7 +390,7 @@
                         "const": "pipeline_input"
                     },
                     {
-                        "pattern": "^[^\\.]+(\\.[^\\.]+)?\\.[^\\.]+$"
+                        "pattern": "^[^.]+\\.(?:[1-9][0-9]*\\.)?.+$"
                     }
                 ]
             },
@@ -556,6 +556,12 @@
                     "items": {
                         "$ref": "#/$defs/OutputProduct"
                     }
+                },
+                "processing_unit": {
+                    "type": "string"
+                },
+                "active": {
+                    "type": "boolean"
                 }
             },
             "required": [
@@ -578,6 +584,9 @@
                 },
                 "mandatory": {
                     "type": "boolean"
+                },
+                "regex": {
+                    "type": "string"
                 }
             },
             "required": [

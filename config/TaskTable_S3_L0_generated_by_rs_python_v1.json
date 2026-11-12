@@ -2,9 +2,9 @@
     "$schema": "../schemas/TaskTable.schema.json",
     "tasktable": {
         "name": "s3-l0",
-        "version": "1.0",
+        "version": "2.0",
         "specification_version": "2.0_draftA",
-        "update_datetime": "2026-11-09T15:00:00Z",
+        "update_datetime": "2026-11-12T00:00:00Z",
         "configuration_path": {}
     },
     "external_modules": [
@@ -20,8 +20,10 @@
     ],
     "units": [
         {
-            "name": "S3L0Processor",
-            "module": "l0.s3.s3_l0_processor",
+            "name": "CADUProcessing",
+            "module": "l0.cadu_processing.cadu_processing_unit",
+            "processing_unit": "CADUProcessingUnit",
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -36,8 +38,9 @@
             "input_products": [
                 {
                     "name": "S3ACADUS",
+                    "mandatory": true,
                     "mode": "always",
-                    "mandatory": true
+                    "regex": "CADUs"
                 }
             ],
             "input_adfs": [
@@ -52,6 +55,260 @@
                     "mandatory": false
                 }
             ],
+            "output_products": []
+        },
+        {
+            "name": "APIDFiltering",
+            "module": "l0.s3.apid_filtering_unit",
+            "processing_unit": "APIDFilteringUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "GranuleProcessing",
+            "module": "l0.s3.granule_processing_unit",
+            "processing_unit": "GranuleProcessingUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "GranuleFormatting",
+            "module": "l0.s3.granule_formating_unit",
+            "processing_unit": "GranuleFormatingUnit",
+            "active": false,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "SpecificSorting",
+            "module": "l0.s3.specific_sorting_unit",
+            "processing_unit": "SpecificSortingUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "CheckISPs",
+            "module": "l0.s3.check_isps_unit",
+            "processing_unit": "CheckIspsUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "CheckManoeuvring",
+            "module": "l0.s3.check_manouvering_unit",
+            "processing_unit": "CheckManouveringUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "MetadataProcessing",
+            "module": "l0.s3.metadata_processing_unit",
+            "processing_unit": "MetadataProcessingUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [
+                {
+                    "name": "osf",
+                    "mode": "always",
+                    "mandatory": false
+                },
+                {
+                    "name": "fro",
+                    "mode": "always",
+                    "mandatory": false
+                }
+            ],
+            "output_products": []
+        },
+        {
+            "name": "ProductFormatting",
+            "module": "l0.s3.product_formating_unit",
+            "processing_unit": "ProductFormatingUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
+            "output_products": []
+        },
+        {
+            "name": "MergeAndConsolidation",
+            "module": "l0.s3.merge_and_consolidation_unit",
+            "processing_unit": "MergeAndConsolidationUnit",
+            "active": true,
+            "resources_min": {
+                "dask": {
+                    "worker_cpu": 4,
+                    "worker_ram": "58GB",
+                    "worker_thread_count": 1,
+                    "worker_count": 1
+                },
+                "disk": {
+                    "size_per_worker": "50GB"
+                }
+            },
+            "input_products": [
+                {
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
+                }
+            ],
+            "input_adfs": [],
             "output_products": [
                 {
                     "name": "S03HKML0",
@@ -136,6 +393,12 @@
                     "mode": "always",
                     "mandatory": false,
                     "regex": "^S03OLCCR1($|_.*)"
+                },
+                {
+                    "name": "S03CACHE",
+                    "mode": "always",
+                    "mandatory": false,
+                    "regex": "^cache_S03.*"
                 }
             ]
         }
@@ -306,6 +569,14 @@
                 "writer_params": {
                     "mode": "w"
                 }
+            },
+            {
+                "name": "S03CACHE",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             }
         ]
     },
@@ -393,28 +664,18 @@
             "description": "Full pipeline for S3 L0",
             "steps": [
                 {
-                    "unit_name": "S3L0Processor",
+                    "unit_name": "CADUProcessing",
                     "step_id": 1,
                     "input_products": {
                         "S3ACADUS": "pipeline_input"
                     },
-                    "output_products": {
-                        "S03HKM2L0": "pipeline_output",
-                        "S03HKML0": "pipeline_output",
-                        "S03HKMRAW": "pipeline_output",
-                        "S03NATL0": "pipeline_output",
-                        "S03OLCL0": "pipeline_output",
-                        "S03SLSL0": "pipeline_output",
-                        "S03SRAL0": "pipeline_output",
-                        "S03SRAL0C": "pipeline_output",
-                        "S03MWRL0": "pipeline_output",
-                        "S03GNSL0": "pipeline_output",
-                        "S03DORNAV": "pipeline_output",
-                        "S03DORDOP": "pipeline_output",
-                        "S03OLCCR0": "pipeline_output",
-                        "S03OLCCR1": "pipeline_output"
-                    },
+                    "output_products": {},
                     "parameters": {
+                        "streaming_mode": false,
+                        "mission": "S3",
+                        "apply_mask": false,
+                        "temporary_path": "./tmp",
+                        "isp_extraction_batch_size": 5,
                         "acquisition_report_output_path": "./acquisition_report_output_path",
                         "cadu_chunk_size": {
                             "navatt": 10000,
@@ -426,7 +687,105 @@
                             "doris": 10000,
                             "hktm": 10000,
                             "hktm_tf": 10000
-                        },
+                        }
+                    }
+                },
+                {
+                    "unit_name": "APIDFiltering",
+                    "step_id": 2,
+                    "input_products": {
+                        "products": "CADUProcessing.1..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "GranuleProcessing",
+                    "step_id": 3,
+                    "input_products": {
+                        "products": "APIDFiltering.2..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "GranuleFormatting",
+                    "step_id": 4,
+                    "input_products": {
+                        "products": "GranuleProcessing.3..*"
+                    },
+                    "output_products": {},
+                    "parameters": {
+                        "pre_processed_granules": false
+                    }
+                },
+                {
+                    "unit_name": "SpecificSorting",
+                    "step_id": 5,
+                    "input_products": {
+                        "products": "GranuleProcessing.3..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "CheckISPs",
+                    "step_id": 6,
+                    "input_products": {
+                        "products": "SpecificSorting.5..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "CheckManoeuvring",
+                    "step_id": 7,
+                    "input_products": {
+                        "products": "CheckISPs.6..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "MetadataProcessing",
+                    "step_id": 8,
+                    "input_products": {
+                        "products": "CheckManoeuvring.7..*"
+                    },
+                    "output_products": {},
+                    "parameters": {
+                        "near_range": 0.0,
+                        "far_range": 0.001,
+                        "pairs_number": 12
+                    }
+                },
+                {
+                    "unit_name": "ProductFormatting",
+                    "step_id": 9,
+                    "input_products": {
+                        "products": "MetadataProcessing.8..*"
+                    },
+                    "output_products": {}
+                },
+                {
+                    "unit_name": "MergeAndConsolidation",
+                    "step_id": 10,
+                    "input_products": {
+                        "products": "ProductFormatting.9..*"
+                    },
+                    "output_products": {
+                        "S03HKML0": "pipeline_output",
+                        "S03HKM2L0": "pipeline_output",
+                        "S03HKMRAW": "pipeline_output",
+                        "S03NATL0": "pipeline_output",
+                        "S03OLCL0": "pipeline_output",
+                        "S03SLSL0": "pipeline_output",
+                        "S03SRAL0": "pipeline_output",
+                        "S03SRAL0C": "pipeline_output",
+                        "S03MWRL0": "pipeline_output",
+                        "S03GNSL0": "pipeline_output",
+                        "S03DORNAV": "pipeline_output",
+                        "S03DORDOP": "pipeline_output",
+                        "S03OLCCR0": "pipeline_output",
+                        "S03OLCCR1": "pipeline_output",
+                        "S03CACHE": "pipeline_output"
+                    },
+                    "parameters": {
                         "isp_chunk_size": {
                             "S03NAT_IG": 10000,
                             "S03OLCCIG": 10000,
