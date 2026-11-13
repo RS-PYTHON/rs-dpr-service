@@ -26,14 +26,14 @@ from io import StringIO
 import pytest
 
 
-def install_fake_eopf_dependencies(monkeypatch, mocker):
+def install_fake_eopf_dependencies(monkeypatch, mocker, eopf_version="3.0.0"):
     """Install mocked EOPF dependencies in sys.modules."""
     eo_config: dict[str, bool] = {}
     any_path = mocker.Mock(side_effect=lambda path, **kwargs: {"path": path, "kwargs": kwargs})
     convert = mocker.Mock()
 
     # safe_to_zarr imports these modules at import time, so they must exist before run_module/import_module.
-    fake_eopf = types.SimpleNamespace(__version__="1.2.3")
+    fake_eopf = types.SimpleNamespace(__version__=eopf_version)
     fake_common = types.ModuleType("eopf.common")
     # Keep the two observable EOPF calls as mocks: path construction and conversion execution.
     fake_file_utils = types.SimpleNamespace(AnyPath=any_path)
@@ -141,10 +141,95 @@ def test_main_success(monkeypatch, mocker):
     result = json.loads(stdout.getvalue())
     assert result == {
         "message": "Conversion finished",
-        "eopf_version": "1.2.3",
+        "eopf_version": "3.0.0",
         "safe_uri": cfg["safe_uri"],
         "zarr_uri": cfg["zarr_uri"],
     }
+
+
+class FakeAnyPath:
+    """Fake EOPF CPM 2.x AnyPath, with a fake S3 where only the existing paths and the touched files exist."""
+
+    def __init__(self, path, existing, events, **kwargs):
+        self.path = path
+        self.kwargs = kwargs
+        self.existing = existing
+        self.events = events
+
+    def __eq__(self, other):
+        return isinstance(other, FakeAnyPath) and (self.path, self.kwargs) == (other.path, other.kwargs)
+
+    def __repr__(self):
+        return f"FakeAnyPath({self.path!r})"
+
+    def __truediv__(self, other):
+        return FakeAnyPath(f"{self.path}/{other}", self.existing, self.events, **self.kwargs)
+
+    def dirname(self):
+        """Parent folder"""
+        return FakeAnyPath(self.path.rsplit("/", 1)[0], self.existing, self.events, **self.kwargs)
+
+    def exists(self):
+        """In S3, a folder exists if it contains an object"""
+        return any(path == self.path or path.startswith(self.path + "/") for path in self.existing)
+
+    def touch(self):
+        """Create an empty object"""
+        self.existing.add(self.path)
+        self.events.append(("touch", self.path))
+
+    def rm(self):
+        """Remove an object"""
+        self.existing.remove(self.path)
+        self.events.append(("rm", self.path))
+
+
+@pytest.mark.parametrize("output_dir_exists", [True, False])
+def test_main_success_cpm2(monkeypatch, mocker, output_dir_exists):
+    """With EOPF CPM 2.x (cpm2 Dask cluster), convert with the CPM 2.x API, in a single thread."""
+    eo_config, any_path, convert = install_fake_eopf_dependencies(monkeypatch, mocker, eopf_version="2.8.1")
+    existing = {"s3://bucket/out/other.zarr"} if output_dir_exists else set()
+    events: list = []
+    any_path.side_effect = lambda path, **kwargs: FakeAnyPath(path, existing, events, **kwargs)
+    # The output folder must exist during the conversion
+    convert.side_effect = lambda safe, zarr: events.append(("convert", zarr.dirname().exists()))
+
+    cfg = {"safe_uri": "s3://bucket/input.SAFE", "zarr_uri": "s3://bucket/out/output.zarr"}
+    for key, value in {
+        "S3_ACCESSKEY": "access",
+        "S3_SECRETKEY": "secret",
+        "S3_ENDPOINT": "http://example.com",
+        "S3_REGION": "eu-west-1",
+    }.items():
+        monkeypatch.setenv(key, value)
+    monkeypatch.delenv("AWS_ALLOW_HTTP", raising=False)
+
+    stdout = StringIO()
+    with redirect_stdout(stdout), redirect_stderr(StringIO()):
+        run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg)])
+
+    expected_s3_cfg = {
+        "key": "access",
+        "secret": "secret",  # nosec
+        "client_kwargs": {
+            "endpoint_url": "http://example.com",
+            "region_name": "eu-west-1",
+        },
+    }
+    # The SAFE and Zarr paths are given as AnyPath with the S3 credentials, without CPM 3.x kwargs
+    convert.assert_called_once_with(
+        FakeAnyPath(cfg["safe_uri"], existing, events, **expected_s3_cfg),
+        FakeAnyPath(cfg["zarr_uri"], existing, events, **expected_s3_cfg),
+    )
+    # A marker object is created in the missing output folder, and removed after the conversion
+    if output_dir_exists:
+        assert events == [("convert", True)]
+    else:
+        assert events == [("touch", "s3://bucket/out/.keep"), ("convert", True), ("rm", "s3://bucket/out/.keep")]
+    assert eo_config == {"store__convert__use_multithreading": False}
+    # The obstore setting is only for CPM 3.x
+    assert "AWS_ALLOW_HTTP" not in os.environ
+    assert json.loads(stdout.getvalue())["eopf_version"] == "2.8.1"
 
 
 def test_main_writes_the_result_pipe(monkeypatch, mocker):

@@ -50,7 +50,10 @@ from rs_dpr_service.openapi_validation import (
     validate_request,
     validate_response,
 )
-from rs_dpr_service.processors.conversion_processor import ConversionProcessor
+from rs_dpr_service.processors.conversion_processor import (
+    ConversionCpm2Processor,
+    ConversionProcessor,
+)
 from rs_dpr_service.processors.eopf_processors import (
     MockupProcessor,
     S1ARDProcessor,
@@ -81,6 +84,7 @@ from . import jobs_table  # pylint: disable=unused-import
 # Values are the Python classes.
 processor_types: dict[str, type[GenericProcessor]] = {
     "conv_safe_zarr": ConversionProcessor,
+    "conv_safe_zarr_cpm2": ConversionCpm2Processor,
     "mockup": MockupProcessor,
     "s1_l0": S1L0Processor,
     "s3_l0": S3L0Processor,

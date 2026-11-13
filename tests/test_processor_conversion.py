@@ -20,7 +20,10 @@ import pytest
 from distributed import KilledWorker
 from pygeoapi.util import JobStatus
 
-from rs_dpr_service.processors.conversion_processor import ConversionProcessor
+from rs_dpr_service.processors.conversion_processor import (
+    ConversionCpm2Processor,
+    ConversionProcessor,
+)
 from rs_dpr_service.processors.generic_processor import GenericProcessor
 
 from .conftest import get_cluster_info
@@ -35,9 +38,9 @@ def _set_conversion_env(monkeypatch):
     monkeypatch.setenv("S3_REGION", "region")
 
 
-def _build_processor(mocker):
+def _build_processor(mocker, processor_type=ConversionProcessor):
     """Create a ConversionProcessor with mocked database access."""
-    return ConversionProcessor(
+    return processor_type(
         db_process_manager=mocker.Mock(),
         cluster_info=get_cluster_info(),
     )
@@ -368,3 +371,29 @@ def test_execute_does_not_repeat_the_conversion_failed_prefix(mocker, monkeypatc
     processor.manage_dask_tasks(dask_client, _valid_conversion_payload())
 
     assert processor.job_logger.message == "Conversion failed: exit code 1. No output."
+
+
+def test_cpm2_processor_rejects_zarr_v3(mocker):
+    """CPM 2.x only writes Zarr v2: reject Zarr v3 before accessing S3."""
+    processor = _build_processor(mocker, ConversionCpm2Processor)
+    check_s3_config = mocker.patch.object(processor, "_check_s3_config")
+    data = _valid_conversion_payload()
+    data["zarr_format"] = 3
+
+    result = _drive_execute(processor, data)
+
+    assert result == ("application/json", {"failed": processor.job_logger.job_id})
+    assert processor.job_logger.message == "zarr_format must be 2"
+    check_s3_config.assert_not_called()
+
+
+def test_cpm2_processor_local_mode_address(mocker, monkeypatch):
+    """In local mode, the CPM 2 conversion uses the cpm2 Dask Gateway, the default one the cpm3 Dask Gateway."""
+    monkeypatch.setattr("rs_dpr_service.dask.dask_cluster_handler.LOCAL_MODE", True)
+    monkeypatch.setenv("DASK_GATEWAY_CPM2_ADDRESS", "http://dask-cpm2:8000")
+    monkeypatch.setenv("DASK_GATEWAY_CPM3_ADDRESS", "http://dask-cpm3:8000")
+
+    assert _build_processor(mocker, ConversionCpm2Processor).cluster_handler.dask_gateway_address == (
+        "http://dask-cpm2:8000"
+    )
+    assert _build_processor(mocker).cluster_handler.dask_gateway_address == "http://dask-cpm3:8000"

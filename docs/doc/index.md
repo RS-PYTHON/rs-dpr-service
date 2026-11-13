@@ -29,7 +29,7 @@ rs-dpr-service follows the [OGC API - Processes](https://ogcapi.ogc.org/processe
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/dpr/processes` | List the processes: `s1_l0`, `s3_l0`, `s1_ard`, `s3_l1olci`, `s3_l2olci`, `mockup` (a mockup processor for the tests) and `conv_safe_zarr` (conversion of legacy SAFE products to Zarr). |
+| `GET` | `/dpr/processes` | List the processes: `s1_l0`, `s3_l0`, `s1_ard`, `s3_l1olci`, `s3_l2olci`, `mockup` (a mockup processor for the tests), `conv_safe_zarr` and `conv_safe_zarr_cpm2` (conversion of legacy SAFE products to Zarr, see [SAFE to Zarr conversion](#safe-to-zarr-conversion)). |
 | `GET` | `/dpr/processes/{processor}` | Get the [task table](https://github.com/RS-PYTHON/rs-client-libraries/blob/develop/docs/doc/flows/tasktable-payload.md) of a processor. |
 | `POST` | `/dpr/processes/{processor}/execution` | Run a processor. The request body contains the S3 location of the payload file and of its configuration files, the S3 folder for the processor reports, and the Dask cluster to use (Dask Gateway address and token, cluster label or instance). Returns the job identifier. |
 | `GET` | `/dpr/jobs`, `/dpr/jobs/{job_id}` | List the jobs, get the status and progress of a job. |
@@ -119,6 +119,25 @@ the `/dpr/processes/<processor>` routes of the processors that use its versions,
 requests to the right instance. The list of the Python and Dask versions used is given in the
 [dask-cluster-versions.yml](https://github.com/RS-PYTHON/rs-workflow-env/blob/develop/docker/scripts/dask-cluster-versions.yml)
 file of rs-workflow-env.
+
+## SAFE to Zarr conversion
+
+The `conv_safe_zarr` and `conv_safe_zarr_cpm2` processes convert a legacy SAFE product to Zarr with the EOPF `convert`
+function, in a sub-process of a Dask worker:
+
+| Process | EOPF CPM | Dask cluster | rs-dpr-service instance | Zarr format |
+|---|---|---|---|---|
+| `conv_safe_zarr` | 3.0.x | `cpm3` | `rs-dpr-service_py3.13.18-2026.7.1` | 2 or 3 |
+| `conv_safe_zarr_cpm2` | 2.8.1 | `cpm2` | `rs-dpr-service_py3.11.18-2026.1.2` | 2 |
+
+`conv_safe_zarr_cpm2` writes the products in the format of the CPM 2.x conversion. e.g. the S1 ARD 1.2.0 processor
+can't read the Sentinel-1 SLC products converted by CPM 3.0.0, that joins both polarizations of each burst along a
+`polarization` dimension ([CPM issue #1042](https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042)), but reads
+the ones converted by CPM 2.8.1, with one burst per polarization.
+
+The `/dpr/jobs` routes go to the `rs-dpr-service_py3.13.18-2026.7.1` instance. It reads the status of the
+`conv_safe_zarr_cpm2` jobs in the common jobs database, but it doesn't stream their logs, that are only kept in memory
+by the instance that runs them, and it can't cancel them.
 
 ## Experimental configurations
 

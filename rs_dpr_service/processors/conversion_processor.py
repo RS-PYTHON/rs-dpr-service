@@ -35,6 +35,12 @@ logger = Logging.default(__name__)
 class ConversionProcessor(GenericProcessor):
     """Runs an legacy product (safe format) conversion into new zarr format as a Dask job via subprocess."""
 
+    # Dask Gateway address env var in local mode
+    LOCAL_MODE_ADDRESS = "DASK_GATEWAY_CPM3_ADDRESS"
+
+    # Output Zarr formats supported by the EOPF version of the Dask cluster
+    ZARR_FORMATS: tuple[int, ...] = (2, 3)
+
     def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
         """
         Initialize Conversion Processor
@@ -42,7 +48,7 @@ class ConversionProcessor(GenericProcessor):
         super().__init__(
             db_process_manager=db_process_manager,
             cluster_info=cluster_info,
-            local_mode_address="DASK_GATEWAY_CPM3_ADDRESS",
+            local_mode_address=self.LOCAL_MODE_ADDRESS,
         )
 
     def _check_s3_config(self):
@@ -107,8 +113,8 @@ class ConversionProcessor(GenericProcessor):
         """
         try:
             zarr_format = data.get("zarr_format", 2)
-            if not isinstance(zarr_format, int) or zarr_format not in (2, 3):
-                raise ValueError("zarr_format must be 2 or 3")
+            if not isinstance(zarr_format, int) or zarr_format not in self.ZARR_FORMATS:
+                raise ValueError(f"zarr_format must be {' or '.join(map(str, self.ZARR_FORMATS))}")
             s3_fs = self._check_s3_config()
             self._check_input_output_uris(s3_fs, data)
             self._check_write_permission(s3_fs, data["output_zarr_dir_path"])
@@ -162,3 +168,18 @@ class ConversionProcessor(GenericProcessor):
             self.job_logger.log_job_execution(JobStatus.failed, None, msg)
         finally:
             dask_client.close()
+
+
+class ConversionCpm2Processor(ConversionProcessor):
+    """
+    Same conversion with EOPF CPM 2.8.1 (cpm2 Dask cluster), in the Zarr format of the CPM 2.x products.
+
+    e.g. the S1 ARD processor can't read the Sentinel-1 SLC products converted by CPM 3.0.0, that joins both
+    polarizations of each burst (https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042), but reads the ones
+    converted by CPM 2.8.1.
+    """
+
+    LOCAL_MODE_ADDRESS = "DASK_GATEWAY_CPM2_ADDRESS"
+
+    # CPM 2.x uses zarr-python 2, that only writes Zarr v2
+    ZARR_FORMATS = (2,)

@@ -18,7 +18,7 @@ Convert a legacy product (safe format) product to Zarr format using EOPF.
 References:
 - EOPF documentation: https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/index.html
 
-Will run inside EOPF Dask cluster worker
+Will run inside EOPF Dask cluster worker, with EOPF CPM 3.x (cpm3 cluster) or 2.x (cpm2 cluster).
 """
 
 import json
@@ -28,6 +28,46 @@ import traceback
 
 import eopf  # type: ignore
 from eopf.store.convert import convert  # type: ignore
+
+
+def convert_cpm2(safe_uri: str, zarr_uri: str, s3_cfg: dict):
+    """Convert with EOPF CPM 2.x, that downloads the SAFE locally, writes the Zarr to S3, and only writes Zarr v2."""
+    # pylint: disable=import-outside-toplevel
+    from eopf.common.file_utils import AnyPath  # type: ignore
+    from eopf.config import EOConfiguration  # type: ignore
+
+    # Don't create a Dask cluster in the conversion subprocess
+    EOConfiguration()["store__convert__use_multithreading"] = False
+
+    # CPM 2.x requires an existing output "folder": in S3, a folder only exists if it contains an object, so create a
+    # marker object like CPM 2.x does (AnyPath.mkdir), and remove it after the conversion
+    zarr = AnyPath(zarr_uri, **s3_cfg)
+    output_dir = zarr.dirname()
+    keep_file = None
+    if not output_dir.exists():
+        keep_file = output_dir / ".keep"
+        keep_file.touch()
+    try:
+        convert(AnyPath(safe_uri, **s3_cfg), zarr)
+    finally:
+        if keep_file is not None:
+            keep_file.rm()
+
+
+def convert_cpm3(safe_uri: str, zarr_uri: str, s3_cfg: dict, zarr_format: int):
+    """Convert with EOPF CPM 3.x"""
+    # EOPF uploads to S3 with obstore, which only allows https endpoints by default
+    if os.environ["S3_ENDPOINT"].startswith("http://"):
+        os.environ["AWS_ALLOW_HTTP"] = "true"
+    # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
+    convert(
+        safe_uri,
+        zarr_uri,
+        source_store_kwargs={"storage_options": s3_cfg},
+        target_store_kwargs={"storage_options": s3_cfg, "zarr_format": zarr_format},
+        stage_source=True,
+        stage_target=True,
+    )
 
 
 def main():
@@ -60,19 +100,11 @@ def main():
             "region_name": os.environ["S3_REGION"],
         },
     }
-    # EOPF uploads to S3 with obstore, which only allows https endpoints by default
-    if os.environ["S3_ENDPOINT"].startswith("http://"):
-        os.environ["AWS_ALLOW_HTTP"] = "true"
     try:
-        # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
-        convert(
-            safe_uri,
-            zarr_uri,
-            source_store_kwargs={"storage_options": s3_cfg},
-            target_store_kwargs={"storage_options": s3_cfg, "zarr_format": cfg.get("zarr_format", 2)},
-            stage_source=True,
-            stage_target=True,
-        )
+        if int(eopf.__version__.split(".", 1)[0]) < 3:
+            convert_cpm2(safe_uri, zarr_uri, s3_cfg)
+        else:
+            convert_cpm3(safe_uri, zarr_uri, s3_cfg, cfg.get("zarr_format", 2))
 
         result = json.dumps(
             {

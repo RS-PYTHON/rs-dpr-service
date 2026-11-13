@@ -48,6 +48,10 @@ resources:
     type: process
     processor:
       name: conv_safe_zarr
+  conv_safe_zarr_cpm2:
+    type: process
+    processor:
+      name: conv_safe_zarr_cpm2
   mockup:
     type: process
     processor:
