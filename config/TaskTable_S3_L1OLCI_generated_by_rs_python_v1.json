@@ -609,15 +609,6 @@
                             ]
                         },
                         {
-                            "op": "=",
-                            "args": [
-                                {
-                                    "property": "platform"
-                                },
-                                "{satellite}"
-                            ]
-                        },
-                        {
                             "op": "t_intersects",
                             "args": [
                                 {
