@@ -713,12 +713,12 @@ def test_validation_preserves_dask_log_forwarding(init_context, mocker, validati
     plugin = ForwardLoggingPlugin(None, logging.NOTSET, "test-forwarded-logs")
     triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
 
-    def validate(**kwargs):
+    def validate(**_kwargs):
         logging.basicConfig(level=logging.INFO, force=True)
         if validation_fails:
             raise ValueError("Invalid payload")
 
-    triggers.validate_payload_command = mocker.Mock(main=validate)
+    mocker.patch.object(triggers, "validate_payload_command", mocker.Mock(main=validate), create=True)
     mocker.patch.dict(
         sys.modules,
         {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
@@ -728,15 +728,16 @@ def test_validation_preserves_dask_log_forwarding(init_context, mocker, validati
             root.removeHandler(handler)
         root.setLevel(logging.DEBUG)
         plugin.setup(worker)
-        handler = plugin.handler
-        close = mocker.spy(handler, "close")
+        forwarding_handler = plugin.handler
+        assert isinstance(forwarding_handler, logging.Handler)
+        close = mocker.spy(forwarding_handler, "close")
         call_dask.logger.info("before validation")
         if validation_fails:
             with pytest.raises(ValueError, match="Invalid payload"):
                 ctx.caller.init()
         else:
             ctx.caller.init()
-        assert root.handlers == [handler]
+        assert root.handlers == [forwarding_handler]
         assert root.level == logging.DEBUG
         close.assert_not_called()
         worker.log_event.reset_mock()
