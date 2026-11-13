@@ -108,6 +108,20 @@ The `conv_safe_zarr` process converts a legacy SAFE product to Zarr with the EOP
 ([safe_to_zarr.py](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/rs_dpr_service/safe_to_zarr.py)): the
 SAFE product is downloaded to the worker, converted locally, then the Zarr product is uploaded to the bucket.
 
+The object storage sometimes stops sending data in the middle of a big file, which fails the EOPF download of the
+SAFE product with fsspec (`AioReadTimeoutError`, then `FSTimeoutError`): EOPF downloads the whole product in a single
+call, without retry. So the SAFE product is downloaded by `safe_to_zarr.py` with
+[obstore](https://developmentseed.org/obstore/) instead of EOPF (its `_stage_source` function is wrapped during the
+conversion, so EOPF still writes the S3 path of the SAFE product in the processing history):
+
+- 4 files are downloaded at the same time,
+- a download that receives no data for 300 s is stopped, and the failed requests are retried by obstore,
+- after a network error, a file is downloaded again up to 5 times, with an increasing delay, **from the bytes already
+  downloaded**, without downloading again the other files.
+
+The download time and speed are written in the logs of the job. The fsspec S3 clients that upload the Zarr product
+also wait for 300 s instead of 60 s before a read timeout, and retry the failed requests up to 10 times.
+
 ### Sentinel-1 SLC products: S1 ARD format
 
 !!! warning "Not compatible with CPM 3.0.0"
