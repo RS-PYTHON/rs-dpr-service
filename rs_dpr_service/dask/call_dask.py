@@ -270,6 +270,7 @@ def get_ip_address() -> str:
 # Files of this project uploaded to the dask workers, and associated name in the zip archive
 _UPLOADED_FILES = (
     "__init__.py",
+    "s1_slc_s1ard_format.py",
     "safe_to_zarr.py",
     "dask/__init__.py",
     "dask/call_dask.py",

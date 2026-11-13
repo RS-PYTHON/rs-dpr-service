@@ -101,6 +101,68 @@ The payload files follow the format of EOPF CPM v3. Before triggering the proces
 - validates the payload file with the EOPF `validate-payload` command (`preflight` level), if the EOPF version is
   3.1.0rc1 or later. An invalid payload stops the job before the processing starts.
 
+## SAFE to Zarr conversion
+
+The `conv_safe_zarr` process converts a legacy SAFE product to Zarr with the EOPF `convert` function, on the
+`cpm3` Dask cluster (CPM 3.0.0). The conversion runs in a subprocess of a Dask worker
+([safe_to_zarr.py](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/rs_dpr_service/safe_to_zarr.py)): the
+SAFE product is downloaded to the worker, converted locally, then the Zarr product is uploaded to the bucket.
+
+### Sentinel-1 SLC products: S1 ARD format
+
+!!! warning "Not compatible with CPM 3.0.0"
+
+    The Sentinel-1 IW and EW SLC products are **not** written in the CPM 3.0.0 format, but in the format expected by
+    the S1 ARD processor. These products are NOT compatible with the CPM 3.0.0 Sentinel-1 SLC model.
+
+The S1 ARD processor (s1-ard 1.2.0) runs with CPM 3.0.0rc4, and checks that its SLC inputs have the layout written
+by the Sentinel-1 SLC conversion of CPM 2.x: one sub-product per burst **and per polarization**
+(e.g. `S01SIWSLC_..._VH_IW1_132825`), with a flat `other_metadata`, a `sar:polarization` STAC property, a
+`processing_history` indexed by product level, and `line`/`pixel` coordinates.
+
+Since CPM 3.0.0, the conversion joins both polarizations of each burst along a `polarization` dimension
+([CPM issue #1042](https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042)), splits `other_metadata` by
+polarization, and drops several annotation attributes. Its processing history is also broken: it only contains an
+`Unknown` entry, dated 1970, because the CPM parser tests the XML attributes with `"name" in node`, which looks for
+child elements with lxml. So S1 ARD rejects the SLC products converted by CPM 3.0.0, for example with
+`KeyError: 'Level-1 Intermediate SLC Product'`.
+
+For the Sentinel-1 IW and EW SLC products, the conversion therefore transforms the product read by CPM 3.0.0 before
+writing it, without copying the measurement data
+([s1_slc_s1ard_format.py](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/rs_dpr_service/s1_slc_s1ard_format.py)):
+
+- each burst is split into one burst per polarization,
+- `other_metadata` is rebuilt from the SAFE annotation files, like CPM 2.x,
+- `processing_history` is rebuilt from the SAFE manifest,
+- the `sar:polarization` STAC property, the `conditions/burst_info` group and the `line`/`pixel` coordinates of the
+  measurements, geolocation grid, calibration and noise groups are added,
+- the noise LUTs are read from the SAFE noise files, like CPM 2.x.
+
+CPM 3.0.0 also mixes up the polarizations of the data: with
+`S1A_IW_SLC__1SDV_20260421T234638_20260421T234646_064184_08142A_7054`, its `VV` label contains the VH pixels and noise
+LUTs (and conversely), and both polarizations have the same `image_number`. So the polarization of the measurements of
+each burst is found by comparing a small window of pixels with the measurement TIFF file of each polarization (a
+warning is logged when the CPM labels are wrong), and the image number is read from the annotation file.
+
+With the IW1 swath of this real product, the result is identical to the conversion by CPM 2.8.1 (including the
+measurement pixels), except for the image number fixed above and the metadata specific to CPM 3.0.0 (e.g. its
+processing history entry). The whole product passes the input checks of the S1 ARD processor.
+
+The converted product is identified by these STAC properties, at its root and in each burst, so they are also in its
+catalog item:
+
+| Property | Value |
+|---|---|
+| `rspy:product_format` | `s1ard-1.2.0` |
+| `rspy:product_format_cpm_compatible` | `3.0.0rc4` |
+| `rspy:product_format_cpm_incompatible` | `3.0.0` |
+| `rspy:product_format_cpm_issue` | <https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042> |
+| `rspy:product_format_description` | Explanation of the incompatibility |
+
+The conversion result also contains a `warning` with this explanation, which is written in the flow logs.
+
+The other annotation files of CPM 2.x that S1 ARD doesn't use (`other_metadata_rfi`) are not rebuilt.
+
 ## Task tables
 
 The task tables of the [config](https://github.com/RS-PYTHON/rs-dpr-service/tree/develop/config) folder follow the
