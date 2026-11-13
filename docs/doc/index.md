@@ -45,6 +45,11 @@ to follow or cancel a job.
 
 ![DPR processing sequence](../images/dask-eopf-logging-prefect.svg)
 
+EOPF payload validation runs in the worker before processing. DPR restores the worker's
+existing root logging handlers and level afterward, including when validation fails,
+so EOPF CLI logging configuration cannot permanently disable Dask log forwarding.
+Validation itself uses EOPF's console logging; processing logs resume forwarding after validation.
+
 Two kinds of Docker images are involved:
 
 | Image | Content | Role |

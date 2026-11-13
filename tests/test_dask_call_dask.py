@@ -20,6 +20,7 @@ import base64
 import importlib
 import io
 import json
+import logging
 import os
 import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
 import re
@@ -34,7 +35,11 @@ from typing import Any, cast
 
 import cloudpickle
 import pytest
-from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
+from distributed.diagnostics.plugin import (
+    ForwardLoggingPlugin,
+    SchedulerPlugin,
+    WorkerPlugin,
+)
 from distributed.scheduler import Scheduler
 from distributed.worker import Worker
 
@@ -694,6 +699,56 @@ def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, 
         args=[str(ctx.payload_file), "--level", "preflight"],
         standalone_mode=False,
     )
+
+
+@pytest.mark.parametrize("validation_fails", [False, True])
+def test_validation_preserves_dask_log_forwarding(init_context, mocker, validation_fails):
+    """EOPF logging reconfiguration must not close or remove the worker's forwarding handler."""
+    ctx = init_context
+    ctx.eopf_module.__version__ = "3.1.0rc2"
+    root = logging.getLogger()
+    original_handlers = root.handlers[:]
+    original_level = root.level
+    worker = mocker.Mock()
+    plugin = ForwardLoggingPlugin(None, logging.NOTSET, "test-forwarded-logs")
+    triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
+
+    def validate(**kwargs):
+        logging.basicConfig(level=logging.INFO, force=True)
+        if validation_fails:
+            raise ValueError("Invalid payload")
+
+    triggers.validate_payload_command = mocker.Mock(main=validate)
+    mocker.patch.dict(
+        sys.modules,
+        {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
+    )
+    try:
+        for handler in original_handlers:
+            root.removeHandler(handler)
+        root.setLevel(logging.DEBUG)
+        plugin.setup(worker)
+        handler = plugin.handler
+        close = mocker.spy(handler, "close")
+        call_dask.logger.info("before validation")
+        if validation_fails:
+            with pytest.raises(ValueError, match="Invalid payload"):
+                ctx.caller.init()
+        else:
+            ctx.caller.init()
+        assert root.handlers == [handler]
+        assert root.level == logging.DEBUG
+        close.assert_not_called()
+        worker.log_event.reset_mock()
+        call_dask.logger.info("after validation")
+        assert worker.log_event.call_args.args[1]["msg"] == "after validation"
+    finally:
+        plugin.teardown(worker)
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+        for handler in original_handlers:
+            root.addHandler(handler)
+        root.setLevel(original_level)
 
 
 def test_processor_caller_init_propagates_download_error(init_context):

@@ -870,10 +870,25 @@ class ProcessorCaller:
         if Version(eopf.__version__) >= Version("3.1.0rc1"):
             from eopf.cli.cli_triggering_triggers import validate_payload_command
 
-            validate_payload_command.main(
-                args=[payload_file, "--level", "preflight"],
-                standalone_mode=False,  # raise instead of sys.exit()
-            )
+            # EOPF's CLI uses basicConfig(force=True), which closes Dask's root handlers.
+            root_logger = logging.getLogger()
+            handlers = root_logger.handlers[:]
+            level = root_logger.level
+            for handler in handlers:
+                root_logger.removeHandler(handler)
+            try:
+                validate_payload_command.main(
+                    args=[payload_file, "--level", "preflight"],
+                    standalone_mode=False,  # raise instead of sys.exit()
+                )
+            finally:
+                for handler in root_logger.handlers[:]:
+                    root_logger.removeHandler(handler)
+                    if handler not in handlers:
+                        handler.close()
+                for handler in handlers:
+                    root_logger.addHandler(handler)
+                root_logger.setLevel(level)
 
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
