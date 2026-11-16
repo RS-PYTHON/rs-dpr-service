@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rfi>
+  <adsHeader>
+    <missionId>S1A</missionId>
+    <productType>SLC</productType>
+    <polarisation>VV</polarisation>
+    <mode>IW</mode>
+    <swath>IW1</swath>
+    <startTime>2026-04-21T23:46:38.781991</startTime>
+    <stopTime>2026-04-21T23:46:44.617715</stopTime>
+    <absoluteOrbitNumber>64184</absoluteOrbitNumber>
+    <missionDataTakeId>529450</missionDataTakeId>
+    <imageNumber>004</imageNumber>
+  </adsHeader>
+  <rfiMitigationApplied>None</rfiMitigationApplied>
+  <rfiDetectionFromNoiseReportList count="3">
+    <rfiDetectionFromNoiseReport>
+      <swath>IW1</swath>
+      <noiseSensingTime>2026-04-21T23:46:39.132331</noiseSensingTime>
+      <rfiDetected>false</rfiDetected>
+      <maxKLDivergence>3.252853e+00</maxKLDivergence>
+      <maxFisherZ>3.642156e+00</maxFisherZ>
+      <maxRfiPsd>0.000000e+00</maxRfiPsd>
+    </rfiDetectionFromNoiseReport>
+    <rfiDetectionFromNoiseReport>
+      <swath>IW1</swath>
+      <noiseSensingTime>2026-04-21T23:46:42.681541</noiseSensingTime>
+      <rfiDetected>false</rfiDetected>
+      <maxKLDivergence>3.365590e+00</maxKLDivergence>
+      <maxFisherZ>3.766201e+00</maxFisherZ>
+      <maxRfiPsd>0.000000e+00</maxRfiPsd>
+    </rfiDetectionFromNoiseReport>
+    <rfiDetectionFromNoiseReport>
+      <swath>IW1</swath>
+      <noiseSensingTime>2026-04-21T23:46:46.210029</noiseSensingTime>
+      <rfiDetected>false</rfiDetected>
+      <maxKLDivergence>2.338843e+00</maxKLDivergence>
+      <maxFisherZ>3.117290e+00</maxFisherZ>
+      <maxRfiPsd>0.000000e+00</maxRfiPsd>
+    </rfiDetectionFromNoiseReport>
+  </rfiDetectionFromNoiseReportList>
+  <rfiBurstReportList count="2">
+    <rfiBurstReport>
+      <swath>IW1</swath>
+      <azimuthTime>2026-04-21T23:46:38.781991</azimuthTime>
+      <inBandOutBandPowerRatio>6.006533e+00</inBandOutBandPowerRatio>
+    </rfiBurstReport>
+    <rfiBurstReport>
+      <swath>IW1</swath>
+      <azimuthTime>2026-04-21T23:46:41.544659</azimuthTime>
+      <inBandOutBandPowerRatio>6.580780e+00</inBandOutBandPowerRatio>
+    </rfiBurstReport>
+  </rfiBurstReportList>
+</rfi>

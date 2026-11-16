@@ -1,0 +1,187 @@
+# Copy of s1_ard/conf/S1_L1_SLC.yaml of s1-ard 1.2.0 (Copyright 2026 B-Open, Apache License 2.0):
+# the structure that the S1 ARD processor checks in its SLC inputs (check_ARD_input).
+# https://gitlab.eopf.copernicus.eu/S1/s1-ard
+groups:
+  measurements:
+    data_variables:
+      slc:
+        dimensions:
+          slant_range_time: {}
+          azimuth_time: {}
+        coords:
+          slant_range_time:
+            dimensions:
+              slant_range_time: {}
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+          line:
+            dimensions:
+              azimuth_time: {}
+          pixel:
+            dimensions:
+              slant_range_time: {}
+  conditions:
+    groups:
+      gcp:
+        dimensions:
+          azimuth_time: {}
+          slant_range_time: {}
+        coords:
+          slant_range_time:
+            dimensions:
+              slant_range_time: {}
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+          line:
+            dimensions:
+              azimuth_time: {}
+          pixel:
+            dimensions:
+              slant_range_time: {}
+        data_variables:
+          latitude: {}
+          longitude: {}
+          height: {}
+      orbit:
+        dimensions:
+          azimuth_time: {}
+        coords:
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+        data_variables:
+          position:
+            dimensions:
+              azimuth_time: {}
+              axis:
+                size: 3
+          velocity:
+            dimensions:
+              azimuth_time: {}
+              axis:
+                size: 3
+      burst_info:
+        dimensions:
+          azimuth_time: {}
+        coords:
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+        data_variables:
+          first_valid_sample:
+            dimensions:
+              azimuth_time: {}
+          last_valid_sample:
+            dimensions:
+              azimuth_time: {}
+      doppler_centroid:
+        dimensions:
+          azimuth_time: {}
+          degree: {}
+        coords:
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+          degree:
+            dimensions:
+              degree: {}
+        data_variables:
+          t0: {}
+          data_dc_polynomial: {}
+  quality:
+    groups:
+      calibration:
+        dimensions:
+          slant_range_time: {}
+          azimuth_time: {}
+        coords:
+          slant_range_time:
+            dimensions:
+              slant_range_time: {}
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+          line:
+            dimensions:
+              azimuth_time: {}
+          pixel:
+            dimensions:
+              slant_range_time: {}
+        data_variables:
+          sigma_nought: {}
+          gamma: {}
+          beta_nought: {}
+      noise_range:
+        dimensions:
+          slant_range_time: {}
+          azimuth_time: {}
+        coords:
+          slant_range_time:
+            dimensions:
+              slant_range_time: {}
+          azimuth_time:
+            dimensions:
+              azimuth_time: {}
+          line:
+            dimensions:
+              azimuth_time: {}
+          pixel:
+            dimensions:
+              slant_range_time: {}
+        data_variables:
+          noise_range_lut: {}
+      noise_azimuth:
+        dimensions:
+          line: {}
+        data_variables:
+          noise_azimuth_lut: {}
+attributes:
+  stac_discovery:
+    properties:
+      constellation: {}
+      "product:type": {}
+      "sar:polarization": {}
+      "sar:instrument_mode": {}
+      platform: {}
+      "eopf:datatake_id": {}
+      "sar:center_frequency": {}
+      "sar:pixel_spacing_azimuth": {}
+  processing_history:
+    "Level-1 Intermediate SLC Product":
+      LIST0:
+        facility: {}
+        processor: {}
+        version: {}
+        time: {}
+  other_metadata:
+    image_annotation:
+      image_information:
+        number_of_samples: {}
+        slice_number: {}
+      processing_information:
+        swath_proc_params_list:
+          LIST0:
+            azimuth_processing:
+              window_type: {}
+              window_coefficient: {}
+              processing_bandwidth: {}
+            range_processing:
+              processing_bandwidth: {}
+              window_type: {}
+              window_coefficient: {}
+    general_annotation:
+      azimuth_fm_rate_list: {}
+      product_information:
+        range_sampling_rate: {}
+        azimuth_steering_rate: {}
+      downlink_information_list:
+        LIST0:
+          downlink_values:
+            swl_list: {}
+            tx_pulse_ramp_rate: {}
+            tx_pulse_length: {}
+            tx_pulse_start_frequency: {}
+            pri: {}
+    burst_id: {}

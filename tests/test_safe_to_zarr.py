@@ -39,7 +39,8 @@ def install_fake_eopf_dependencies(monkeypatch, mocker):
     fake_file_utils = types.SimpleNamespace(AnyPath=any_path)
     fake_config = types.SimpleNamespace(EOConfiguration=lambda: eo_config)
     fake_store = types.ModuleType("eopf.store")
-    fake_convert = types.SimpleNamespace(convert=convert)
+    # open_datatree is wrapped by safe_to_zarr to convert the Sentinel-1 SLC products in the S1 ARD format
+    fake_convert = types.SimpleNamespace(convert=convert, open_datatree=mocker.Mock(name="open_datatree"))
 
     # Populate the full import tree used by rs_dpr_service.safe_to_zarr.
     for name, module in {
@@ -190,3 +191,75 @@ def test_main_conversion_failure_exits(monkeypatch, mocker):
     assert "Conversion failed safe_to_zarr: boom" in stderr.getvalue()
     # The traceback is printed too, to find the root cause
     assert "Traceback (most recent call last)" in stderr.getvalue()
+
+
+S1_SLC_SAFE = "s3://bucket/S1A_IW_SLC__1SDV_20260421T234638_20260421T234646_064184_08142A_7054.SAFE"
+
+
+def set_s3_env(monkeypatch):
+    """Set the S3 env vars read by safe_to_zarr."""
+    for key, value in {
+        "S3_ACCESSKEY": "access",
+        "S3_SECRETKEY": "secret",
+        "S3_ENDPOINT": "https://example.com",
+        "S3_REGION": "eu-west-1",
+    }.items():
+        monkeypatch.setenv(key, value)
+
+
+def test_main_converts_the_s1_slc_products_in_the_s1ard_format(monkeypatch, mocker):
+    """The Sentinel-1 SLC products are transformed into the S1 ARD format between their reading and writing."""
+    _, _, convert = install_fake_eopf_dependencies(monkeypatch, mocker)
+    eopf_convert = sys.modules["eopf.store.convert"]
+    original_open_datatree = eopf_convert.open_datatree
+    original_open_datatree.return_value = "CPM 3.0.0 product"
+    to_s1ard_format = mocker.patch(
+        "rs_dpr_service.s1_slc_s1ard_format.to_s1ard_format",
+        return_value="S1 ARD product",
+    )
+
+    def fake_convert(safe_uri, *_args, **_kwargs):
+        # convert() reads the staged SAFE product with the wrapped open_datatree
+        assert eopf_convert.open_datatree is not original_open_datatree
+        assert eopf_convert.open_datatree("/staging/product.SAFE", engine="safe") == "S1 ARD product"
+        original_open_datatree.assert_called_once_with("/staging/product.SAFE", engine="safe")
+        to_s1ard_format.assert_called_once_with("CPM 3.0.0 product", "/staging/product.SAFE")
+        assert safe_uri == S1_SLC_SAFE
+
+    convert.side_effect = fake_convert
+    set_s3_env(monkeypatch)
+    cfg = {"safe_uri": S1_SLC_SAFE, "zarr_uri": "s3://bucket/output.zarr"}
+
+    stdout = StringIO()
+    with redirect_stdout(stdout), redirect_stderr(StringIO()):
+        run_safe_to_zarr_as_main(monkeypatch, ["safe_to_zarr.py", json.dumps(cfg)])
+
+    convert.assert_called_once()
+    # The original EOPF function is restored after the conversion
+    assert eopf_convert.open_datatree is original_open_datatree
+    result = json.loads(stdout.getvalue())
+    assert result["product_format"] == "s1ard-1.2.0"
+    assert "NOT compatible with the CPM 3.0.0 SLC model" in result["warning"]
+    assert "https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042" in result["warning"]
+
+
+def test_s1ard_format_hook_needs_a_staged_safe_product(monkeypatch, mocker):
+    """The SAFE XML files are read locally: the SAFE product must be staged."""
+    module, _, _, _ = import_safe_to_zarr(monkeypatch, mocker)
+    eopf_convert = sys.modules["eopf.store.convert"]
+
+    with module.s1ard_format_hook(S1_SLC_SAFE) as s1ard_format:
+        assert s1ard_format is True
+        with pytest.raises(ValueError, match="must be staged locally"):
+            eopf_convert.open_datatree(S1_SLC_SAFE)
+
+
+def test_s1ard_format_hook_ignores_the_other_products(monkeypatch, mocker):
+    """The other products are converted by EOPF as they are."""
+    module, _, _, _ = import_safe_to_zarr(monkeypatch, mocker)
+    eopf_convert = sys.modules["eopf.store.convert"]
+    original_open_datatree = eopf_convert.open_datatree
+
+    with module.s1ard_format_hook("s3://bucket/S1A_IW_GRDH_1SDV_20260421T234638.SAFE") as s1ard_format:
+        assert s1ard_format is False
+        assert eopf_convert.open_datatree is original_open_datatree

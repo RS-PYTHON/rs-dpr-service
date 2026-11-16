@@ -90,6 +90,11 @@ pytest-docker = "^3.2.3"
 pytest-error-for-skips = "^2.0.2"
 pytest-mock = "^3.15.1"
 responses = "^0.25.3"
+# SAFE to Zarr conversion tests: same EOPF version as the cpm3 dask cluster (eopf>=3.0.0,<3.1),
+# with the extra dependencies needed to read the Sentinel-1 SAFE products
+eopf = "3.0.0"
+scipy = "^1.18.1"
+defusedxml = "^0.7.1"
 
 [tool.black]
 line-length = 120

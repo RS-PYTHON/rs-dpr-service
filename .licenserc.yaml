@@ -32,5 +32,8 @@ header:
     - '.trivyignore'
     - 'LICENSE'
     - 'NOTICE'
+    # Third party test data: a Sentinel-1 SAFE product (ESA) and a S1 ARD template (B-Open)
+    - 'tests/resources/s1_slc/*.SAFE/**'
+    - 'tests/resources/s1_slc/S1_L1_SLC.yaml'
 
   comment: on-failure
