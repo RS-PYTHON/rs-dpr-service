@@ -816,8 +816,8 @@
     ],
     "pipelines": [
         {
-            "name": "s3_l0_full",
-            "description": "Full pipeline for S3 L0",
+            "name": "s3_l0_cadu_apid",
+            "description": "CADUProcessing + APIDFiltering",
             "steps": [
                 {
                     "unit_name": "CADUProcessing",
@@ -982,8 +982,8 @@
             }
         },
         {
-            "name": "s3_l0_legacy",
-            "description": "Legacy full S3 L0 processing using the single S3L0Processor processing unit",
+            "name": "s3_l0_full",
+            "description": "Full pipeline for S3 L0",
             "steps": [
                 {
                     "unit_name": "S3L0Processor",
