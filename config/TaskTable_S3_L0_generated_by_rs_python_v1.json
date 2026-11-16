@@ -190,7 +190,15 @@
                 }
             ],
             "input_adfs": [],
-            "output_products": []
+            "output_products": [
+                {
+                    "name": "output_folder",
+                    "mode": "always",
+                    "mandatory": true,
+                    "regex": ".*",
+                    "final_product": true
+                }
+            ]
         },
         {
             "name": "CheckManoeuvring",
@@ -578,6 +586,14 @@
                 "writer_params": {
                     "mode": "w"
                 }
+            },
+            {
+                "name": "output_folder",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "writer_params": {
+                    "mode": "w"
+                }
             }
         ]
     },
@@ -721,7 +737,9 @@
                     "input_products": {
                         "products": "SpecificSorting.5..*"
                     },
-                    "output_products": {}
+                    "output_products": {
+                        "output_folder": "pipeline_output"
+                    }
                 },
                 {
                     "unit_name": "CheckManoeuvring",
