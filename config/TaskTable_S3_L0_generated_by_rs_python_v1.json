@@ -61,7 +61,7 @@
                     "mode": "always",
                     "mandatory": true,
                     "regex": ".*",
-                    "final_product": true
+                    "final_product": false
                 }
             ]
         },
@@ -83,19 +83,10 @@
             },
             "input_products": [
                 {
-                    "name": "olci",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "slstr",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "sral",
-                    "mandatory": false,
-                    "mode": "always"
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
                 }
             ],
             "input_adfs": [],
@@ -127,29 +118,10 @@
             },
             "input_products": [
                 {
-                    "name": "olci_efr",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "olci_cal",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "slstr",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "sral_sra",
-                    "mandatory": false,
-                    "mode": "always"
-                },
-                {
-                    "name": "sral_cal",
-                    "mandatory": false,
-                    "mode": "always"
+                    "name": "products",
+                    "mandatory": true,
+                    "mode": "always",
+                    "regex": ".*"
                 }
             ],
             "input_adfs": [],
@@ -167,7 +139,7 @@
             "name": "GranuleFormatting",
             "module": "l0.s3.granule_formating_unit",
             "processing_unit": "GranuleFormatingUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -202,7 +174,7 @@
             "name": "SpecificSorting",
             "module": "l0.s3.specific_sorting_unit",
             "processing_unit": "SpecificSortingUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -237,7 +209,7 @@
             "name": "CheckISPs",
             "module": "l0.s3.check_isps_unit",
             "processing_unit": "CheckIspsUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -272,7 +244,7 @@
             "name": "CheckManoeuvring",
             "module": "l0.s3.check_manouvering_unit",
             "processing_unit": "CheckManouveringUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -307,7 +279,7 @@
             "name": "MetadataProcessing",
             "module": "l0.s3.metadata_processing_unit",
             "processing_unit": "MetadataProcessingUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -353,7 +325,7 @@
             "name": "ProductFormatting",
             "module": "l0.s3.product_formating_unit",
             "processing_unit": "ProductFormatingUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -388,7 +360,7 @@
             "name": "MergeAndConsolidation",
             "module": "l0.s3.merge_and_consolidation_unit",
             "processing_unit": "MergeAndConsolidationUnit",
-            "active": false,
+            "active": true,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -605,9 +577,7 @@
                     "unit_name": "APIDFiltering",
                     "step_id": 2,
                     "input_products": {
-                        "olci": "CADUProcessing.olci",
-                        "slstr": "CADUProcessing.slstr",
-                        "sral": "CADUProcessing.sral"
+                        "products": "CADUProcessing.*"
                     },
                     "output_products": {
                         "output_folder": "pipeline_output"
@@ -617,11 +587,7 @@
                     "unit_name": "GranuleProcessing",
                     "step_id": 3,
                     "input_products": {
-                        "olci_efr": "APIDFiltering.olci_efr",
-                        "olci_cal": "APIDFiltering.olci_cal",
-                        "slstr": "APIDFiltering.slstr",
-                        "sral_sra": "APIDFiltering.sral_sra",
-                        "sral_cal": "APIDFiltering.sral_cal"
+                        "products": "APIDFiltering.*"
                     },
                     "output_products": {
                         "output_folder": "pipeline_output"
@@ -637,7 +603,7 @@
                         "output_folder": "pipeline_output"
                     },
                     "parameters": {
-                        "pre_processed_granules": false
+                        "pre_processed_granules": true
                     }
                 },
                 {
@@ -674,7 +640,7 @@
                     "unit_name": "MetadataProcessing",
                     "step_id": 8,
                     "input_products": {
-                        "products": "CheckISPs.*"
+                        "products": "CheckManoeuvring.*"
                     },
                     "output_products": {
                         "output_folder": "pipeline_output"
