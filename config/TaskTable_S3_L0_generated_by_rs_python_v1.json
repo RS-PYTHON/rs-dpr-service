@@ -570,7 +570,7 @@
                         "products": "CADUProcessing.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
@@ -580,7 +580,7 @@
                         "products": "APIDFiltering.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
@@ -590,7 +590,7 @@
                         "products": "GranuleProcessing.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     },
                     "parameters": {
                         "pre_processed_granules": false
@@ -603,7 +603,7 @@
                         "products": "GranuleProcessing.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
@@ -613,7 +613,7 @@
                         "products": "SpecificSorting.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
@@ -623,7 +623,7 @@
                         "products": "CheckISPs.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
@@ -633,7 +633,7 @@
                         "products": "CheckISPs.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     },
                     "parameters": {
                         "near_range": 0.0,
@@ -648,7 +648,7 @@
                         "products": "MetadataProcessing.*"
                     },
                     "output_products": {
-                        "output_folder": "pipeline_internal"
+                        "output_folder": "pipeline_output"
                     }
                 },
                 {
