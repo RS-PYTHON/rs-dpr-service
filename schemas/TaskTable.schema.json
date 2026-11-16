@@ -344,6 +344,15 @@
                     "items": {
                         "$ref": "#/$defs/Step"
                     }
+                },
+                "parameters": {
+                    "type": "object",
+                    "description": "Default workflow parameters shared by all pipeline steps. Step parameters override these values."
+                },
+                "preserve_unit_names": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Use unique unit names as workflow names without appending step IDs."
                 }
             },
             "required": [
