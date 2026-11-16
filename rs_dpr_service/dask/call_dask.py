@@ -641,12 +641,6 @@ class ProcessorCaller:
         self.to_be_uploaded: list[tuple[s3fs.S3FileSystem, str, str]] = []
         self.exec_times: list[tuple[str, float]] = []
         self.cancelled: bool = False  # True when the EOPF subprocess is terminated by a job cancellation
-        # Embed the standalone adapter in the serialized caller. The worker image
-        # need not contain the rs-dpr-service package or a newer L0/EOPF build.
-        self.s3_workflow_compat_source = (
-            Path(__file__).with_name("s3_workflow_compat.py").read_text(encoding="utf-8")
-            if processor_name in ("s3_l0", "s3l0") else ""
-        )
 
     def copy_caller_env(self):
         """
@@ -896,23 +890,6 @@ class ProcessorCaller:
                     root_logger.addHandler(handler)
                 root_logger.setLevel(level)
 
-    def prepare_s3_workflow_compat(self, payload: dict, payload_dir: Path) -> None:
-        """Load sample-workflow support before EOPF instantiates individual S3 PUs."""
-        if self.processor_name not in ("s3_l0", "s3l0") or not any(
-            step.get("module") == "l0.cadu_processing.cadu_processing_unit"
-            for step in payload.get("workflow", [])
-        ):
-            return
-        module_name = "_rs_s3_workflow_compat"
-        adapter_dir = payload_dir / "rs_workflow_compat"
-        adapter_dir.mkdir(parents=True, exist_ok=True)
-        (adapter_dir / f"{module_name}.py").write_text(self.s3_workflow_compat_source, encoding="utf-8")
-        modules = [module for module in payload.get("external_modules", []) if module.get("name") != module_name]
-        payload["external_modules"] = [
-            {"name": module_name, "folder": str(adapter_dir.resolve()), "star_import": False},
-            *modules,
-        ]
-
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
 
@@ -920,7 +897,6 @@ class ProcessorCaller:
         with open(payload_file, encoding="utf-8") as opened:
             payload_contents = yaml.safe_load(opened)
 
-        self.prepare_s3_workflow_compat(payload_contents, Path(payload_file).parent)
         self.set_payload_s3_secrets(payload_contents)
 
         # Write the Dask context configuration in the payload file.
