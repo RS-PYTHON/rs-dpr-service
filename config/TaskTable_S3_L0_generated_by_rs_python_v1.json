@@ -677,18 +677,7 @@
                         "apply_mask": false,
                         "temporary_path": "./tmp",
                         "isp_extraction_batch_size": 5,
-                        "acquisition_report_output_path": "./acquisition_report_output_path",
-                        "cadu_chunk_size": {
-                            "navatt": 10000,
-                            "olci": 10000,
-                            "slstr": 10000,
-                            "sral": 10000,
-                            "mwr": 10000,
-                            "gnss": 10000,
-                            "doris": 10000,
-                            "hktm": 10000,
-                            "hktm_tf": 10000
-                        }
+                        "acquisition_report_output_path": "./acquisition_report_output_path"
                     }
                 },
                 {
@@ -785,40 +774,51 @@
                         "S03OLCCR0": "pipeline_output",
                         "S03OLCCR1": "pipeline_output",
                         "S03CACHE": "pipeline_output"
-                    },
-                    "parameters": {
-                        "isp_chunk_size": {
-                            "S03NAT_IG": 10000,
-                            "S03OLCCIG": 10000,
-                            "S03OLC0IG": 10000,
-                            "S03OLC1IG": 10000,
-                            "S03OLC_IG": 10000,
-                            "S03SLS_IG": 10000,
-                            "S03SRA_IG": 10000,
-                            "S03SRACIG": 10000,
-                            "S03MWR_IG": 10000,
-                            "S03GNS_IG": 10000,
-                            "S03DORNIG": 10000,
-                            "S03DORDIG": 10000,
-                            "S03HKM_IG": 10000,
-                            "S03HKM2IG": 10000,
-                            "S03NATL0_": 10000,
-                            "S03OLCCR0": 10000,
-                            "S03OLCCR1": 10000,
-                            "S03OLCL0_": 10000,
-                            "S03SLSL0_": 10000,
-                            "S03SRAL0C": 10000,
-                            "S03SRAL0_": 10000,
-                            "S03MWRL0_": 10000,
-                            "S03GNSL0_": 10000,
-                            "S03DORNAV": 10000,
-                            "S03DORDOP": 10000,
-                            "S03HKML0_": 10000,
-                            "S03HKM2L0": 10000
-                        }
                     }
                 }
-            ]
+            ],
+            "parameters": {
+                "cadu_chunk_size": {
+                    "navatt": 10000,
+                    "olci": 10000,
+                    "slstr": 10000,
+                    "sral": 10000,
+                    "mwr": 10000,
+                    "gnss": 10000,
+                    "doris": 10000,
+                    "hktm": 10000,
+                    "hktm_tf": 10000
+                },
+                "isp_chunk_size": {
+                    "S03NAT_IG": 10000,
+                    "S03OLCCIG": 10000,
+                    "S03OLC0IG": 10000,
+                    "S03OLC1IG": 10000,
+                    "S03OLC_IG": 10000,
+                    "S03SLS_IG": 10000,
+                    "S03SRA_IG": 10000,
+                    "S03SRACIG": 10000,
+                    "S03MWR_IG": 10000,
+                    "S03GNS_IG": 10000,
+                    "S03DORNIG": 10000,
+                    "S03DORDIG": 10000,
+                    "S03HKM_IG": 10000,
+                    "S03HKM2IG": 10000,
+                    "S03NATL0_": 10000,
+                    "S03OLCCR0": 10000,
+                    "S03OLCCR1": 10000,
+                    "S03OLCL0_": 10000,
+                    "S03SLSL0_": 10000,
+                    "S03SRAL0C": 10000,
+                    "S03SRAL0_": 10000,
+                    "S03MWRL0_": 10000,
+                    "S03GNSL0_": 10000,
+                    "S03DORNAV": 10000,
+                    "S03DORDOP": 10000,
+                    "S03HKML0_": 10000,
+                    "S03HKM2L0": 10000
+                }
+            }
         }
     ]
 }
