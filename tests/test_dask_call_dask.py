@@ -49,7 +49,7 @@ from rs_dpr_service.utils.logging import JobLogHandler
 from .conftest import get_cluster_info
 
 
-def _make_processor_caller(mocker, use_mockup=False):
+def _make_processor_caller(mocker, use_mockup=False, processor_name=None):
     """Create ProcessorCaller with the minimal worker-only imports stubbed."""
     fake_s3fs = types.ModuleType("s3fs")
     setattr(fake_s3fs, "S3FileSystem", type("S3FileSystem", (), {}))
@@ -66,7 +66,7 @@ def _make_processor_caller(mocker, use_mockup=False):
         span_context=mocker.Mock(),
         dask_gateway_address="http://dask-gateway.test",
         cluster_info=get_cluster_info(),
-        processor_name="mockup" if use_mockup else "s1_l0",
+        processor_name=processor_name or ("mockup" if use_mockup else "s1_l0"),
         job_id="job-1",
         data={"payload": "value"},
     )
@@ -1763,3 +1763,38 @@ def test_payload_s3_secrets_rejects_ambiguous_inputs(monkeypatch):
     with pytest.raises(ValueError, match="Multiple input credential sets"):
         call_dask.ProcessorCaller.set_payload_s3_secrets({"io": {"input_products": products}})
     assert "S3_SECRETS_JSON_BASE64" not in os.environ
+
+
+@pytest.mark.parametrize("processor,module,enabled", [
+    ("s3_l0", "l0.cadu_processing.cadu_processing_unit", True),
+    ("s3l0", "l0.cadu_processing.cadu_processing_unit", True),
+    ("s3_l0", "l0.s3.s3_l0_processor", False),
+    ("s1_l0", "l0.cadu_processing.cadu_processing_unit", False),
+])
+def test_prepare_s3_workflow_compat_ships_source_only_for_individual_s3_workflows(
+    mocker, tmp_path, processor, module, enabled,
+):
+    """The serialized caller supplies the adapter without changing worker packages."""
+    caller = _make_processor_caller(mocker)
+    caller.processor_name = processor
+    caller.s3_workflow_compat_source = "# adapter source from the service\n"
+    payload = {"workflow": [{"module": module}], "external_modules": [{"name": "reader"}]}
+    caller.prepare_s3_workflow_compat(payload, tmp_path)
+    if enabled:
+        adapter = payload["external_modules"][0]
+        assert adapter["name"] == "_rs_s3_workflow_compat"
+        assert (Path(adapter["folder"]) / "_rs_s3_workflow_compat.py").read_text() == caller.s3_workflow_compat_source
+        caller.prepare_s3_workflow_compat(payload, tmp_path)
+        assert len(payload["external_modules"]) == 2
+        assert payload["external_modules"][1] == {"name": "reader"}
+    else:
+        assert payload["external_modules"] == [{"name": "reader"}]
+        assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("processor_name", ["s3_l0", "s3l0"])
+def test_s3_caller_embeds_adapter_for_api_and_internal_processor_names(mocker, processor_name):
+    """GenericProcessor.get_processor_name() returns 's3l0', not the API id 's3_l0'."""
+    caller = _make_processor_caller(mocker, processor_name=processor_name)
+    assert "def install()" in caller.s3_workflow_compat_source
+    assert "init_without_identifier" in caller.s3_workflow_compat_source

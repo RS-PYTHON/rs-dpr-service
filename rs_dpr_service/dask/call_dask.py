@@ -645,7 +645,7 @@ class ProcessorCaller:
         # need not contain the rs-dpr-service package or a newer L0/EOPF build.
         self.s3_workflow_compat_source = (
             Path(__file__).with_name("s3_workflow_compat.py").read_text(encoding="utf-8")
-            if processor_name == "s3_l0" else ""
+            if processor_name in ("s3_l0", "s3l0") else ""
         )
 
     def copy_caller_env(self):
@@ -898,7 +898,7 @@ class ProcessorCaller:
 
     def prepare_s3_workflow_compat(self, payload: dict, payload_dir: Path) -> None:
         """Load sample-workflow support before EOPF instantiates individual S3 PUs."""
-        if self.processor_name != "s3_l0" or not any(
+        if self.processor_name not in ("s3_l0", "s3l0") or not any(
             step.get("module") == "l0.cadu_processing.cadu_processing_unit"
             for step in payload.get("workflow", [])
         ):
