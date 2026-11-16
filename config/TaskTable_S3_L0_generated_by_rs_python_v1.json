@@ -196,7 +196,7 @@
             "name": "CheckManoeuvring",
             "module": "l0.s3.check_manouvering_unit",
             "processing_unit": "CheckManouveringUnit",
-            "active": true,
+            "active": false,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -223,7 +223,7 @@
             "name": "MetadataProcessing",
             "module": "l0.s3.metadata_processing_unit",
             "processing_unit": "MetadataProcessingUnit",
-            "active": true,
+            "active": false,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -261,7 +261,7 @@
             "name": "ProductFormatting",
             "module": "l0.s3.product_formating_unit",
             "processing_unit": "ProductFormatingUnit",
-            "active": true,
+            "active": false,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -288,7 +288,7 @@
             "name": "MergeAndConsolidation",
             "module": "l0.s3.merge_and_consolidation_unit",
             "processing_unit": "MergeAndConsolidationUnit",
-            "active": true,
+            "active": false,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -398,7 +398,8 @@
                     "name": "S03CACHE",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": "^cache_S03.*"
+                    "regex": "^cache_S03.*",
+                    "final_product": false
                 }
             ]
         }
