@@ -687,6 +687,35 @@
                             "doris": 10000,
                             "hktm": 10000,
                             "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
                         }
                     }
                 },
@@ -696,7 +725,49 @@
                     "input_products": {
                         "products": "CADUProcessing.1..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "GranuleProcessing",
@@ -704,7 +775,49 @@
                     "input_products": {
                         "products": "APIDFiltering.2..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "GranuleFormatting",
@@ -714,7 +827,47 @@
                     },
                     "output_products": {},
                     "parameters": {
-                        "pre_processed_granules": false
+                        "pre_processed_granules": false,
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
                     }
                 },
                 {
@@ -723,7 +876,49 @@
                     "input_products": {
                         "products": "GranuleProcessing.3..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "CheckISPs",
@@ -731,7 +926,49 @@
                     "input_products": {
                         "products": "SpecificSorting.5..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "CheckManoeuvring",
@@ -739,7 +976,49 @@
                     "input_products": {
                         "products": "CheckISPs.6..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "MetadataProcessing",
@@ -751,7 +1030,47 @@
                     "parameters": {
                         "near_range": 0.0,
                         "far_range": 0.001,
-                        "pairs_number": 12
+                        "pairs_number": 12,
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
                     }
                 },
                 {
@@ -760,7 +1079,49 @@
                     "input_products": {
                         "products": "MetadataProcessing.8..*"
                     },
-                    "output_products": {}
+                    "output_products": {},
+                    "parameters": {
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
+                        },
+                        "isp_chunk_size": {
+                            "S03NAT_IG": 10000,
+                            "S03OLCCIG": 10000,
+                            "S03OLC0IG": 10000,
+                            "S03OLC1IG": 10000,
+                            "S03OLC_IG": 10000,
+                            "S03SLS_IG": 10000,
+                            "S03SRA_IG": 10000,
+                            "S03SRACIG": 10000,
+                            "S03MWR_IG": 10000,
+                            "S03GNS_IG": 10000,
+                            "S03DORNIG": 10000,
+                            "S03DORDIG": 10000,
+                            "S03HKM_IG": 10000,
+                            "S03HKM2IG": 10000,
+                            "S03NATL0_": 10000,
+                            "S03OLCCR0": 10000,
+                            "S03OLCCR1": 10000,
+                            "S03OLCL0_": 10000,
+                            "S03SLSL0_": 10000,
+                            "S03SRAL0C": 10000,
+                            "S03SRAL0_": 10000,
+                            "S03MWRL0_": 10000,
+                            "S03GNSL0_": 10000,
+                            "S03DORNAV": 10000,
+                            "S03DORDOP": 10000,
+                            "S03HKML0_": 10000,
+                            "S03HKM2L0": 10000
+                        }
+                    }
                 },
                 {
                     "unit_name": "MergeAndConsolidation",
@@ -814,6 +1175,17 @@
                             "S03DORDOP": 10000,
                             "S03HKML0_": 10000,
                             "S03HKM2L0": 10000
+                        },
+                        "cadu_chunk_size": {
+                            "navatt": 10000,
+                            "olci": 10000,
+                            "slstr": 10000,
+                            "sral": 10000,
+                            "mwr": 10000,
+                            "gnss": 10000,
+                            "doris": 10000,
+                            "hktm": 10000,
+                            "hktm_tf": 10000
                         }
                     }
                 }
