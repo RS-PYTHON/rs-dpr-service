@@ -576,7 +576,7 @@
                     "parameters": {
                         "streaming_mode": false,
                         "mission": "S3",
-                        "apply_mask": false,
+                        "apply_mask": true,
                         "temporary_path": "./tmp",
                         "isp_extraction_batch_size": 5,
                         "acquisition_report_output_path": "./acquisition_report_output_path"
