@@ -41,6 +41,9 @@ In practice, these endpoints are called by the generic processing flow `process-
 that computes the payload file from the task table and the flow parameters. Calling them directly is mainly useful
 to follow or cancel a job.
 
+If Dask Gateway returns a server error while starting a processor, the job is marked as failed and its status
+message contains the error details.
+
 ## How a processor is run
 
 ![DPR processing sequence](../images/dask-eopf-logging-prefect.svg)

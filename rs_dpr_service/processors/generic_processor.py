@@ -22,6 +22,7 @@ import traceback
 from dask.distributed import (  # LocalCluster,
     Client,
 )
+from dask_gateway.client import GatewayServerError
 from opentelemetry import trace
 from opentelemetry.trace.span import Span
 from pygeoapi.process.base import BaseProcessor
@@ -180,7 +181,7 @@ class GenericProcessor(BaseProcessor):
                 f"Failed to start the dpr-service process: No env var {ke} found",
                 log_exception=True,
             )
-        except RuntimeError:
+        except (RuntimeError, GatewayServerError):
             return self.job_logger.log_job_execution(
                 JobStatus.failed,
                 0,
