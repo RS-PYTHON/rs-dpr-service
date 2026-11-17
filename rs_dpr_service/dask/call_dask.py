@@ -876,7 +876,8 @@ class ProcessorCaller:
         import eopf  # pylint: disable=import-outside-toplevel
 
         if Version(eopf.__version__) >= Version("3.1.0rc1"):
-            from eopf.cli.cli_triggering_triggers import (  # type: ignore[attr-defined]  # pylint: disable=no-name-in-module
+            # pylint: disable-next=no-name-in-module
+            from eopf.cli.cli_triggering_triggers import (  # type: ignore[attr-defined]
                 validate_payload_command,
             )
 
