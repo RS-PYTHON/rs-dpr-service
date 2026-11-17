@@ -19,15 +19,54 @@ References:
 - EOPF documentation: https://cpm.pages.eopf.copernicus.eu/eopf-cpm/main/index.html
 
 Will run inside EOPF Dask cluster worker
+
+The Sentinel-1 IW/EW SLC products are written in the format expected by the S1 ARD processor, which is NOT
+compatible with the CPM 3.0.0 SLC model: see rs_dpr_service.s1_slc_s1ard_format.
 """
 
+import contextlib
+import importlib
 import json
 import os
 import sys
 import traceback
+from collections.abc import Iterator
 
 import eopf  # type: ignore
 from eopf.store.convert import convert  # type: ignore
+
+
+@contextlib.contextmanager
+def s1ard_format_hook(safe_uri: str) -> Iterator[bool]:
+    """
+    Within this context, the EOPF conversion of a Sentinel-1 IW/EW SLC product writes it in the S1 ARD format.
+
+    The EOPF convert() function reads the SAFE product with open_datatree, then writes the DataTree. We wrap
+    open_datatree to transform the DataTree in between: lazily, without copying the measurement data.
+
+    Yields:
+        True if the product is a Sentinel-1 IW/EW SLC product, converted in the S1 ARD format.
+    """
+    # pylint: disable=import-outside-toplevel
+    from rs_dpr_service import s1_slc_s1ard_format
+
+    if not s1_slc_s1ard_format.is_s1_topsar_slc_safe(safe_uri):
+        yield False
+        return
+
+    eopf_convert = importlib.import_module("eopf.store.convert")
+    open_datatree = getattr(eopf_convert, "open_datatree")
+
+    def open_in_s1ard_format(path, *args, **kwargs):
+        if str(path).startswith("s3://"):
+            raise ValueError(f"The SAFE product must be staged locally to be converted in the S1 ARD format: {path}")
+        return s1_slc_s1ard_format.to_s1ard_format(open_datatree(path, *args, **kwargs), str(path))
+
+    setattr(eopf_convert, "open_datatree", open_in_s1ard_format)
+    try:
+        yield True
+    finally:
+        setattr(eopf_convert, "open_datatree", open_datatree)
 
 
 def main():
@@ -65,23 +104,29 @@ def main():
         os.environ["AWS_ALLOW_HTTP"] = "true"
     try:
         # stage_source/stage_target: download the SAFE and write the Zarr locally, then upload it to S3.
-        convert(
-            safe_uri,
-            zarr_uri,
-            source_store_kwargs={"storage_options": s3_cfg},
-            target_store_kwargs={"storage_options": s3_cfg, "zarr_format": cfg.get("zarr_format", 2)},
-            stage_source=True,
-            stage_target=True,
-        )
+        with s1ard_format_hook(safe_uri) as s1ard_format:
+            convert(
+                safe_uri,
+                zarr_uri,
+                source_store_kwargs={"storage_options": s3_cfg},
+                target_store_kwargs={"storage_options": s3_cfg, "zarr_format": cfg.get("zarr_format", 2)},
+                stage_source=True,
+                stage_target=True,
+            )
 
-        result = json.dumps(
-            {
-                "message": "Conversion finished",
-                "eopf_version": eopf.__version__,
-                "safe_uri": safe_uri,
-                "zarr_uri": zarr_uri,
-            },
-        )
+        result_dict = {
+            "message": "Conversion finished",
+            "eopf_version": eopf.__version__,
+            "safe_uri": safe_uri,
+            "zarr_uri": zarr_uri,
+        }
+        if s1ard_format:
+            # pylint: disable=import-outside-toplevel
+            from rs_dpr_service.s1_slc_s1ard_format import S1ARD_FORMAT_PROPERTIES
+
+            result_dict["product_format"] = S1ARD_FORMAT_PROPERTIES["rspy:product_format"]
+            result_dict["warning"] = S1ARD_FORMAT_PROPERTIES["rspy:product_format_description"]
+        result = json.dumps(result_dict)
         print(result)
         if len(sys.argv) > 2:
             with os.fdopen(int(sys.argv[2]), "w", encoding="utf-8") as result_file:
