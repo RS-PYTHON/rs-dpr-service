@@ -839,8 +839,10 @@ class ProcessorCaller:
             if isinstance(downloaded_dir, AnyPath):
                 if hasattr(downloaded_dir, "fs_path"):  # CPM >= 3.0.0rc4
                     local_config_dir = downloaded_dir.fs_path
-                else:
+                elif hasattr(downloaded_dir, "path"):
                     local_config_dir = downloaded_dir.path
+                else:
+                    raise AttributeError("Downloaded AnyPath has neither 'fs_path' nor 'path'")
             else:
                 local_config_dir = downloaded_dir
 
@@ -877,7 +879,9 @@ class ProcessorCaller:
         import eopf  # pylint: disable=import-outside-toplevel
 
         if Version(eopf.__version__) >= Version("3.1.0rc1"):
-            from eopf.cli.cli_triggering_triggers import validate_payload_command
+            from eopf.cli.cli_triggering_triggers import (  # type: ignore[attr-defined]  # pylint: disable=no-name-in-module
+                validate_payload_command,
+            )
 
             # EOPF's CLI uses basicConfig(force=True), which closes Dask's root handlers.
             root_logger = logging.getLogger()

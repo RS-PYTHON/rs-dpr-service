@@ -680,6 +680,18 @@ def test_processor_caller_init_prepares_payload_and_reports(init_context, config
     assert ctx.payload_file.read_text(encoding="utf-8") == "workflow: []\n"
 
 
+def test_processor_caller_init_rejects_downloaded_anypath_without_local_path(init_context):
+    """A downloaded AnyPath must expose a local filesystem path."""
+    ctx = init_context
+    ctx.caller.data["s3_config_dir"] = "s3://bucket/config"
+    ctx.download.return_value = object.__new__(ctx.anypath_class)
+
+    with pytest.raises(AttributeError, match="neither 'fs_path' nor 'path'"):
+        ctx.caller.init()
+
+    ctx.customize_payload.assert_not_called()
+
+
 def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, mocker):
     """The payload is validated at the preflight level when eopf is 3.1.0rc1 or newer."""
     ctx = init_context
