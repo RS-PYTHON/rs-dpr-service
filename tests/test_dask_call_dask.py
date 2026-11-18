@@ -20,6 +20,7 @@ import base64
 import importlib
 import io
 import json
+import logging
 import os
 import pickle  # nosec B403 # only used to check that a plugin built by this test is picklable
 import re
@@ -34,11 +35,16 @@ from typing import Any, cast
 
 import cloudpickle
 import pytest
-from distributed.diagnostics.plugin import SchedulerPlugin, WorkerPlugin
+from distributed.diagnostics.plugin import (
+    ForwardLoggingPlugin,
+    SchedulerPlugin,
+    WorkerPlugin,
+)
 from distributed.scheduler import Scheduler
 from distributed.worker import Worker
 
 from rs_dpr_service.dask import call_dask
+from rs_dpr_service.utils.logging import JobLogHandler
 
 from .conftest import get_cluster_info
 
@@ -674,6 +680,18 @@ def test_processor_caller_init_prepares_payload_and_reports(init_context, config
     assert ctx.payload_file.read_text(encoding="utf-8") == "workflow: []\n"
 
 
+def test_processor_caller_init_rejects_downloaded_anypath_without_local_path(init_context):
+    """A downloaded AnyPath must expose a local filesystem path."""
+    ctx = init_context
+    ctx.caller.data["s3_config_dir"] = "s3://bucket/config"
+    ctx.download.return_value = object.__new__(ctx.anypath_class)
+
+    with pytest.raises(AttributeError, match="neither 'fs_path' nor 'path'"):
+        ctx.caller.init()
+
+    ctx.customize_payload.assert_not_called()
+
+
 def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, mocker):
     """The payload is validated at the preflight level when eopf is 3.1.0rc1 or newer."""
     ctx = init_context
@@ -693,6 +711,57 @@ def test_processor_caller_init_validates_payload_with_recent_eopf(init_context, 
         args=[str(ctx.payload_file), "--level", "preflight"],
         standalone_mode=False,
     )
+
+
+@pytest.mark.parametrize("validation_fails", [False, True])
+def test_validation_preserves_dask_log_forwarding(init_context, mocker, validation_fails):
+    """EOPF logging reconfiguration must not close or remove the worker's forwarding handler."""
+    ctx = init_context
+    ctx.eopf_module.__version__ = "3.1.0rc2"
+    root = logging.getLogger()
+    original_handlers = root.handlers[:]
+    original_level = root.level
+    worker = mocker.Mock()
+    plugin = ForwardLoggingPlugin(None, logging.NOTSET, "test-forwarded-logs")
+    triggers = types.ModuleType("eopf.cli.cli_triggering_triggers")
+
+    def validate(**_kwargs):
+        logging.basicConfig(level=logging.INFO, force=True)
+        if validation_fails:
+            raise ValueError("Invalid payload")
+
+    mocker.patch.object(triggers, "validate_payload_command", mocker.Mock(main=validate), create=True)
+    mocker.patch.dict(
+        sys.modules,
+        {"eopf.cli": types.ModuleType("eopf.cli"), "eopf.cli.cli_triggering_triggers": triggers},
+    )
+    try:
+        for handler in original_handlers:
+            root.removeHandler(handler)
+        root.setLevel(logging.DEBUG)
+        plugin.setup(worker)
+        forwarding_handler = plugin.handler
+        assert isinstance(forwarding_handler, logging.Handler)
+        close = mocker.spy(forwarding_handler, "close")
+        call_dask.logger.info("before validation")
+        if validation_fails:
+            with pytest.raises(ValueError, match="Invalid payload"):
+                ctx.caller.init()
+        else:
+            ctx.caller.init()
+        assert root.handlers == [forwarding_handler]
+        assert root.level == logging.DEBUG
+        close.assert_not_called()
+        worker.log_event.reset_mock()
+        call_dask.logger.info("after validation")
+        assert worker.log_event.call_args.args[1]["msg"] == "after validation"
+    finally:
+        plugin.teardown(worker)
+        for handler in root.handlers[:]:
+            root.removeHandler(handler)
+        for handler in original_handlers:
+            root.addHandler(handler)
+        root.setLevel(original_level)
 
 
 def test_processor_caller_init_propagates_download_error(init_context):
@@ -723,7 +792,8 @@ def test_processor_caller_init_propagates_customization_error(init_context):
     assert ctx.caller.command == []
 
 
-def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch):
+@pytest.mark.parametrize("use_mockup", [False, True], ids=["standard-processor", "mockup"])
+def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monkeypatch, use_mockup):
     """Test ProcessorCaller.run_processor() copies env, runs init/trigger/finalize, and returns the result."""
     # Track env restoration even though copy_caller_env() writes directly into os.environ.
     for key in (
@@ -741,7 +811,7 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     ):
         monkeypatch.setenv(key, "")
 
-    caller = _make_processor_caller(mocker)
+    caller = _make_processor_caller(mocker, use_mockup=use_mockup)
     expected_result = {"result": "ok"}
     # Keep run_processor() real, but stop before real EOPF init/subprocess/final upload.
     caller.init = mocker.Mock()
@@ -760,8 +830,13 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     mocker.patch("rs_dpr_service.dask.call_dask.start_span", side_effect=fake_start_span)
     mocker.patch("rs_dpr_service.dask.call_dask.reload", side_effect=lambda module: module)
     mocker.patch("rs_dpr_service.dask.call_dask.get_ip_address", return_value="127.0.0.1")
+    job_log_handler = JobLogHandler()
+    call_dask.logger.addHandler(job_log_handler)
 
-    result = caller.run_processor()
+    try:
+        result = caller.run_processor()
+    finally:
+        call_dask.logger.removeHandler(job_log_handler)
 
     init_traces.assert_called_once_with()
     caller.init.assert_called_once_with()
@@ -776,6 +851,15 @@ def test_processor_caller_run_processor_runs_nominal_orchestration(mocker, monke
     assert os.environ["S3_SECRETS_JSON_BASE64"] == ""
     assert os.environ["OTEL_RESOURCE_ATTRIBUTES"] == "service.name=test"
     assert caller.exec_times[0][0] == "Run processor"
+    test_logs = [message for _, message in job_log_handler.get_logs("job-1") if "DPR Mockup processor" in message]
+    if use_mockup:
+        assert len(test_logs) == 3
+        assert any(" - DEBUG - DPR Mockup processor debug message" in message for message in test_logs)
+        assert any(" - INFO - DPR Mockup processor info message" in message for message in test_logs)
+        assert any(" - WARNING - DPR Mockup processor warning message" in message for message in test_logs)
+        assert job_log_handler.get_logs("another-job") == []
+    else:
+        assert test_logs == []
 
 
 @pytest.mark.parametrize(

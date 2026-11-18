@@ -20,6 +20,7 @@ import types
 from contextlib import contextmanager
 
 import pytest
+from dask_gateway.client import GatewayServerError
 from distributed import KilledWorker
 from pygeoapi.util import JobStatus
 
@@ -137,6 +138,37 @@ def test_execute_marks_job_failed_when_dask_connection_setup_fails(mocker):
         "Failed to start the dpr-service process:"
         in db_process_manager.update_job.call_args_list[-1].args[1]["message"]
     )
+
+
+def test_scheduled_processor_marks_job_failed_when_gateway_returns_server_error(mocker):
+    """A gateway failure in the background task must leave the job in a failed state."""
+    db_process_manager = mocker.Mock()
+    processor = GenericProcessor(
+        db_process_manager=db_process_manager,
+        cluster_info=get_cluster_info(),
+    )
+    setup = mocker.patch.object(
+        processor.cluster_handler,
+        "setup_dask_connection",
+        side_effect=GatewayServerError("500 Internal Server Error"),
+    )
+    manage = mocker.patch.object(processor, "manage_dask_tasks")
+    create_task = mocker.spy(asyncio, "create_task")
+
+    async def run():
+        result = await processor.execute({"input": "value"})
+        assert result == ("application/json", {"running": processor.job_logger.job_id})
+        await create_task.spy_return
+
+    asyncio.run(run())
+
+    setup.assert_called_once_with(processor.job_logger.job_id)
+    manage.assert_not_called()
+    update = db_process_manager.update_job.call_args_list[-1].args
+    assert update[0] == processor.job_logger.job_id
+    assert update[1]["status"] == JobStatus.failed.value
+    assert update[1]["progress"] == 0
+    assert "GatewayServerError: 500 Internal Server Error" in update[1]["message"]
 
 
 def test_execute_passes_payload_unchanged_before_submitting_to_dask(mocker):

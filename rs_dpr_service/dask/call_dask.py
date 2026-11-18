@@ -776,6 +776,12 @@ class ProcessorCaller:
                 self.init()
                 log_worker_resources(self.job_id, self.working_dir)
 
+                if self.processor_name == "mockup":
+                    # TODO: test this on the deployed cluster
+                    logger.debug(f"[JOB:{self.job_id}] DPR Mockup processor debug message")
+                    logger.info(f"[JOB:{self.job_id}] DPR Mockup processor info message")
+                    logger.warning(f"[JOB:{self.job_id}] DPR Mockup processor warning message")
+
                 start_time = time.time()
                 self.trigger()
                 self.exec_times.append(("Run processor", time.time() - start_time))
@@ -830,8 +836,10 @@ class ProcessorCaller:
             if isinstance(downloaded_dir, AnyPath):
                 if hasattr(downloaded_dir, "fs_path"):  # CPM >= 3.0.0rc4
                     local_config_dir = downloaded_dir.fs_path
-                else:
+                elif hasattr(downloaded_dir, "path"):
                     local_config_dir = downloaded_dir.path
+                else:
+                    raise AttributeError("Downloaded AnyPath has neither 'fs_path' nor 'path'")
             else:
                 local_config_dir = downloaded_dir
 
@@ -868,12 +876,30 @@ class ProcessorCaller:
         import eopf  # pylint: disable=import-outside-toplevel
 
         if Version(eopf.__version__) >= Version("3.1.0rc1"):
-            from eopf.cli.cli_triggering_triggers import validate_payload_command
-
-            validate_payload_command.main(
-                args=[payload_file, "--level", "preflight"],
-                standalone_mode=False,  # raise instead of sys.exit()
+            # pylint: disable-next=no-name-in-module
+            from eopf.cli.cli_triggering_triggers import (  # type: ignore[attr-defined]
+                validate_payload_command,
             )
+
+            # EOPF's CLI uses basicConfig(force=True), which closes Dask's root handlers.
+            root_logger = logging.getLogger()
+            handlers = root_logger.handlers[:]
+            level = root_logger.level
+            for handler in handlers:
+                root_logger.removeHandler(handler)
+            try:
+                validate_payload_command.main(
+                    args=[payload_file, "--level", "preflight"],
+                    standalone_mode=False,  # raise instead of sys.exit()
+                )
+            finally:
+                for handler in root_logger.handlers[:]:
+                    root_logger.removeHandler(handler)
+                    if handler not in handlers:
+                        handler.close()
+                for handler in handlers:
+                    root_logger.addHandler(handler)
+                root_logger.setLevel(level)
 
     def customize_payload_file(self, payload_file: str):
         """Customize the payload file values"""
