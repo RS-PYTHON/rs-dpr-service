@@ -37,8 +37,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
+from starlette.status import HTTP_200_OK  # pylint: disable=C0411
 from starlette.status import (
-    HTTP_200_OK,  # pylint: disable=C0411
     HTTP_201_CREATED,
     HTTP_404_NOT_FOUND,
     HTTP_500_INTERNAL_SERVER_ERROR,
@@ -58,9 +58,16 @@ from rs_dpr_service.processors.eopf_processors import (
     S3L2OLCIProcessor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
-from rs_dpr_service.utils.init_opentelemetry import init_traces, record_error, start_span
+from rs_dpr_service.utils.init_opentelemetry import (
+    init_traces,
+    record_error,
+    start_span,
+)
 from rs_dpr_service.utils.logging import JobLogHandler, Logging
-from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware, HealthMiddleware
+from rs_dpr_service.utils.middlewares import (
+    HandleExceptionsMiddleware,
+    HealthMiddleware,
+)
 from rs_dpr_service.utils.settings import CANCEL_JOB
 
 # flake8: noqa: F401

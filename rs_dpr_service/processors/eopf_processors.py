@@ -163,7 +163,7 @@ class CRIL0Processor(GenericProcessor):
         super().__init__(
             db_process_manager=db_process_manager,
             cluster_info=cluster_info,
-            local_mode_address="DASK_GATEWAY_L0_ADDRESS",
+            local_mode_address="DASK_GATEWAY_CRIL0_ADDRESS",
             tasktable_module="cri_l0_dp.processors.l0_processor",
             tasktable_class="L0Processor",
         )
