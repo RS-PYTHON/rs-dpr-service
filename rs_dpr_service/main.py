@@ -37,8 +37,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse, StreamingResponse
-from starlette.status import (  # pylint: disable=C0411
-    HTTP_200_OK,
+from starlette.status import (
+    HTTP_200_OK,  # pylint: disable=C0411
     HTTP_201_CREATED,
     HTTP_404_NOT_FOUND,
     HTTP_500_INTERNAL_SERVER_ERROR,
@@ -46,12 +46,10 @@ from starlette.status import (  # pylint: disable=C0411
 
 from rs_dpr_service.dask.call_dask import ClusterInfo
 from rs_dpr_service.jobs_table import Base
-from rs_dpr_service.openapi_validation import (
-    validate_request,
-    validate_response,
-)
+from rs_dpr_service.openapi_validation import validate_request, validate_response
 from rs_dpr_service.processors.conversion_processor import ConversionProcessor
 from rs_dpr_service.processors.eopf_processors import (
+    CRIL0Processor,
     MockupProcessor,
     S1ARDProcessor,
     S1L0Processor,
@@ -60,16 +58,9 @@ from rs_dpr_service.processors.eopf_processors import (
     S3L2OLCIProcessor,
 )
 from rs_dpr_service.processors.generic_processor import GenericProcessor
-from rs_dpr_service.utils.init_opentelemetry import (
-    init_traces,
-    record_error,
-    start_span,
-)
+from rs_dpr_service.utils.init_opentelemetry import init_traces, record_error, start_span
 from rs_dpr_service.utils.logging import JobLogHandler, Logging
-from rs_dpr_service.utils.middlewares import (
-    HandleExceptionsMiddleware,
-    HealthMiddleware,
-)
+from rs_dpr_service.utils.middlewares import HandleExceptionsMiddleware, HealthMiddleware
 from rs_dpr_service.utils.settings import CANCEL_JOB
 
 # flake8: noqa: F401
@@ -87,6 +78,7 @@ processor_types: dict[str, type[GenericProcessor]] = {
     "s1_ard": S1ARDProcessor,
     "s3_l1olci": S3L1OLCIProcessor,
     "s3_l2olci": S3L2OLCIProcessor,
+    "cri_l0": CRIL0Processor,
 }
 
 # Initialize a FastAPI application

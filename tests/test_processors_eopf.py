@@ -17,6 +17,7 @@
 import pytest
 
 from rs_dpr_service.processors.eopf_processors import (
+    CRIL0Processor,
     MockupProcessor,
     S1ARDProcessor,
     S1L0Processor,
@@ -39,6 +40,7 @@ from .conftest import get_cluster_info
         (S1ARDProcessor, "s1_ard.computing.ard_processing_units", "Calibration"),
         (S3L1OLCIProcessor, "s3olci.s3_ol1.ol1_processor", "OL1Processor"),
         (S3L2OLCIProcessor, "s3olci.s3_ol2.ol2_processor", "OL2Processor"),
+        (CRIL0Processor, "l0.cristal.cristal_l0_processor", "CRIL0Processor"),
     ],
 )
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
@@ -71,6 +73,7 @@ def test_eopf_processors_initialize_expected_generic_processor_configuration(
         (S1ARDProcessor, "TaskTable_S1_ARD_generated_by_rs_python_v1.json"),
         (S3L1OLCIProcessor, "TaskTable_S3_L1OLCI_generated_by_rs_python_v1.json"),
         (S3L2OLCIProcessor, "TaskTable_S3_L2OLCI_generated_by_rs_python_v1.json"),
+        (CRIL0Processor, "TaskTable_CRI_L0_generated_by_rs_python_v1.json"),
     ],
 )
 @pytest.mark.asyncio

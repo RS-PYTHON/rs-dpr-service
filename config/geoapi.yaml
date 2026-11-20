@@ -72,6 +72,10 @@ resources:
     type: process
     processor:
       name: s3_l2olci
+  cri_l0:
+    type: process
+    processor:
+      name: cri_l0
 
 openapi:
   path: # not used
