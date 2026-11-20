@@ -40,7 +40,7 @@ from .conftest import get_cluster_info
         (S1ARDProcessor, "s1_ard.computing.ard_processing_units", "Calibration"),
         (S3L1OLCIProcessor, "s3olci.s3_ol1.ol1_processor", "OL1Processor"),
         (S3L2OLCIProcessor, "s3olci.s3_ol2.ol2_processor", "OL2Processor"),
-        (CRIL0Processor, "l0.cristal.cristal_l0_processor", "CRIL0Processor"),
+        (CRIL0Processor, "cri_l0_dp.processors.l0_processor", "L0Processor"),
     ],
 )
 def test_eopf_processors_initialize_expected_generic_processor_configuration(
