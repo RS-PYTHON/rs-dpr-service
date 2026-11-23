@@ -35,7 +35,6 @@ jobs:
       temp_matrix: ${{ steps.configure-deps.outputs.temp_matrix }}
       has_temp_branches: ${{ steps.configure-deps.outputs.has_temp_branches }}
       python_version: ${{ steps.configure-deps.outputs.python_version }}
-      poetry_version: ${{ steps.configure-deps.outputs.poetry_version }}
     steps:
       - uses: actions/checkout@v6
       - id: configure-deps
@@ -66,7 +65,6 @@ jobs:
       caller-ref: ${{ github.ref }}
       caller-ref_name: ${{ github.ref_name }}
       python-version: ${{ needs.configure-deps.outputs.python_version }}
-      poetry-version: ${{ needs.configure-deps.outputs.poetry_version }}
       cov-dirs: rs_dpr_service
     secrets:
       SAFETY_API_KEY: ${{ secrets.SAFETY_API_KEY }}
@@ -90,23 +88,23 @@ jobs:
         with:
           ref: ${{ matrix.github_ref }}
 
-      - uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+      - uses: RS-PYTHON/actions/.github/actions/setup-uv@develop
         with:
           python-version: ${{ matrix.python_version }}
-          poetry-version: ${{ matrix.poetry_version }}
 
       - name: Install and test
         run: |
           set -x
-          poetry install --with dev
-          poetry run -q opentelemetry-bootstrap -a install || true # install otel instrumentation packages for dependencies
-          poetry run pip list
+          uv sync --locked --no-build
+          # install otel instrumentation packages for dependencies
+          uv pip install --only-binary=:all: $(uv run --no-sync opentelemetry-bootstrap -a requirements) || true
+          uv pip list
 
           # -ra: Show extra test summary info
           # --durations=N Show N slowest setup/test durations (N=0 for all)
           # --durations-min=N Minimal duration in seconds for inclusion in slowest list
           # --error-for-skips Treat skipped tests as errors
-          poetry run pytest tests \
+          uv run --no-sync pytest tests \
             -ra \
             --disable-pytest-warnings \
             --color=yes \

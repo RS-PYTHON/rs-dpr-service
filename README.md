@@ -28,9 +28,10 @@ the [rs-client-libraries](https://github.com/RS-PYTHON/rs-client-libraries).
 - Develop on it:
 
     ```shell
-    poetry install --with dev
-    poetry run pre-commit install
-    poetry run pytest -m unit
+    # Install the service and its dev dependencies in .venv/, from uv.lock (see https://docs.astral.sh/uv/)
+    uv sync
+    uv run pre-commit install
+    uv run pytest -m unit
     ```
 
     The service must use the same Python and Dask versions as the Dask clusters of the processors, see

@@ -48,16 +48,13 @@ jobs:
         run: |
           set -x
 
-          # pyproject.toml contains the line: 'python = "==xxx"'
-          # We change the python version to "*"
-          sed -i "/^python[ \t=]/s/.*/python = \"*\"/g" pyproject.toml
+          # pyproject.toml contains the line: 'requires-python = "==xxx"'
+          # We change the python version to ">=3"
+          sed -i "/^requires-python[ \t=]/s/.*/requires-python = \">=3\"/g" pyproject.toml
 
-          # pyproject.toml contains the line: 'dask = {extras = ["xxx"], version = "yyy"}'
-          # We change the dask version to "*"
-          sed -i "/^dask[ \t=]/s/version[^,}]*/version = \"*\"/g" pyproject.toml
-
-          # The poetry.lock file should not be used when building the wheel
-          rm poetry.lock
+          # pyproject.toml contains the line: '"dask[distributed]==yyy",'
+          # We remove the dask version
+          sed -i "s/\"dask\[distributed\]==[^\"]*\"/\"dask[distributed]\"/g" pyproject.toml
 
           # Display changes
           git diff pyproject.toml
