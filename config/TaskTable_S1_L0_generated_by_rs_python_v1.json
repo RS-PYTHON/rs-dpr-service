@@ -584,6 +584,8 @@
                         "S01SNANC": "pipeline_output"
                     },
                     "parameters": {
+                        "temporary_path": "./tmp",
+                        "streaming_mode": false,
                         "acquisition_report_output_path": "./acquisition_report_output_path",
                         "cadu_chunk_size": {
                             "sar": 10000,
