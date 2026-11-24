@@ -221,7 +221,7 @@
             "name": "CheckManoeuvring",
             "module": "l0.s3.check_manouvering_unit",
             "processing_unit": "CheckManouveringUnit",
-            "active": true,
+            "active": false,
             "resources_min": {
                 "dask": {
                     "worker_cpu": 4,
@@ -890,7 +890,7 @@
                     "unit_name": "MetadataProcessing",
                     "step_id": 8,
                     "input_products": {
-                        "products": "CheckManoeuvring.7..*"
+                        "products": "CheckISPs.6..*"
                     },
                     "output_products": {},
                     "parameters": {
@@ -1030,12 +1030,12 @@
                     "unit_name": "CheckManoeuvring",
                     "step_id": 7,
                     "input_products": {"products": "CheckISPs.6..*"},
-                    "output_products": {"MANOEUVRING_INTERMEDIATE": "pipeline_internal"}
+                    "output_products": {}
                 },
                 {
                     "unit_name": "MetadataProcessing",
                     "step_id": 8,
-                    "input_products": {"products": "CheckManoeuvring.7..*"},
+                    "input_products": {"products": "CheckISPs.6..*"},
                     "output_products": {"METADATA_INTERMEDIATE": "pipeline_internal"},
                     "parameters": {"near_range": 0.0, "far_range": 0.001, "pairs_number": 12}
                 },
