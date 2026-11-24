@@ -143,7 +143,7 @@ jobs:
 
             # Semantic validation
             echo "Semantic checks for $file"
-            python3 scripts/check_tasktable_semantics.py "$file" || status=1
+            python3 scripts/check_tasktable_semantics.py "../$file" || status=1
           done
           # Fail at the end so that all files are checked
           exit $status
