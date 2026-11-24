@@ -300,6 +300,7 @@ def check_file(path: Path) -> int:
 
 
 def main() -> int:
+    print("Start the check.")
     parser = argparse.ArgumentParser(description="Semantic checks for TaskTable JSON files.")
     parser.add_argument("files", nargs="+", type=Path, help="TaskTable JSON files to check")
     args = parser.parse_args()
