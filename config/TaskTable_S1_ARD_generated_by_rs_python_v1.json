@@ -837,7 +837,8 @@
             "simulation_ref": "ReferenceGeometry.3.simulation_ref"
           },
           "output_products": {
-            "cslcs": "pipeline_internal"
+            "cslcs": "pipeline_internal",
+            "slcs": "pipeline_internal"
           }
         },
         {
@@ -907,7 +908,8 @@
             "simulation_ref": "ReferenceGeometry.3.simulation_ref"
           },
           "output_products": {
-            "cslcs": "pipeline_internal"
+            "cslcs": "pipeline_internal",
+            "slcs": "pipeline_internal"
           }
         },
         {
@@ -1027,7 +1029,8 @@
             "simulation_ref": "ReferenceGeometry.3.simulation_ref"
           },
           "output_products": {
-            "cslcs": "pipeline_internal"
+            "cslcs": "pipeline_internal",
+            "slcs": "pipeline_internal"
           }
         },
         {
@@ -1087,7 +1090,8 @@
             "simulation_ref": "ReferenceGeometry.3.simulation_ref"
           },
           "output_products": {
-            "cslcs": "pipeline_internal"
+            "cslcs": "pipeline_internal",
+            "slcs": "pipeline_internal"
           }
         },
         {

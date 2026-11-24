@@ -106,7 +106,7 @@
                         "order": 1,
                         "timeout_seconds": 0,
                         "query": {
-                            "name": "LatestValCover",
+                            "name": "LatestValIntersect",
                             "parameters": {
                                 "product_type": "AX___OSF_AX",
                                 "satellite": "{external_variable.satellite}",
@@ -128,7 +128,7 @@
                         "order": 1,
                         "timeout_seconds": 0,
                         "query": {
-                            "name": "LatestValCover",
+                            "name": "LatestValIntersect",
                             "parameters": {
                                 "product_type": "AX___FRO_AX",
                                 "satellite": "{external_variable.satellite}",
@@ -163,7 +163,7 @@
     },
     "queries": [
         {
-            "name": "LatestValCover",
+            "name": "LatestValIntersect",
             "parameters": [
                 "product_type",
                 "satellite",
@@ -209,8 +209,20 @@
                                 },
                                 {
                                     "interval": [
-                                        "{start_datetime}",
-                                        "{end_datetime}"
+                                        {
+                                            "op": "-",
+                                            "args": [
+                                                "{start_datetime}",
+                                                "{dTa}"
+                                            ]
+                                        },
+                                        {
+                                            "op": "+",
+                                            "args": [
+                                                "{end_datetime}",
+                                                "{dTb}"
+                                            ]
+                                        }
                                     ]
                                 }
                             ]
