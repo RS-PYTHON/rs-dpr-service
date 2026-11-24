@@ -291,7 +291,7 @@ def check_file(path: Path) -> int:
             print(f"❌ {label}")
             for e in errors:
                 print(f"   - {e}")
-                # GitHub Actions annotation (shown in the PR "Files changed" / checks)
+                # GitHub Actions annot  ation (shown in the PR "Files changed" / checks)
                 print(f"::error file={path}::{e}")
             total += len(errors)
         else:
