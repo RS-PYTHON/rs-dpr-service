@@ -148,7 +148,7 @@ jobs:
             pipx run check-jsonschema --schemafile "$schema" "$file" || status=1
 
             # Semantic validation
-            echo "Semantic checks for $file"
+            echo "Semantic checks for the $file"
             python3 scripts/check_tasktable_semantics.py "$file" || status=1
           done
           # Fail at the end so that all files are checked
