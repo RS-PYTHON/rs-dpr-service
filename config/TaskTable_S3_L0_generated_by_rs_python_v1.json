@@ -822,8 +822,8 @@
     ],
     "pipelines": [
         {
-            "name": "s3_l0_multi",
-            "description": "S3 L0 processing without intermediate product writes",
+            "name": "s3_l0_lazy",
+            "description": "Run the processing steps without saving intermediate products. Only the last step writes final products to S3.",
             "steps": [
                 {
                     "unit_name": "CADUProcessing",
@@ -982,8 +982,8 @@
             }
         },
         {
-            "name": "s3_l0_multi_shared",
-            "description": "OLCI smoke test using shared-disk handoffs, with only the final L0 product written to S3",
+            "name": "s3_l0_olci_shared_disk_test",
+            "description": "Test the processing chain with one OLCI granule. Steps save and reopen intermediate products on shared disk; only the last step writes the final OLCI product to S3.",
             "steps": [
                 {
                     "unit_name": "CADUProcessing",
@@ -1105,7 +1105,7 @@
         },
         {
             "name": "s3_l0_full",
-            "description": "Full pipeline for S3 L0",
+            "description": "Run the full Sentinel-3 Level-0 chain in a single processing unit and write the final products to S3.",
             "steps": [
                 {
                     "unit_name": "S3L0Processor",
