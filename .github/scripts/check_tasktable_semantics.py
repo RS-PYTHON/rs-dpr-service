@@ -18,7 +18,6 @@ Usage:
     python scripts/check_tasktable_semantics.py config/TaskTable_*.json
 """
 
-#!/usr/bin/env python3
 import argparse
 import json
 import re
