@@ -175,8 +175,8 @@ def check_pipeline_steps(tasktable: dict) -> list[str]:
     """
     Each pipeline step:
     - has a unique step_id in its pipeline and runs a defined unit,
-    - gives an origin to all the input and output products of its unit,
-    - gives no input product that its unit does not declare,
+    - gives an origin to all the input products of its unit, and no input product that its unit does not declare,
+    - writes only output products of its unit: the other ones are in-memory products ("pipeline_internal"),
     - takes its inputs from the pipeline input or from a product of a previous step.
     """
     errors = []
@@ -194,14 +194,21 @@ def check_pipeline_steps(tasktable: dict) -> list[str]:
                 errors.append(f"{prefix} runs an undefined unit")
                 continue
 
-            for field in ("input_products", "output_products"):
-                declared = {product["name"] for product in unit.get(field, [])}
-                if missing := declared - set(step.get(field, {})):
-                    errors.append(f"{prefix} gives no origin to the unit {field}: {sorted(missing)}")
-
             unit_inputs = {product["name"] for product in unit.get("input_products", [])}
+            if missing := unit_inputs - set(step.get("input_products", {})):
+                errors.append(f"{prefix} gives no origin to the unit input_products: {sorted(missing)}")
             if extra := set(step.get("input_products", {})) - unit_inputs:
                 errors.append(f"{prefix} gives input_products not declared by the unit: {sorted(extra)}")
+
+            # A step only produces the unit outputs it lists (several steps can run the same unit with different
+            # parameters), its other outputs are kept in memory for the next steps.
+            unit_outputs = {product["name"] for product in unit.get("output_products", [])}
+            if written := {
+                k
+                for k, v in step.get("output_products", {}).items()
+                if k not in unit_outputs and v != "pipeline_internal"
+            }:
+                errors.append(f"{prefix} writes output_products not declared by the unit: {sorted(written)}")
 
             errors += _check_step_origins(pipeline, step, pipeline["steps"][:index], units)
     return errors
