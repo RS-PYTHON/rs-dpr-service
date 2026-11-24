@@ -126,15 +126,24 @@ jobs:
 
   check-tasktables:
     runs-on: ubuntu-latest
-    name: Check tasktables (json schema)
+    name: Check tasktables (json schema + semantic checks)
     steps:
       - uses: actions/checkout@v6
       - name: Validate tasktables
         run: |
           set -x
+          status=0
           for file in config/TaskTable_*.json; do
             schema=$(jq -r '."$schema"' "$file")
             schema=$(realpath "$(dirname "$file")/$schema")
+
+            # JSON Schema validation
             echo "Validating $file with schema $schema"
-            pipx run check-jsonschema --schemafile "$schema" "$file"
+            pipx run check-jsonschema --schemafile "$schema" "$file" || status=1
+
+            # Semantic validation
+            echo "Semantic checks for $file"
+            python3 scripts/check_tasktable_semantics.py "$file" || status=1
           done
+          # Fail at the end so that all files are checked
+          exit $status
