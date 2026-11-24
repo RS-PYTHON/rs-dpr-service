@@ -1,10 +1,24 @@
-#!/usr/bin/env python3
+# Copyright 2023-2026 Airbus, CS Group
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 """
 Semantic checks for TaskTable files (complements the JSON Schema validation).
 
 Usage:
     python scripts/check_tasktable_semantics.py config/TaskTable_*.json
 """
+
+#!/usr/bin/env python3
 import argparse
 import json
 import re
@@ -21,9 +35,7 @@ def validate_query_parameters(config: dict) -> list[str]:
 
     # Index query definitions by name for fast lookup
     query_definitions = {
-        q.get("name"): q.get("parameters", [])
-        for q in config.get("queries", [])
-        if isinstance(q, dict)
+        q.get("name"): q.get("parameters", []) for q in config.get("queries", []) if isinstance(q, dict)
     }
 
     # Walk through IO entries and inspect their alternatives
@@ -44,7 +56,7 @@ def validate_query_parameters(config: dict) -> list[str]:
                 if query_name not in query_definitions:
                     errors.append(
                         f'Query "{query_name}" referenced in IO "{io_name}" (type: {io_type}) '
-                        f'is not defined in the "queries" section.'
+                        f'is not defined in the "queries" section.',
                     )
                     continue
 
@@ -56,7 +68,7 @@ def validate_query_parameters(config: dict) -> list[str]:
                 if missing:
                     errors.append(
                         f'Query "{query_name}" in IO "{io_name}" (type: {io_type}) '
-                        f"is missing parameters: {sorted(missing)}"
+                        f"is missing parameters: {sorted(missing)}",
                     )
 
                 # Extra parameters
@@ -64,7 +76,7 @@ def validate_query_parameters(config: dict) -> list[str]:
                 if extra:
                     errors.append(
                         f'Query "{query_name}" in IO "{io_name}" (type: {io_type}) '
-                        f"has unexpected parameters: {sorted(extra)}"
+                        f"has unexpected parameters: {sorted(extra)}",
                     )
 
     return errors
@@ -98,7 +110,7 @@ def validate_pipeline_input_references_to_outputs(tasktable_json: dict) -> list[
                 if "." not in ref:
                     errors.append(
                         f"[Pipeline {pname}] Step '{step_unit}' input '{input_name}' "
-                        f"has invalid reference '{ref}'. Expected 'Unit.Output'."
+                        f"has invalid reference '{ref}'. Expected 'Unit.Output'.",
                     )
                     continue
 
@@ -115,14 +127,14 @@ def validate_pipeline_input_references_to_outputs(tasktable_json: dict) -> list[
                 if base_unit_ref not in unit_outputs:
                     errors.append(
                         f"[Pipeline {pname}] Step '{step_unit}' input '{input_name}' "
-                        f"references unknown unit '{unit_ref}'."
+                        f"references unknown unit '{unit_ref}'.",
                     )
                     continue
 
                 if output_ref not in unit_outputs[base_unit_ref]:
                     errors.append(
                         f"[Pipeline {pname}] Step '{step_unit}' input '{input_name}' "
-                        f"references '{unit_ref}.{output_ref}', but this output does not exist."
+                        f"references '{unit_ref}.{output_ref}', but this output does not exist.",
                     )
 
     return errors
@@ -163,16 +175,14 @@ def validate_pipeline_inputs(tasktable_json: dict) -> list[str]:
             if missing:
                 errors.append(
                     f"[Pipeline {pname}] Unit '{unit_name}' does not declare input(s): "
-                    f"{', '.join(sorted(missing))}"
+                    f"{', '.join(sorted(missing))}",
                 )
 
     # Validate unit -> pipeline
     for unit_name, declared in unit_inputs.items():
         unused = declared - used_inputs[unit_name]
         if unused:
-            errors.append(
-                f"[Unit {unit_name}] Declares unused input(s): {', '.join(sorted(unused))}"
-            )
+            errors.append(f"[Unit {unit_name}] Declares unused input(s): {', '.join(sorted(unused))}")
 
     return errors
 
@@ -203,25 +213,19 @@ def validate_unit_io_consistency(tasktable_json: dict) -> list[str]:
             name = inp.get("name")
             unit_input_names.add(name)
             if name not in io_input_names:
-                errors.append(
-                    f"[Unit {unit_name}] input_products '{name}' is not defined in io.input."
-                )
+                errors.append(f"[Unit {unit_name}] input_products '{name}' is not defined in io.input.")
 
         for adfs in unit.get("input_adfs", []):
             name = adfs.get("name")
             unit_adfs_names.add(name)
             if name not in io_adfs_names:
-                errors.append(
-                    f"[Unit {unit_name}] input_adfs '{name}' is not defined in io.adfs."
-                )
+                errors.append(f"[Unit {unit_name}] input_adfs '{name}' is not defined in io.adfs.")
 
         for out in unit.get("output_products", []):
             name = out.get("name")
             unit_output_names.add(name)
             if name not in io_output_names:
-                errors.append(
-                    f"[Unit {unit_name}] output_products '{name}' is not defined in io.output."
-                )
+                errors.append(f"[Unit {unit_name}] output_products '{name}' is not defined in io.output.")
 
     # Check that every io entry is used by at least one unit
     for label, io_names, used in [
@@ -231,9 +235,7 @@ def validate_unit_io_consistency(tasktable_json: dict) -> list[str]:
     ]:
         unused = io_names - used
         if unused:
-            errors.append(
-                f"{label} names not used in any unit: {', '.join(sorted(map(str, unused)))}"
-            )
+            errors.append(f"{label} names not used in any unit: {', '.join(sorted(map(str, unused)))}")
 
     return errors
 
