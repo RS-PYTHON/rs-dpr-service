@@ -337,7 +337,7 @@
                         "order": 1,
                         "timeout_seconds": 180,
                         "query": {
-                            "name": "LatestValIntersectWithoutSatelitte",
+                            "name": "LatestValIntersectWithoutSatellite",
                             "parameters": {
                                 "product_type": "ADF_WATER",
                                 "start_datetime": "{external_variable.start_datetime}",
@@ -586,7 +586,7 @@
             }
         },
         {
-            "name": "LatestValIntersectWithoutSatelitte",
+            "name": "LatestValIntersectWithoutSatellite",
             "parameters": [
                 "product_type",
                 "start_datetime",
