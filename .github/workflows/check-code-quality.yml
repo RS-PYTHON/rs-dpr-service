@@ -129,12 +129,6 @@ jobs:
     name: Check tasktables (json schema + semantic checks)
     steps:
       - uses: actions/checkout@v6
-      - name: Debug files
-        run: |
-          echo "SHA: $GITHUB_SHA / REF: $GITHUB_REF"
-          pwd
-          ls -la
-          ls -la scripts/ || echo "scripts/ does not exist"
       - name: Validate tasktables
         run: |
           set -x
@@ -149,7 +143,7 @@ jobs:
 
             # Semantic validation
             echo "Semantic checks for the file named $file"
-            python3 scripts/check_tasktable_semantics.py "$file" || status=1
+            python3 .github/scripts/check_tasktable_semantics.py "$file" || status=1
           done
           # Fail at the end so that all files are checked
           exit $status
