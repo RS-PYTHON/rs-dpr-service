@@ -589,7 +589,6 @@
             "name": "LatestValIntersectWithoutSatelitte",
             "parameters": [
                 "product_type",
-                "satellite",
                 "start_datetime",
                 "end_datetime",
                 "dTa",
