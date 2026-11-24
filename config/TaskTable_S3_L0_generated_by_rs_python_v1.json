@@ -96,7 +96,7 @@
                     "name": "APID_INTERMEDIATE",
                     "mandatory": false,
                     "mode": "always",
-                    "regex": ".*",
+                    "regex": "^olci_efr$",
                     "final_product": false
                 }
             ]
@@ -126,7 +126,9 @@
                 }
             ],
             "input_adfs": [],
-            "output_products": [{"name": "GRANULE_INTERMEDIATE", "mandatory": false, "regex": ".*", "final_product": false}]
+            "output_products": [
+                {"name": "GRANULE_INTERMEDIATE", "mandatory": false, "regex": "^olci_efr(_g_1(_last)?)?$", "final_product": false}
+            ]
         },
         {
             "name": "GranuleFormatting",
@@ -180,7 +182,9 @@
                 }
             ],
             "input_adfs": [],
-            "output_products": [{"name": "SORTING_INTERMEDIATE", "mandatory": false, "regex": ".*", "final_product": false}]
+            "output_products": [
+                {"name": "SORTING_INTERMEDIATE", "mandatory": false, "regex": "^olci_efr_g_1_last$", "final_product": false}
+            ]
         },
         {
             "name": "CheckISPs",
@@ -212,7 +216,7 @@
                     "name": "ISP_INTERMEDIATE",
                     "mode": "always",
                     "mandatory": false,
-                    "regex": ".*",
+                    "regex": "^olci_efr_g_1_last$",
                     "final_product": false
                 }
             ]
@@ -280,7 +284,9 @@
                     "mandatory": false
                 }
             ],
-            "output_products": [{"name": "METADATA_INTERMEDIATE", "mandatory": false, "regex": ".*", "final_product": false}]
+            "output_products": [
+                {"name": "METADATA_INTERMEDIATE", "mandatory": false, "regex": "^olci_efr_g_1_last$", "final_product": false}
+            ]
         },
         {
             "name": "ProductFormatting",
@@ -307,7 +313,9 @@
                 }
             ],
             "input_adfs": [],
-            "output_products": [{"name": "FORMATTING_INTERMEDIATE", "mandatory": false, "regex": ".*", "final_product": false}]
+            "output_products": [
+                {"name": "FORMATTING_INTERMEDIATE", "mandatory": false, "regex": "^S03OLCL0(_.*)?$", "final_product": false}
+            ]
         },
         {
             "name": "MergeAndConsolidation",
@@ -975,13 +983,13 @@
         },
         {
             "name": "s3_l0_multi_shared",
-            "description": "S3 L0 processing with intermediate snapshots on shared disk",
+            "description": "OLCI smoke test using shared-disk handoffs, with only the final L0 product written to S3",
             "steps": [
                 {
                     "unit_name": "CADUProcessing",
                     "step_id": 1,
                     "input_products": {"S3ACADUS": "pipeline_input"},
-                    "output_products": {"CADU_INTERMEDIATE": "pipeline_internal"},
+                    "output_products": {},
                     "parameters": {
                         "streaming_mode": false,
                         "mission": "S3",
@@ -1004,7 +1012,7 @@
                 {
                     "unit_name": "GranuleProcessing",
                     "step_id": 3,
-                    "input_products": {"products": "APIDFiltering.2..*"},
+                    "input_products": {"products": "pipeline_store.APID_INTERMEDIATE.olci_efr"},
                     "output_products": {"GRANULE_INTERMEDIATE": "pipeline_internal"}
                 },
                 {
@@ -1017,13 +1025,13 @@
                 {
                     "unit_name": "SpecificSorting",
                     "step_id": 5,
-                    "input_products": {"products": "GranuleProcessing.3..*"},
+                    "input_products": {"products": "pipeline_store.GRANULE_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {"SORTING_INTERMEDIATE": "pipeline_internal"}
                 },
                 {
                     "unit_name": "CheckISPs",
                     "step_id": 6,
-                    "input_products": {"products": "SpecificSorting.5..*"},
+                    "input_products": {"products": "pipeline_store.SORTING_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {"ISP_INTERMEDIATE": "pipeline_internal"}
                 },
                 {
@@ -1035,35 +1043,21 @@
                 {
                     "unit_name": "MetadataProcessing",
                     "step_id": 8,
-                    "input_products": {"products": "CheckISPs.6..*"},
+                    "input_products": {"products": "pipeline_store.ISP_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {"METADATA_INTERMEDIATE": "pipeline_internal"},
                     "parameters": {"near_range": 0.0, "far_range": 0.001, "pairs_number": 12}
                 },
                 {
                     "unit_name": "ProductFormatting",
                     "step_id": 9,
-                    "input_products": {"products": "MetadataProcessing.8..*"},
+                    "input_products": {"products": "pipeline_store.METADATA_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {"FORMATTING_INTERMEDIATE": "pipeline_internal"}
                 },
                 {
                     "unit_name": "MergeAndConsolidation",
                     "step_id": 10,
-                    "input_products": {"products": "ProductFormatting.9..*"},
-                    "output_products": {
-                        "S03HKML0": "pipeline_output",
-                        "S03HKM2L0": "pipeline_output",
-                        "S03NATL0": "pipeline_output",
-                        "S03OLCL0": "pipeline_output",
-                        "S03SLSL0": "pipeline_output",
-                        "S03SRAL0": "pipeline_output",
-                        "S03SRAL0C": "pipeline_output",
-                        "S03MWRL0": "pipeline_output",
-                        "S03GNSL0": "pipeline_output",
-                        "S03DORNAV": "pipeline_output",
-                        "S03DORDOP": "pipeline_output",
-                        "S03OLCCR0": "pipeline_output",
-                        "S03OLCCR1": "pipeline_output"
-                    }
+                    "input_products": {"products": "pipeline_store.FORMATTING_INTERMEDIATE.S03OLCL0_1_last"},
+                    "output_products": {"S03OLCL0": "pipeline_output"}
                 }
             ],
             "parameters": {
