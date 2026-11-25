@@ -746,7 +746,12 @@
                 "writer_params": {"align_chunks": true},
                 "reopen_params": {"chunks": null}
             },
-            {"name": "GRANULE_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
+            {
+                "name": "GRANULE_INTERMEDIATE",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "reopen_params": {"chunks": null}
+            },
             {"name": "SORTING_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "ISP_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "MANOEUVRING_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
