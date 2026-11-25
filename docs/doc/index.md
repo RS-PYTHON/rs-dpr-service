@@ -112,7 +112,7 @@ The payload files follow the format of EOPF CPM v3. Before triggering the proces
 ## SAFE to Zarr conversion
 
 The `conv_safe_zarr` process converts a legacy SAFE product to Zarr with the EOPF `convert` function, on the
-`cpm3` Dask cluster (CPM 3.0.0). The conversion runs in a subprocess of a Dask worker
+`cpm3` Dask cluster (CPM 3.1.0rc4, with the SAFE reader of eopf-safe 1.0.0rc1). The conversion runs in a subprocess of a Dask worker
 ([safe_to_zarr.py](https://github.com/RS-PYTHON/rs-dpr-service/blob/develop/rs_dpr_service/safe_to_zarr.py)): the
 SAFE product is downloaded to the worker, converted locally, then the Zarr product is uploaded to the bucket.
 
@@ -123,7 +123,7 @@ SAFE product is downloaded to the worker, converted locally, then the Zarr produ
     The Sentinel-1 IW and EW SLC products are **not** written in the CPM 3.0.0 format, but in the format expected by
     the S1 ARD processor. These products are NOT compatible with the CPM 3.0.0 Sentinel-1 SLC model.
 
-The S1 ARD processor (s1-ard 1.2.0) runs with CPM 3.0.0rc4, and checks that its SLC inputs have the layout written
+The S1 ARD processor (s1-ard 1.2.0) runs with CPM 3.1.0rc4, and checks that its SLC inputs have the layout written
 by the Sentinel-1 SLC conversion of CPM 2.x: one sub-product per burst **and per polarization**
 (e.g. `S01SIWSLC_..._VH_IW1_132825`), with a flat `other_metadata`, a `sar:polarization` STAC property, a
 `processing_history` indexed by product level, and `line`/`pixel` coordinates.
@@ -133,7 +133,8 @@ Since CPM 3.0.0, the conversion joins both polarizations of each burst along a `
 polarization, and drops several annotation attributes. Its processing history is also broken: it only contains an
 `Unknown` entry, dated 1970, because the CPM parser tests the XML attributes with `"name" in node`, which looks for
 child elements with lxml. So S1 ARD rejects the SLC products converted by CPM 3.0.0, for example with
-`KeyError: 'Level-1 Intermediate SLC Product'`.
+`KeyError: 'Level-1 Intermediate SLC Product'`. Since CPM 3.1, the SAFE reader is in eopf-safe: eopf-safe 1.0.0rc1
+still joins both polarizations of each burst, so the transformation below is still needed.
 
 For the Sentinel-1 IW and EW SLC products, the conversion therefore transforms the product read by CPM 3.0.0 before
 writing it, without copying the measurement data

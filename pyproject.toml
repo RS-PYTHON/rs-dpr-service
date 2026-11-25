@@ -76,9 +76,11 @@ dev = [
     "pytest-error-for-skips>=2.0.2,<3",
     "pytest-mock>=3.15.1,<4",
     "responses>=0.25.3,<0.27",
-    # SAFE to Zarr conversion tests: same EOPF version as the cpm3 dask cluster (eopf>=3.0.0,<3.1),
-    # with the extra dependencies needed to read the Sentinel-1 SAFE products
-    "eopf==3.0.0",
+    # SAFE to Zarr conversion tests: same EOPF version as the cpm3 dask cluster (CPM 3.1.0rc4 and eopf-safe 1.0.0rc1),
+    # with the extra dependencies needed to read the Sentinel-1 SAFE products.
+    # 3.1.0rc4 is not published and its tag still declares version 3.1.0rc3: install it from the tag.
+    "eopf @ git+https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm.git@3.1.0rc4",
+    "eopf-safe==1.0.0rc1",
     "scipy>=1.18.1,<2",
     "defusedxml>=0.7.1,<0.8",
 ]
@@ -86,7 +88,9 @@ dev = [
 [tool.uv]
 # Packages without binary wheels, built from their source distribution. All the other packages must be installed
 # from wheels (e.g. with 'uv sync --no-build') so that no setup script is executed.
-no-binary-package = ["psycopg2"]
+# - eopf: installed from the git tag of CPM (not published as a package)
+# - pims: dependency of dask-image (from eopf[parallel], required by eopf-safe), without binary wheel
+no-binary-package = ["psycopg2", "eopf", "pims"]
 # Rebuild the package metadata (version) when the git commit or tags change
 cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
 
