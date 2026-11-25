@@ -36,7 +36,7 @@ jobs:
       has_temp_branches: ${{ steps.configure-deps.outputs.has_temp_branches }}
       python_version: ${{ steps.configure-deps.outputs.python_version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: configure-deps
         name: Configure dependency versions
         env:
@@ -84,7 +84,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.configure-deps.outputs.temp_matrix) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.github_ref }}
 
@@ -126,7 +126,7 @@ jobs:
     runs-on: ubuntu-latest
     name: Check tasktables (json schema)
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Validate tasktables
         run: |
           set -x

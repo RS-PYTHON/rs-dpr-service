@@ -39,7 +39,7 @@ jobs:
     outputs:
       version_name: ${{ steps.build-wheel.outputs.version_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # so that Dunamai produce the correct version
 
@@ -90,7 +90,7 @@ jobs:
     outputs:
       matrix: ${{ steps.configure-deps.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - id: configure-deps
         name: Configure dependency versions
         env:
@@ -113,7 +113,7 @@ jobs:
       fail-fast: false
       matrix: ${{ fromJson(needs.configure-deps.outputs.matrix) }} # coming from .github/actions/configure-deps/action.yml
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Download .whl dependency
         uses: actions/download-artifact@v8
         with:
