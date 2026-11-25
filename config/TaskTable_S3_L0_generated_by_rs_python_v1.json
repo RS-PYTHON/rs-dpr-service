@@ -55,7 +55,11 @@
                     "mandatory": false
                 }
             ],
-            "output_products": [{"name": "CADU_INTERMEDIATE", "mandatory": false, "regex": ".*", "final_product": false}]
+            "output_products": [
+                {"name": "CADU_OLCI_INTERMEDIATE", "mandatory": false, "regex": "^olci$", "final_product": false},
+                {"name": "CADU_SLSTR_INTERMEDIATE", "mandatory": false, "regex": "^slstr$", "final_product": false},
+                {"name": "CADU_SRAL_INTERMEDIATE", "mandatory": false, "regex": "^sral$", "final_product": false}
+            ]
         },
         {
             "name": "APIDFiltering",
@@ -729,11 +733,18 @@
                 }
             },
             {
-                "name": "CADU_INTERMEDIATE",
+                "name": "CADU_OLCI_INTERMEDIATE",
                 "type": "folder",
                 "engine": "cpm_zarr"
             },
-            {"name": "APID_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
+            {"name": "CADU_SLSTR_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
+            {"name": "CADU_SRAL_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
+            {
+                "name": "APID_INTERMEDIATE",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "reopen_params": {"chunks": null}
+            },
             {"name": "GRANULE_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "SORTING_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "ISP_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
@@ -989,7 +1000,11 @@
                     "unit_name": "CADUProcessing",
                     "step_id": 1,
                     "input_products": {"S3ACADUS": "pipeline_input"},
-                    "output_products": {},
+                    "output_products": {
+                        "CADU_OLCI_INTERMEDIATE": "pipeline_internal",
+                        "CADU_SLSTR_INTERMEDIATE": "pipeline_internal",
+                        "CADU_SRAL_INTERMEDIATE": "pipeline_internal"
+                    },
                     "parameters": {
                         "streaming_mode": false,
                         "mission": "S3",
@@ -1003,9 +1018,9 @@
                     "unit_name": "APIDFiltering",
                     "step_id": 2,
                     "input_products": {
-                        "olci": "CADUProcessing.1.olci",
-                        "slstr": "CADUProcessing.1.slstr",
-                        "sral": "CADUProcessing.1.sral"
+                        "olci": "pipeline_store.CADU_OLCI_INTERMEDIATE.olci",
+                        "slstr": "pipeline_store.CADU_SLSTR_INTERMEDIATE.slstr",
+                        "sral": "pipeline_store.CADU_SRAL_INTERMEDIATE.sral"
                     },
                     "output_products": {"APID_INTERMEDIATE": "pipeline_internal"}
                 },

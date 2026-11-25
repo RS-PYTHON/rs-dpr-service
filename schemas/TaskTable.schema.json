@@ -151,6 +151,9 @@
                     },
                     "writer_params": {
                         "$ref": "#/$defs/WriterParams"
+                    },
+                    "reopen_params": {
+                        "type": "object"
                     }
                 },
                 "required": [
