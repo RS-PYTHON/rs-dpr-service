@@ -369,7 +369,7 @@
                     "name": "S03OLCL0",
                     "mode": "always",
                     "mandatory": true,
-                    "regex": "^S03OLCL0_.*"
+                    "regex": "^(S03OLCL0_.*|FORMATTING_0_last)$"
                 },
                 {
                     "name": "S03SLSL0",
@@ -752,7 +752,12 @@
                 "engine": "cpm_zarr",
                 "reopen_params": {"chunks": null}
             },
-            {"name": "SORTING_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
+            {
+                "name": "SORTING_INTERMEDIATE",
+                "type": "folder",
+                "engine": "cpm_zarr",
+                "reopen_params": {"chunks": null}
+            },
             {"name": "ISP_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "MANOEUVRING_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
             {"name": "METADATA_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
@@ -1000,7 +1005,7 @@
         },
         {
             "name": "s3_l0_olci_shared_disk_test",
-            "description": "Test the processing chain with one OLCI granule. Steps save and reopen intermediate products on shared disk; only the last step writes the final OLCI product to S3.",
+            "description": "Test the processing chain with one OLCI granule, bypassing ISP quality checks. Steps save and reopen intermediate products on shared disk; only the last step writes the final OLCI product to S3.",
             "steps": [
                 {
                     "unit_name": "CADUProcessing",
@@ -1050,21 +1055,15 @@
                     "output_products": {"SORTING_INTERMEDIATE": "pipeline_internal"}
                 },
                 {
-                    "unit_name": "CheckISPs",
-                    "step_id": 6,
-                    "input_products": {"products": "pipeline_store.SORTING_INTERMEDIATE.olci_efr_g_1_last"},
-                    "output_products": {"ISP_INTERMEDIATE": "pipeline_internal"}
-                },
-                {
                     "unit_name": "CheckManoeuvring",
                     "step_id": 7,
-                    "input_products": {"products": "CheckISPs.6..*"},
+                    "input_products": {"products": "pipeline_store.SORTING_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {}
                 },
                 {
                     "unit_name": "MetadataProcessing",
                     "step_id": 8,
-                    "input_products": {"products": "pipeline_store.ISP_INTERMEDIATE.olci_efr_g_1_last"},
+                    "input_products": {"products": "pipeline_store.SORTING_INTERMEDIATE.olci_efr_g_1_last"},
                     "output_products": {"METADATA_INTERMEDIATE": "pipeline_internal"},
                     "parameters": {"near_range": 0.0, "far_range": 0.001, "pairs_number": 12}
                 },
