@@ -304,7 +304,7 @@ jobs:
           path: ./dist
           merge-multiple: true
       - name: Publish wheel and sdist packages
-        uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
+        uses: pypa/gh-action-pypi-publish@7245906fb61fa33a13554f9d5fb856fe61758086
         with:
           skip-existing: true
           packages-dir: ./dist
