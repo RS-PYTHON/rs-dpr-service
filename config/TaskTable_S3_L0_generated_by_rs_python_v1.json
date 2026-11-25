@@ -743,6 +743,7 @@
                 "name": "APID_INTERMEDIATE",
                 "type": "folder",
                 "engine": "cpm_zarr",
+                "writer_params": {"align_chunks": true},
                 "reopen_params": {"chunks": null}
             },
             {"name": "GRANULE_INTERMEDIATE", "type": "folder", "engine": "cpm_zarr"},
