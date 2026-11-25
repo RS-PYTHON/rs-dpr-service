@@ -521,8 +521,6 @@
             "name": "SatelliteFilter",
             "parameters": [
                 "product_type",
-                "start_datetime",
-                "end_datetime",
                 "satellite"
             ],
             "stac": {
