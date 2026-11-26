@@ -15,7 +15,7 @@
 """
 Convert the Sentinel-1 TOPSAR SLC products read by CPM 3.0.0 into the format expected by the S1 ARD processor.
 
-The S1 ARD processor (s1-ard 1.2.0) runs with CPM 3.0.0rc4 and validates its SLC inputs against the Zarr
+The S1 ARD processor (s1-ard 1.2.0) runs with CPM 3.1.0rc4 and validates its SLC inputs against the Zarr
 layout written by CPM 2.x: one sub-product per burst AND per polarization, flat ``other_metadata``,
 ``sar:polarization``, a ``processing_history`` indexed by product level, and ``line``/``pixel`` coordinates.
 
@@ -23,6 +23,7 @@ Since CPM 3.0.0, the SAFE conversion joins both polarizations of each burst alon
 dimension (CPM issue #1042: https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm/-/issues/1042), splits
 ``other_metadata`` by polarization and drops several annotation attributes. Its processing history parser
 is also broken (only one "Unknown" entry). So S1 ARD rejects the SLC products converted by CPM 3.0.0.
+Since CPM 3.1, the SAFE reader is in eopf-safe, which still joins both polarizations of each burst (eopf-safe 1.0.0rc1).
 
 CPM 3.0.0 also mixes up the polarizations of the data (e.g. the 'VV' label contains the VH pixels and noise LUTs):
 the real polarization of the measurements is found from their pixels, and the noise LUTs are read from the XML files.
@@ -61,7 +62,7 @@ S1ARD_FORMAT_PROPERTIES = {
     "rspy:product_format_cpm_incompatible": "3.0.0",
     "rspy:product_format_cpm_issue": CPM_ISSUE_URL,
     "rspy:product_format_description": (
-        "Sentinel-1 SLC layout expected by the S1 ARD 1.2.0 processor, which runs with CPM 3.0.0rc4: one "
+        "Sentinel-1 SLC layout expected by the S1 ARD 1.2.0 processor, which runs with CPM 3.1.0rc4: one "
         "sub-product per burst and per polarization (CPM 2.x / 3.0.0rc4 layout). It is NOT compatible with "
         "the CPM 3.0.0 SLC model, which joins both polarizations of each burst along a 'polarization' "
         f"dimension since CPM issue #1042 ({CPM_ISSUE_URL})."
@@ -317,7 +318,7 @@ class SafeAnnotations:
 
     def __init__(self, safe_path: str):
         # pylint: disable=import-outside-toplevel
-        from eopf.store.product_specific.S01 import parse_annotations
+        from eopf_safe.store.product_specific.S01 import parse_annotations
 
         self.safe_path = safe_path
         self.history = parse_processing_history(os.path.join(safe_path, "manifest.safe"))

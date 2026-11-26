@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: Update poetry.lock files
+name: Update uv.lock files
 
 on:
   workflow_call: # reusable workflow
@@ -26,7 +26,6 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PYTHON_VERSION: ${{ matrix.python_version }}
-      POETRY_VERSION: ${{ matrix.poetry_version }}
       DASK_VERSION: ${{ matrix.dask_version }}
     strategy:
       matrix: ${{ fromJson(inputs.matrix) }}
@@ -35,14 +34,13 @@ jobs:
       - name: Print environment
         run: set -x; echo "${{ toJson(matrix) }}"
 
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ matrix.github_ref }}
 
-      - uses: RS-PYTHON/actions/.github/actions/setup-poetry@develop
+      - uses: RS-PYTHON/actions/.github/actions/setup-uv@develop
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-          poetry-version: ${{ env.POETRY_VERSION }}
 
       - name: Update lock file
         if: ${{ matrix.temp_branch == 'true' }}
@@ -58,25 +56,26 @@ jobs:
             exit 2
           fi
 
-          # Update the poetry.lock file
-          poetry lock
-          git diff poetry.lock
+          # Update the uv.lock file
+          uv lock
+          git diff uv.lock
 
-          # Add poetry.lock to the current temp branch
-          git add poetry.lock
+          # Add uv.lock to the current temp branch
+          git add uv.lock
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
-          git commit -m "Update poetry.lock for $DEP_NAME"
+          git commit -m "Update uv.lock for $DEP_NAME"
           git push
 
       - name: Check environment
         run: |
           set -x
-          poetry -V
+          uv -V
           grep -e python -e dask pyproject.toml
           if [[ $(python -V | awk '{ print $2 }') != $PYTHON_VERSION ]]; then
             echo "Wrong python version !" && exit 2
           fi
-          if [[ $(poetry show dask | awk '/version/ { print $3 }') != $DASK_VERSION ]]; then
+          # Locked dask version, from the 'dask==<version>' line exported from uv.lock
+          if [[ $(uv export --frozen --no-hashes | sed -n 's/^dask==\([^ ;]*\).*/\1/p') != $DASK_VERSION ]]; then
             echo "Wrong dask version !" && exit 2
           fi

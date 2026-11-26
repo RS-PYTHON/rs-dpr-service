@@ -14,18 +14,11 @@
 
 [project]
 name = "rs-dpr-service"
-dynamic = ["version"] # see: https://github.com/mtkennerly/poetry-dynamic-versioning
-
-[tool.poetry]
-name = "rs-dpr-service"
-version = "0.0.0"
+dynamic = ["version"]
 description = "Copernicus Sentinel rs-server, DPR as a service."
-license = "Apache-2.0"
-authors = ["ESA under contract with Airbus and CS <ops_coprs@airbus.com>"]
 readme = "README.md"
-homepage = "https://home.rs-python.eu/"
-repository = "https://github.com/RS-PYTHON/rs-dpr-service"
-documentation = "https://home.rs-python.eu/rs-documentation/rs-dpr-service/docs/doc/"
+license = "Apache-2.0"
+authors = [{ name = "ESA under contract with Airbus and CS", email = "ops_coprs@airbus.com" }]
 keywords = ["stac", "copernicus", "sentinel", "processing"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -36,65 +29,91 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Topic :: Scientific/Engineering :: GIS",
-    "Topic :: Scientific/Engineering :: Image Processing"
+    "Topic :: Scientific/Engineering :: Image Processing",
 ]
-
-packages = [
-    { include = "rs_dpr_service", from = "."},
-]
-
-# Add configuration files to the .whl package
-include = [
-    { path = "config", format = ["wheel"] }
-]
-
-[tool.poetry.dependencies]
-
 # NOTE: the python and dask version will be overriden locally by the ci/cd
 # when building binaries specific to these versions.
-python = "==3.13.18"
-dask = {extras = ["distributed"], version = "2026.7.1"}
+requires-python = "==3.13.18"
+dependencies = [
+    "dask[distributed]==2026.7.1",
+    "pygeoapi>=0.21,<0.22",
+    "flask>=3.1.1,<4", # for pygeoapi
+    "uvicorn>=0.35.0",
+    # prefect 3.8.x server is incompatible with fastapi >= 0.155 (Body(min_items=...) removed),
+    # prefect >= 3.9.0 caps fastapi < 0.151. Remove this pin when prefect supports newer fastapi.
+    "fastapi>=0.123.0,<0.155",
+    "starlette>=1.4.1",
+    "geoalchemy2>=0.18.0",
+    "SQLAlchemy>=2.0.37,<3",
+    "jsonpatch>=1.33,<2",
+    "dask-gateway==2026.3.0",
+    "openapi-core>=0.22.0",
+    "bandit>=1.8.3,<2",
+    "mypy>=2.4.0,<3",
+    "flake8-pyproject>=1.2.3,<2",
+    "httpx>=0.28.1,<0.29",
+    "psycopg2>=2.9.11,<3",
+    "opentelemetry-distro>=0.66b1,<0.67", # then run 'uv run opentelemetry-bootstrap -a install'
+    "opentelemetry-exporter-otlp>=1.45.1,<2",
+    "tornado>=6.5,<7", # fix trivy vulnerability
+    "s3fs>=2026.9.0",
+    "pip>=26.3", # imported by rs_dpr_service.dask.call_dask (pip freeze)
+]
 
-pygeoapi = "^0.21"
-flask = "^3.1.1" # for pygeoapi
-uvicorn = ">=0.35.0"
-# prefect 3.8.x server is incompatible with fastapi >= 0.155 (Body(min_items=...) removed),
-# prefect >= 3.9.0 caps fastapi < 0.151. Remove this pin when prefect supports newer fastapi.
-fastapi = ">=0.123.0,<0.155"
-starlette = ">=1.4.1"
-geoalchemy2 = ">=0.18.0"
-SQLAlchemy = "^2.0.37"
-jsonpatch = "^1.33"
-dask-gateway = "2026.3.0"
-openapi-core = ">=0.22.0"
-bandit = "^1.8.3"
-mypy = "^2.4.0"
-flake8-pyproject = "^1.2.3"
-httpx = "^0.28.1"
-psycopg2 = "^2.9.11"
-opentelemetry-distro = "^0.66b1" # then run 'poetry run opentelemetry-bootstrap -a install'
-opentelemetry-exporter-otlp = "^1.45.1"
-tornado = "^6.5" # fix trivy vulnerability
-s3fs = ">=2026.9.0"
+[project.urls]
+Homepage = "https://home.rs-python.eu/"
+Repository = "https://github.com/RS-PYTHON/rs-dpr-service"
+Documentation = "https://home.rs-python.eu/rs-documentation/rs-dpr-service/docs/doc/"
 
-[tool.poetry.group.dev]
-optional = true
+[dependency-groups]
+dev = [
+    "pre-commit>=3.7.1,<5.0.0",
+    "pylint>=4.0.2,<5",
+    "pytest>=9.0.3,<10",
+    "pytest-asyncio>=1.2.0,<2",
+    "pytest-cov>=7.0.0,<8",
+    "pytest-docker>=3.2.3,<4",
+    "pytest-error-for-skips>=2.0.2,<3",
+    "pytest-mock>=3.15.1,<4",
+    "responses>=0.25.3,<0.27",
+    # SAFE to Zarr conversion tests: same EOPF version as the cpm3 dask cluster (CPM 3.1.0rc4 and eopf-safe 1.0.0rc1),
+    # with the extra dependencies needed to read the Sentinel-1 SAFE products.
+    # 3.1.0rc4 is not published and its tag still declares version 3.1.0rc3: install it from the tag.
+    "eopf @ git+https://gitlab.eopf.copernicus.eu/cpm/eopf-cpm.git@3.1.0rc4",
+    "eopf-safe==1.0.0rc1",
+    "scipy>=1.18.1,<2",
+    "defusedxml>=0.7.1,<0.8",
+]
 
-[tool.poetry.group.dev.dependencies]
-pre-commit = ">=3.7.1,<5.0.0"
-pylint = "^4.0.2"
-pytest = "^9.0.3"
-pytest-asyncio = "^1.2.0"
-pytest-cov = "^7.0.0"
-pytest-docker = "^3.2.3"
-pytest-error-for-skips = "^2.0.2"
-pytest-mock = "^3.15.1"
-responses = "^0.25.3"
-# SAFE to Zarr conversion tests: same EOPF version as the cpm3 dask cluster (eopf>=3.0.0,<3.1),
-# with the extra dependencies needed to read the Sentinel-1 SAFE products
-eopf = "3.0.0"
-scipy = "^1.18.1"
-defusedxml = "^0.7.1"
+[tool.uv]
+# Packages without binary wheels, built from their source distribution. All the other packages must be installed
+# from wheels (e.g. with 'uv sync --no-build') so that no setup script is executed.
+# - eopf: installed from the git tag of CPM (not published as a package)
+# - pims: dependency of dask-image (from eopf[parallel], required by eopf-safe), without binary wheel
+no-binary-package = ["psycopg2", "eopf", "pims"]
+# Rebuild the package metadata (version) when the git commit or tags change
+cache-keys = [{ file = "pyproject.toml" }, { git = { commit = true, tags = true } }]
+
+[build-system]
+requires = ["hatchling>=1.33.0", "uv-dynamic-versioning>=0.14.1"]
+build-backend = "hatchling.build"
+
+# The version is calculated from the git tags, see: https://github.com/ninoseki/uv-dynamic-versioning
+[tool.hatch.version]
+source = "uv-dynamic-versioning"
+
+[tool.uv-dynamic-versioning]
+vcs = "git"
+style = "pep440"
+metadata = false
+fallback-version = "0.0.0" # when git is not available e.g. for Dependabot
+
+[tool.hatch.build.targets.wheel]
+packages = ["rs_dpr_service"]
+
+# Add configuration files to the .whl package
+[tool.hatch.build.targets.wheel.force-include]
+"config" = "config"
 
 [tool.black]
 line-length = 120
@@ -146,15 +165,3 @@ skips = ['*/*.py']
 [tool.bandit]
 skips = ['B603', 'B607', 'B404']
 assert_nosec = false
-
-
-[tool.poetry.requires-plugins]
-poetry-dynamic-versioning = { version = ">=1.0.0,<2.0.0", extras = ["plugin"] }
-
-[tool.poetry-dynamic-versioning]
-enable = true
-metadata = false
-
-[build-system]
-requires = ["poetry-core>=1.0.0", "poetry-dynamic-versioning>=1.0.0,<2.0.0"]
-build-backend = "poetry_dynamic_versioning.backend"

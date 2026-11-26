@@ -159,7 +159,13 @@
           "mandatory": true
         }
       ],
-      "input_adfs": [],
+      "input_adfs": [
+        {
+          "name": "REFERENCE_DB",
+          "mode": "always",
+          "mandatory": false
+        }
+      ],
       "output_products": [
         {
           "name": "cslcs",
@@ -194,7 +200,13 @@
           "mandatory": true
         }
       ],
-      "input_adfs": [],
+      "input_adfs": [
+        {
+          "name": "REFERENCE_DB",
+          "mode": "always",
+          "mandatory": false
+        }
+      ],
       "output_products": [
         {
           "name": "gslcs",
@@ -884,6 +896,186 @@
           },
           "parameters": {
             "recompute": true
+          }
+        },
+        {
+          "unit_name": "Coregistration",
+          "step_id": 4,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM",
+            "simulation_ref": "ReferenceGeometry.3.simulation_ref"
+          },
+          "output_products": {
+            "cslcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "Geocoding",
+          "step_id": 5,
+          "input_products": {
+            "slcs": "Coregistration.4.slcs",
+            "simulation_ref": "ReferenceGeometry.3.simulation_ref"
+          },
+          "output_products": {
+            "gslcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "Mosaicking",
+          "step_id": 6,
+          "input_products": {
+            "gslcs": "Geocoding.5.gslcs",
+            "slcs": "Coregistration.4.slcs"
+          },
+          "output_products": {
+            "nrb": "pipeline_output"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SLC__1_CSL__1_FROM_REFERENCE_DB",
+      "description": "S1 ARD CSL - Co-registered SLC, with the reference geometry of the REFERENCE_DB (IW and EW only)",
+      "steps": [
+        {
+          "unit_name": "Calibration",
+          "step_id": 1,
+          "input_products": {
+            "slcs": "pipeline_input"
+          },
+          "output_products": {
+            "slcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceDEM",
+          "step_id": 2,
+          "input_products": {
+            "slcs": "Calibration.1.slcs"
+          },
+          "output_products": {
+            "DEM": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceGeometry",
+          "step_id": 3,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM"
+          },
+          "output_products": {
+            "simulation_ref": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "Coregistration",
+          "step_id": 4,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM",
+            "simulation_ref": "ReferenceGeometry.3.simulation_ref"
+          },
+          "output_products": {
+            "cslcs": "pipeline_output"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SLC__1_GSL__1_FROM_REFERENCE_DB",
+      "description": "S1 ARD GSL - Geocoded Single Look Complex, with the reference geometry of the REFERENCE_DB (IW and EW only)",
+      "steps": [
+        {
+          "unit_name": "Calibration",
+          "step_id": 1,
+          "input_products": {
+            "slcs": "pipeline_input"
+          },
+          "output_products": {
+            "slcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceDEM",
+          "step_id": 2,
+          "input_products": {
+            "slcs": "Calibration.1.slcs"
+          },
+          "output_products": {
+            "DEM": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceGeometry",
+          "step_id": 3,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM"
+          },
+          "output_products": {
+            "simulation_ref": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "Coregistration",
+          "step_id": 4,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM",
+            "simulation_ref": "ReferenceGeometry.3.simulation_ref"
+          },
+          "output_products": {
+            "cslcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "Geocoding",
+          "step_id": 5,
+          "input_products": {
+            "slcs": "Coregistration.4.slcs",
+            "simulation_ref": "ReferenceGeometry.3.simulation_ref"
+          },
+          "output_products": {
+            "gslcs": "pipeline_output"
+          }
+        }
+      ]
+    },
+    {
+      "name": "SLC__1_NRB__1_FROM_REFERENCE_DB",
+      "description": "S1 ARD NRB - Normalised Radar Backscatter, with the reference geometry of the REFERENCE_DB (IW and EW only)",
+      "steps": [
+        {
+          "unit_name": "Calibration",
+          "step_id": 1,
+          "input_products": {
+            "slcs": "pipeline_input"
+          },
+          "output_products": {
+            "slcs": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceDEM",
+          "step_id": 2,
+          "input_products": {
+            "slcs": "Calibration.1.slcs"
+          },
+          "output_products": {
+            "DEM": "pipeline_internal"
+          }
+        },
+        {
+          "unit_name": "ReferenceGeometry",
+          "step_id": 3,
+          "input_products": {
+            "slcs": "Calibration.1.slcs",
+            "dem": "ReferenceDEM.2.DEM"
+          },
+          "output_products": {
+            "simulation_ref": "pipeline_internal"
           }
         },
         {

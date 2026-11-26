@@ -1571,93 +1571,6 @@
       ]
     },
     {
-      "name": "AllGeometricRefinement",
-      "module": "s2msi.sensor_geometry_processor.geometric_refinement.pu_all_geometric_refinement",
-      "resources_min": {
-        "dask": {
-          "worker_cpu": 1.0,
-          "worker_ram": "12GB",
-          "worker_thread_count": 1,
-          "worker_count": 10
-        },
-        "disk": {
-          "size_per_worker": "50GB"
-        }
-      },
-      "input_products": [
-        {
-          "name": "RoundAndClamp_out",
-          "mode": "always",
-          "mandatory": true
-        }
-      ],
-      "input_adfs": [
-        {
-          "name": "GEO2P",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "GPARA",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "GPARE",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "GSGCP",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "PRDLO",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "SPAMO",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "VDIRP",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "GEOI8",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "GETAS",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "DEM90",
-          "mode": "always",
-          "mandatory": true
-        },
-        {
-          "name": "DEM30",
-          "mode": "always",
-          "mandatory": true
-        }
-      ],
-      "output_products": [
-        {
-          "name": "l1b_output",
-          "mode": "always",
-          "mandatory": true,
-          "final_product": true
-        }
-      ]
-    },
-    {
       "name": "TileInitiation",
       "module": "s2msi.sensor_geometry_processor.transition_geometry.pu_tile_initiation",
       "resources_min": {
@@ -2228,16 +2141,6 @@
         "engine": "cpm_zarr"
       },
       {
-        "name": "l1b_input",
-        "type": "file",
-        "engine": "cpm_zarr"
-      },
-      {
-        "name": "l1c_input",
-        "type": "file",
-        "engine": "cpm_zarr"
-      },
-      {
         "name": "l1b_output",
         "type": "folder",
         "engine": "cpm_zarr"
@@ -2254,6 +2157,126 @@
       },
       {
         "name": "AllRadiometricCorrectionL1B_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "PreProcessL0CProduct_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "TechnicalQualityMask_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "FootprintsComputation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "CloudMask_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "InverseEqualization_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "DarkSignalCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "BlindPixelsRemoval_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "CrossTalkCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RelativeResponseCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "SWIRRearrangement_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "DefectivePixelsInterpolation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "NoDataPixelsInterpolation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Deconvolution_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "BandsBinning60m_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RadiometricOffsetAddition_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Framing_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "TileInitiation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Orthorectification_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RegionOfInterestSelection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Resampling_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2APreProcessing_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2AAdfsLoading_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2ACore_20m_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Resampling_10m_out",
         "type": "file",
         "engine": "cpm_zarr"
       }
@@ -3214,6 +3237,136 @@
         "name": "AllRadiometricCorrectionL1B_out",
         "type": "file",
         "engine": "cpm_zarr"
+      },
+      {
+        "name": "PreProcessL0CProduct_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "TechnicalQualityMask_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "FootprintsComputation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "CloudMask_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "InverseEqualization_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "DarkSignalCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "BlindPixelsRemoval_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "CrossTalkCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RelativeResponseCorrection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "SWIRRearrangement_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "DefectivePixelsInterpolation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "NoDataPixelsInterpolation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Deconvolution_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Denoising_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "BandsBinning60m_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RadiometricOffsetAddition_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Framing_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RoundAndClamp_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "TileInitiation_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Orthorectification_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "RegionOfInterestSelection_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Resampling_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2APreProcessing_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2AAdfsLoading_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "L2ACore_20m_out",
+        "type": "file",
+        "engine": "cpm_zarr"
+      },
+      {
+        "name": "Resampling_10m_out",
+        "type": "file",
+        "engine": "cpm_zarr"
       }
     ]
   },
@@ -4103,7 +4256,7 @@
             "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "AllRadiometricCorrectionL1B_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -4160,7 +4313,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 4,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.3.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.3.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -4946,10 +5099,10 @@
           "unit_name": "AllRadiometricCorrectionL1B",
           "step_id": 3,
           "input_products": {
-            "AllL0cComplementary_out": "AllL0cComplementary.2.AllL0cComplementary_out"
+            "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "AllRadiometricCorrectionL1B_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -5006,7 +5159,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 4,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.4.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.3.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -5646,7 +5799,7 @@
             "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "AllRadiometricCorrectionL1B_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -5703,7 +5856,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 3,
           "input_products": {
-            "l1b_output": "AllRadiometricCorrectionL1B.2.l1b_output"
+            "l1b_output": "AllRadiometricCorrectionL1B.2.AllRadiometricCorrectionL1B_out"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -6360,7 +6513,7 @@
             "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "AllRadiometricCorrectionL1B_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -6859,7 +7012,7 @@
             "AllL0cComplementary_out": "AllL0cComplementary.1.AllL0cComplementary_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "AllRadiometricCorrectionL1B_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -7142,7 +7295,7 @@
           "unit_name": "AllTransitionGeometry",
           "step_id": 1,
           "input_products": {
-            "l1b_input": "pipeline_input"
+            "l1b_output": "pipeline_input"
           },
           "output_products": {
             "l1c_output": "pipeline_output"
@@ -7247,7 +7400,7 @@
           "unit_name": "AllProjected",
           "step_id": 1,
           "input_products": {
-            "l1c_input": "pipeline_input"
+            "l1c_output": "pipeline_input"
           },
           "output_products": {
             "l2a_output": "pipeline_output"
@@ -7467,7 +7620,7 @@
           "unit_name": "BlindPixelsRemoval",
           "step_id": 5,
           "input_products": {
-           "CloudMask_out": "CloudMask.4.CloudMask_out"
+            "DarkSignalCorrection_out": "CloudMask.4.CloudMask_out"
           },
           "output_products": {
             "BlindPixelsRemoval_out": "pipeline_internal"
@@ -7508,7 +7661,7 @@
           "unit_name": "SWIRRearrangement",
           "step_id": 6,
           "input_products": {
-            "BlindPixelsRemoval_out": "BlindPixelsRemoval.5.BlindPixelsRemoval_out"
+            "RelativeResponseCorrection_out": "BlindPixelsRemoval.5.BlindPixelsRemoval_out"
           },
           "output_products": {
             "SWIRRearrangement_out": "pipeline_internal"
@@ -7593,7 +7746,7 @@
             "Framing_out": "Framing.7.Framing_out"
           },
           "output_products": {
-            "l1a_output": "pipeline_output"
+            "RoundAndClamp_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -8310,7 +8463,7 @@
           "unit_name": "AllGeometricRefinement",
           "step_id": 17,
           "input_products": {
-            "RoundAndClamp_out": "RoundAndClamp.16.RoundAndClamp_out"
+            "AllRadiometricCorrectionL1B_out": "RoundAndClamp.16.RoundAndClamp_out"
           },
           "output_products": {
             "l1b_output": "pipeline_output"
@@ -9006,7 +9159,7 @@
             "Framing_out": "Framing.15.Framing_out"
           },
           "output_products": {
-            "l1b_output": "pipeline_output"
+            "RoundAndClamp_out": "pipeline_output"
           },
           "parameters": {
             "detector_ids": [
@@ -9043,14 +9196,14 @@
       ]
     },
     {
-      "name": "s2_msi_l1c",
+      "name": "s2_msi_l1c_alternative",
       "description": "Sentinel-2 MSI L1C processing that generates L1C product from L1B product",
       "steps": [
         {
           "unit_name": "TileInitiation",
           "step_id": 1,
           "input_products": {
-            "l1b_input": "pipeline_input"
+            "l1b_output": "pipeline_input"
           },
           "output_products": {
             "TileInitiation_out": "pipeline_internal"
@@ -9097,8 +9250,8 @@
           "unit_name": "Orthorectification",
           "step_id": 2,
           "input_products": {
-            "l1b": "pipeline_input",
-            "l1c": "TileInitiation.1.TileInitiation_out"
+            "l1b_output": "pipeline_input",
+            "TileInitiation_out": "TileInitiation.1.TileInitiation_out"
           },
           "output_products": {
             "Orthorectification_out": "pipeline_internal"

@@ -27,7 +27,7 @@ jobs:
     env:
       MATRIX: ${{ inputs.matrix }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Clean temporary branches
         run: |
           set -x;
