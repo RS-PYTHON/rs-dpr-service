@@ -229,18 +229,20 @@ def check_pipeline_steps(tasktable: dict) -> list[str]:
     ],
 )
 def test_step_input_origins(origin: str, writer: dict[str, str], expected_error: str | None):
+    """Accept valid lazy and store references and reject invalid origins."""
     errors = _check_step_origins(
         {"name": "test"},
         {"step_id": 2, "input_products": {"products": origin}},
         [{"unit_name": "Producer", "step_id": 1, "output_products": writer}],
     )
     if expected_error is None:
-        assert errors == []
+        assert not errors
     else:
         assert len(errors) == 1 and expected_error in errors[0]
 
 
 def test_unit_input_used_externally_requires_io_description():
+    """Require an IO description when any pipeline uses the input externally."""
     tasktable = {
         "units": [{"name": "Consumer", "input_products": [{"name": "products"}]}],
         "pipelines": [
