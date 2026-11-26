@@ -1,0 +1,17 @@
+# EOPF, the processor and opentelemetry-instrumentation-eopf are supplied by the
+# final processor image. Dask/distributed/Gateway versions belong to the base image.
+PyYAML>=6.0
+packaging>=23.0
+s3fs>=2024.5.0
+
+# rs_dpr_service.utils.settings
+pydantic>=2.0,<3
+
+# rs_dpr_service.utils.init_opentelemetry (including its HTTP hooks)
+fastapi>=0.123.0,<0.155
+requests>=2.31.0
+opentelemetry-distro>=0.66b1
+opentelemetry-exporter-otlp>=1.45.1
+opentelemetry-instrumentation-botocore>=0.66b1
+opentelemetry-instrumentation-fastapi>=0.66b1
+opentelemetry-instrumentation-requests>=0.66b1
