@@ -151,3 +151,23 @@ class S3L2OLCIProcessor(GenericProcessor):
     async def get_tasktable(self):
         """Return the EOPF tasktable"""
         return _load_tasktable("TaskTable_S3_L2OLCI_generated_by_rs_python_v1.json")
+
+
+class CRIL0Processor(GenericProcessor):
+    """CRISTAL L0 Processor implementation"""
+
+    def __init__(self, db_process_manager: PostgreSQLManager, cluster_info: ClusterInfo):
+        """
+        Initialize CRIL0Processor
+        """
+        super().__init__(
+            db_process_manager=db_process_manager,
+            cluster_info=cluster_info,
+            local_mode_address="DASK_GATEWAY_CRIL0_ADDRESS",
+            tasktable_module="cri_l0_dp.processors.l0_processor",
+            tasktable_class="L0Processor",
+        )
+
+    async def get_tasktable(self):
+        """Return the EOPF tasktable"""
+        return _load_tasktable("TaskTable_CRI_L0_generated_by_rs_python_v1.json")
