@@ -1150,6 +1150,8 @@
                         "S03OLCCR1": "pipeline_output"
                     },
                     "parameters": {
+                        "streaming_mode": false,
+                        "temporary_path": "./tmp",
                         "acquisition_report_output_path": "./acquisition_report_output_path",
                         "cadu_chunk_size": {
                             "navatt": 10000,
