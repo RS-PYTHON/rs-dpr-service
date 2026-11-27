@@ -112,6 +112,27 @@ def test_processor_caller_hide_secrets_masks_sensitive_log_values(mocker):
     assert "'safe_value': 'visible'" in masked
 
 
+@pytest.mark.parametrize(
+    "url,expected",
+    [
+        (
+            "https://edh:edh_key_secret@api.earthdatahub.destine.eu/copernicus-dem/GLO-30-v1.zarr",
+            "https://***@api.earthdatahub.destine.eu/copernicus-dem/GLO-30-v1.zarr",
+        ),
+        ("s3://user@bucket/path", "s3://***@bucket/path"),
+        ("https://data.earthdatahub.destine.eu/copernicus-dem/GLO-30-v1.zarr", None),
+        ("s3://bucket/owner/collection/product.zarr", None),
+        ("https://host/path?email=user@example.com", None),
+    ],
+)
+def test_processor_caller_hide_secrets_masks_url_credentials(mocker, url, expected):
+    """Test ProcessorCaller.hide_secrets() masks the credentials of URLs, in JSON dumps and in plain log lines."""
+    caller = _make_processor_caller(mocker)
+    expected = expected or url
+    assert caller.hide_secrets(f'"path": "{url}"') == f'"path": "{expected}"'
+    assert caller.hide_secrets(f"Reading {url} with dask") == f"Reading {expected} with dask"
+
+
 def test_build_module_zip_is_deterministic():
     """Test build_module_zip() names the zip after its content, which only depends on the source code."""
     zip_filename, data = call_dask.build_module_zip()
