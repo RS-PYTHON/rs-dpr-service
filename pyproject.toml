@@ -41,7 +41,7 @@ dependencies = [
     "uvicorn>=0.35.0",
     # prefect 3.8.x server is incompatible with fastapi >= 0.155 (Body(min_items=...) removed),
     # prefect >= 3.9.0 caps fastapi < 0.151. Remove this pin when prefect supports newer fastapi.
-    "fastapi>=0.123.0,<0.155",
+    "fastapi>=0.123.0,<0.166",
     "starlette>=1.4.1",
     "geoalchemy2>=0.18.0",
     "SQLAlchemy>=2.0.37,<3",
