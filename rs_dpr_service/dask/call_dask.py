@@ -710,7 +710,10 @@ class ProcessorCaller:
             os.environ.pop("AWS_ALLOW_HTTP", None)
 
     def hide_secrets(self, log: str) -> str:
-        """The logs print secrets in clear e.g 'key': '<my-secret>'... so we hide them with a regex"""
+        """
+        The logs print secrets in clear e.g 'key': '<my-secret>' or https://<user>:<password>@<host>... so we hide
+        them with regexes
+        """
         for key in (
             "key",
             "secret",
@@ -720,6 +723,8 @@ class ProcessorCaller:
             "password",
         ):
             log = re.sub(rf"""(['"]{key}['"])\s*:\s*['"][^'"]*['"]""", r"\1: ***", log)
+        # Credentials in URLs, e.g. the EarthDataHub API key in https://edh:<api-key>@api.earthdatahub.destine.eu/...
+        log = re.sub(r"""([a-zA-Z][a-zA-Z0-9+.-]*://)[^\s/@'"]+@""", r"\1***@", log)
         return log
 
     def get_tasktable(
