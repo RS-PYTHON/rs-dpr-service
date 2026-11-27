@@ -16,6 +16,16 @@
 # https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
 
 version: 2
+
+# The Dependabot proxy blocks the hosts that are not declared here (403 "egress not allowlisted").
+# The EOPF GitLab hosts the eopf git dependency of pyproject.toml, that Dependabot must clone to update uv.lock.
+registries:
+  eopf-gitlab:
+    type: git
+    url: https://gitlab.eopf.copernicus.eu
+    username: x-access-token
+    password: ${{secrets.EOPF_GITLAB_TOKEN}}
+
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
@@ -25,6 +35,8 @@ updates:
   # Dependencies of pyproject.toml, locked in uv.lock: one pull request per update
   - package-ecosystem: "uv"
     directory: "/"
+    registries:
+      - eopf-gitlab
     schedule:
       interval: "daily"
     ignore:
