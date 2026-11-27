@@ -2090,7 +2090,7 @@ wheels = [
 
 [[package]]
 name = "pygeoapi"
-version = "0.21.0"
+version = "0.24.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "babel" },
@@ -2112,9 +2112,9 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "tinydb" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/61/06/faf4daa3cb5e61508b50e1020bf20d0cd7f6f2aea11d17c719dd21eea2e2/pygeoapi-0.21.0.tar.gz", hash = "sha256:2f5b07af8c6735e8259a468766821c22909e4c00e0c872dea8767d812164fa6a", size = 322051, upload-time = "2025-08-03T15:48:01.598Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5a/be/6c658b14b0b73a301ae7c71298a0046cbea7ba08f029a22fa0a11394b9b6/pygeoapi-0.24.0.tar.gz", hash = "sha256:00cf5c88776284780bb8bcc82f4f48c52d25ddfefc9ba1a65a8f3f811670a0a3", size = 386049, upload-time = "2026-07-28T12:12:17.028Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f6/62/0cd4a9fba16340fa791648afc72fc8551bfd83fed84ed14a58725fe5054f/pygeoapi-0.21.0-py2.py3-none-any.whl", hash = "sha256:c2b97676cd5a5742eeb38e9608117de66354028a7309e5b026dd6d9a24f487fc", size = 511152, upload-time = "2025-08-03T15:48:00.257Z" },
+    { url = "https://files.pythonhosted.org/packages/0a/f9/b5c7eb51bb73c102e331b7afdcb7413cb3e66418af4ad8910a19acf48caf/pygeoapi-0.24.0-py2.py3-none-any.whl", hash = "sha256:0ca8063121c19b86c90e896ed72758ce942be6c4a232062cc919ff7a8af36435", size = 599073, upload-time = "2026-07-28T12:12:15.854Z" },
 ]
 
 [[package]]
@@ -2552,7 +2552,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp", specifier = ">=1.45.1,<2" },
     { name = "pip", specifier = ">=26.3" },
     { name = "psycopg2", specifier = ">=2.9.11,<3" },
-    { name = "pygeoapi", specifier = ">=0.21,<0.22" },
+    { name = "pygeoapi", specifier = ">=0.21,<0.25" },
     { name = "s3fs", specifier = ">=2026.9.0" },
     { name = "sqlalchemy", specifier = ">=2.0.37,<3" },
     { name = "starlette", specifier = ">=1.4.1" },

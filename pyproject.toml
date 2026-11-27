@@ -36,7 +36,7 @@ classifiers = [
 requires-python = "==3.13.18"
 dependencies = [
     "dask[distributed]==2026.7.1",
-    "pygeoapi>=0.21,<0.22",
+    "pygeoapi>=0.21,<0.25",
     "flask>=3.1.1,<4", # for pygeoapi
     "uvicorn>=0.35.0",
     # prefect 3.8.x server is incompatible with fastapi >= 0.155 (Body(min_items=...) removed),
