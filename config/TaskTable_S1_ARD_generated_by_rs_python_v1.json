@@ -327,17 +327,6 @@
             "order": 1,
             "timeout_seconds": 0,
             "query": {
-              "name": "LatestValidity",
-              "parameters": {
-                "product_type": "MPL_ORBSCT",
-                "satellite": "{slcs.platform}"
-              }
-            }
-          },
-          {
-            "order": 2,
-            "timeout_seconds": 0,
-            "query": {
               "name": "LatestValCoverWithSatellite",
               "parameters": {
                 "product_type": "AUX_POEORB",
@@ -350,7 +339,7 @@
             }
           },
           {
-            "order": 3,
+            "order": 2,
             "timeout_seconds": 0,
             "query": {
               "name": "LatestValCoverWithSatellite",
@@ -365,12 +354,12 @@
             }
           },
           {
-            "order": 4,
+            "order": 3,
             "timeout_seconds": 0,
             "query": {
               "name": "LatestValCoverWithSatellite",
               "parameters": {
-                "product_type": "MPL_ORBRES",
+                "product_type": "AUX_RESORB",
                 "start_datetime": "{slcs.start_datetime}",
                 "end_datetime": "{slcs.end_datetime}",
                 "satellite": "{slcs.platform}",
@@ -380,12 +369,12 @@
             }
           },
           {
-            "order": 5,
+            "order": 4,
             "timeout_seconds": 0,
             "query": {
               "name": "LatestValCoverWithSatellite",
               "parameters": {
-                "product_type": "MPL_ORBPRE",
+                "product_type": "AUX_PREORB",
                 "start_datetime": "{slcs.start_datetime}",
                 "end_datetime": "{slcs.end_datetime}",
                 "satellite": "{slcs.platform}",
