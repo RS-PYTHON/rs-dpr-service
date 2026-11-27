@@ -21,6 +21,7 @@ to build the processor payloads, so that an inconsistent task table is caught he
 
 import json
 import re
+from collections import defaultdict
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -41,7 +42,8 @@ QUERY_PARAMETER_PATTERN = re.compile(r"^\{([^.{}]+)\}$")
 EXTERNAL_VARIABLE_PATTERN = re.compile(r"\{external_variable\.(\w+)\}")
 
 # Origin of a pipeline step input coming from another step: "unit.product" or "unit.step_id.product"
-STEP_ORIGIN_PATTERN = re.compile(r"^(?P<unit>[^.]+)(\.(?P<step_id>\d+))?\.(?P<product>[^.]+)$")
+STEP_ORIGIN_PATTERN = re.compile(r"(?P<unit>[^.]+)(?:\.(?P<step_id>[1-9][0-9]*))?\.(?P<product>.+)")
+STORE_ORIGIN_PREFIX = "pipeline_store."
 
 
 def _strings(obj: Any) -> Iterator[str]:
@@ -125,33 +127,53 @@ def check_external_variables(tasktable: dict) -> list[str]:
 
 
 def check_unit_products(tasktable: dict) -> list[str]:
-    """Each product of a unit is described in the matching "io" section."""
+    """Each product is described in "io", except inputs supplied only by other steps."""
     errors = []
     io_names = {section: {p["name"] for p in tasktable.get("io", {}).get(section, [])} for section in IO_SECTIONS}
+    input_origins: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for pipeline in tasktable.get("pipelines", []):
+        for step in pipeline["steps"]:
+            for name, origin in step.get("input_products", {}).items():
+                input_origins[step["unit_name"], name].add(origin)
 
     for unit in tasktable.get("units", []):
         for field, section in UNIT_IO_FIELDS.items():
-            errors += [
-                f"Unit '{unit['name']}' {field} '{product['name']}' is not described in io.{section}"
-                for product in unit.get(field, [])
-                if product["name"] not in io_names[section]
-            ]
+            for product in unit.get(field, []):
+                name = product["name"]
+                origins = input_origins.get((unit["name"], name))
+                if field == "input_products" and origins and "pipeline_input" not in origins:
+                    continue
+                if name not in io_names[section]:
+                    errors.append(f"Unit '{unit['name']}' {field} '{name}' is not described in io.{section}")
     return errors
 
 
 def _check_step_origins(pipeline: dict, step: dict, previous_steps: list[dict]) -> list[str]:
     """
-    Check that the step inputs come from the pipeline input or from a previous step. The product itself is not
-    checked: in lazy mode, the CPM keeps the intermediate products under the names returned by the processing
-    units, which do not have to be listed in the step outputs.
+    Check that inputs come from the pipeline input, a previous unit, or an earlier internal output.
+    Lazy product selectors do not have to match a declared output; the unit supplies the names at runtime.
     """
     errors = []
     for product_name, origin in step.get("input_products", {}).items():
         if origin == "pipeline_input":
             continue
         prefix = f"Pipeline '{pipeline['name']}' step {step['step_id']} input '{product_name}' origin '{origin}'"
-        if not (match := STEP_ORIGIN_PATTERN.match(origin)):
-            errors.append(f"{prefix} is neither 'pipeline_input' nor 'unit[.step_id].product'")
+        if origin.startswith(STORE_ORIGIN_PREFIX):
+            store_id, _, input_key = origin.removeprefix(STORE_ORIGIN_PREFIX).partition(".")
+            if not store_id or not input_key:
+                errors.append(f"{prefix} must use 'pipeline_store.output_id.input_key'")
+                continue
+            producers = [
+                earlier
+                for earlier in previous_steps
+                if earlier["step_id"] < step["step_id"]
+                and earlier.get("output_products", {}).get(store_id) == "pipeline_internal"
+            ]
+            if len(producers) != 1:
+                errors.append(f"{prefix} must reference exactly one earlier internal output")
+            continue
+        if not (match := STEP_ORIGIN_PATTERN.fullmatch(origin)):
+            errors.append(f"{prefix} is not 'pipeline_input', 'unit[.step_id].product' or a store reference")
             continue
         if not any(
             s["unit_name"] == match["unit"] and match["step_id"] in (None, str(s["step_id"])) for s in previous_steps
@@ -164,9 +186,11 @@ def check_pipeline_steps(tasktable: dict) -> list[str]:
     """
     Each pipeline step:
     - has a unique step_id in its pipeline and runs a defined unit,
-    - gives an origin to all the input and output products of its unit,
-    - gives no input product that its unit does not declare,
+    - gives an origin to exactly the inputs declared by its unit,
     - takes its inputs from the pipeline input or from a previous step.
+
+    The step selects which outputs to materialize, even when the unit declares
+    an output as mandatory. Unmapped outputs are not part of the payload.
     """
     errors = []
     units = {unit["name"]: unit for unit in tasktable.get("units", [])}
@@ -183,17 +207,50 @@ def check_pipeline_steps(tasktable: dict) -> list[str]:
                 errors.append(f"{prefix} runs an undefined unit")
                 continue
 
-            for field in ("input_products", "output_products"):
-                declared = {product["name"] for product in unit.get(field, [])}
-                if missing := declared - set(step.get(field, {})):
-                    errors.append(f"{prefix} gives no origin to the unit {field}: {sorted(missing)}")
-
             unit_inputs = {product["name"] for product in unit.get("input_products", [])}
-            if extra := set(step.get("input_products", {})) - unit_inputs:
+            step_inputs = set(step.get("input_products", {}))
+            if missing := unit_inputs - step_inputs:
+                errors.append(f"{prefix} gives no origin to the unit input_products: {sorted(missing)}")
+            if extra := step_inputs - unit_inputs:
                 errors.append(f"{prefix} gives input_products not declared by the unit: {sorted(extra)}")
 
             errors += _check_step_origins(pipeline, step, pipeline["steps"][:index])
     return errors
+
+
+@pytest.mark.parametrize(
+    "origin, writer, expected_error",
+    [
+        ("Producer.1..*", {}, None),
+        ("pipeline_store.snapshot.granule", {"snapshot": "pipeline_internal"}, None),
+        ("pipeline_store.snapshot.granule", {"snapshot": "pipeline_output"}, "earlier internal output"),
+        ("pipeline_store.snapshot", {"snapshot": "pipeline_internal"}, "output_id.input_key"),
+        ("Producer.3..*", {}, "does not match any previous step"),
+    ],
+)
+def test_step_input_origins(origin: str, writer: dict[str, str], expected_error: str | None):
+    """Accept valid lazy and store references and reject invalid origins."""
+    errors = _check_step_origins(
+        {"name": "test"},
+        {"step_id": 2, "input_products": {"products": origin}},
+        [{"unit_name": "Producer", "step_id": 1, "output_products": writer}],
+    )
+    if expected_error is None:
+        assert not errors
+    else:
+        assert len(errors) == 1 and expected_error in errors[0]
+
+
+def test_unit_input_used_externally_requires_io_description():
+    """Require an IO description when any pipeline uses the input externally."""
+    tasktable = {
+        "units": [{"name": "Consumer", "input_products": [{"name": "products"}]}],
+        "pipelines": [
+            {"steps": [{"unit_name": "Consumer", "input_products": {"products": origin}}]}
+            for origin in ("Producer.1..*", "pipeline_input")
+        ],
+    }
+    assert check_unit_products(tasktable) == ["Unit 'Consumer' input_products 'products' is not described in io.input"]
 
 
 CHECKS: list[Callable[[dict], list[str]]] = [
